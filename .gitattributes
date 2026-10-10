@@ -1,0 +1,22 @@
+# Normalize text files to LF in both the repository and the working tree.
+# 文本文件在仓库与工作区统一为 LF 行尾。
+# Keeps Prettier (endOfLine: lf) and ESLint stable on Windows checkouts.
+# 保证 Prettier 与 ESLint 在 Windows 检出下行为稳定。
+* text=auto eol=lf
+
+# Windows-specific scripts must keep CRLF / Windows 专用脚本保持 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files — never touch line endings / 二进制文件 —— 不做行尾处理
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.woff binary
+*.woff2 binary
+*.db binary
+*.sqlite binary

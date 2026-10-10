@@ -1,0 +1,32 @@
+# Dependencies / 依赖
+node_modules/
+
+# Build outputs / 构建产物
+dist/
+*.tsbuildinfo
+
+# Runtime data (SQLite, Markdown notes, uploads) — never commit real data
+# 运行数据(SQLite、笔记、上传文件)—— 正式数据永不入库
+data/*
+!data/.gitkeep
+
+# Environment & secrets / 环境变量与密钥
+.env
+.env.*
+!.env.example
+
+# Test & coverage artifacts / 测试与覆盖率产物
+coverage/
+
+# Logs / 日志
+*.log
+pnpm-debug.log*
+
+# OS junk / 系统垃圾文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors / 编辑器
+.idea/
+.vscode/
