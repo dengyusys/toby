@@ -26,7 +26,7 @@ Toby 是自托管个人助手(定位:像贴身书童,记录日程、笔记,管�
 - **AGENTS.md / CONTRIBUTING.md 双语**:英文为主 + `.zh.md` 中文版,顶部互链 —— 已完成
 - **单文件配置注释中英双语**:无法出 `.zh` 版本的文件(`.gitignore`、`.gitattributes`、`.editorconfig`、`.npmrc`、`.env.example`、后续 `commitlint/eslint` 等配置)注释一律双语 —— 已完成存量五个;JSON 类无法写注释的除外
 - **PR 模板中英双语**:`PULL_REQUEST_TEMPLATE.md` GitHub 仅认单文件,内容双语;Issue 模板允许多文件、保持中文
-- 项目文档(docs/):中文(自用阅读友好;如需改英文请审阅时注明)
+- 项目文档(docs/):英文为主(`.md`)+ `.zh.md` 中文对照,与 README 同构
 - PR 标题遵循提交规范(英文)
 
 ## 目标文件树(骨架完成形态)
@@ -160,6 +160,6 @@ CI:首个 PR 四项检查全绿后 squash 合并。
 
 ## 待审阅的开放问题
 
-1. 项目文档(docs/)语言:目前定为中文,提交与代码注释英文 —— 如需文档也改英文请注明
+1. 项目文档(docs/)语言:已定 —— 英文为主 + `.zh.md` 中文对照,与 README 同构
 2. GitHub 仓库名默认 `toby`、私有;如需公开或改名请注明
 3. Rulesets 分支保护需要 GitHub Pro(私有仓库);Free 账号则退化为纪律约束
