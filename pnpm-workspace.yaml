@@ -1,0 +1,15 @@
+# Workspace members: server app, two web apps, shared packages.
+# 工作区成员:服务端、双 Web 应用、共享包。
+packages:
+  - apps/*
+  - packages/*
+
+# Native build-script allowlist — pnpm blocks postinstall scripts unless listed here.
+# 原生构建脚本白名单 —— 未列出的包 pnpm 会阻止其 postinstall 脚本。
+# Hooks install via the repo's own "prepare" script, so the package's redundant
+# postinstall stays blocked.
+# 钩子由仓库自身的 "prepare" 脚本安装,该包冗余的 postinstall 保持阻断。
+allowBuilds:
+  esbuild: true
+  better-sqlite3: true
+  simple-git-hooks: false

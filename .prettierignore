@@ -1,0 +1,6 @@
+# Generated / runtime artifacts Prettier must not touch
+# Prettier 不处理的生成与运行时产物
+pnpm-lock.yaml
+data/
+dist/
+coverage/
