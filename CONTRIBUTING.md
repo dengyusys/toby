@@ -41,6 +41,7 @@ chore(deps): bump dependencies
 
 - Common types: `feat` / `fix` / `docs` / `chore` / `refactor` / `test` / `ci` / `build`
 - Common scopes: `server` / `web` / `web-mobile` / `contract` / `ui` / `repo` / `tooling` / `deps`
+- Commits are a single subject line: no body paragraphs, no trailers such as Co-Authored-By.
 - A commit-msg hook validates the format; non-conforming commits are rejected.
 
 ## Branches and PRs

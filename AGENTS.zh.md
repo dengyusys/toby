@@ -67,6 +67,7 @@
 - AI 不自行 commit、push 或改写历史:先给用户看确切改动和完整提交信息,得到明确批准再动手。批准计划不等于批准单笔提交。
 - 动手前先跑 `git status --short`——工作区里别人的改动,不碰也不回退。
 - 提交信息与代码注释用**英文**;Conventional Commits,scope 用英文域名(如 `feat(schedule): add month view`)。
+- 提交信息只留一行标题:不写正文段落,不加 Co-Authored-By 之类尾注。
 - 一切进 `main` 的改动走 PR:特性分支 → 四项 CI 检查(lint / typecheck / test / docker)全绿 → squash 合并。
 - 契约变了才更新 `docs/features/` 对应文档,纯实现细节变化不用碰;架构变化伴随 `docs/decisions/` 新 ADR;进度以提交历史为准。
 

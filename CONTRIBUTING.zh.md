@@ -41,6 +41,7 @@ chore(deps): bump dependencies
 
 - 常用 type:`feat` / `fix` / `docs` / `chore` / `refactor` / `test` / `ci` / `build`
 - 常用 scope:`server` / `web` / `web-mobile` / `contract` / `ui` / `repo` / `tooling` / `deps`
+- 提交信息只留一行标题:不写正文段落,不加 Co-Authored-By 之类尾注。
 - commit-msg 钩子会校验格式,不合规则无法提交。
 
 ## 分支与 PR
