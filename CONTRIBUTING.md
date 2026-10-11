@@ -19,12 +19,12 @@ pnpm run dev      # dev environment: server 8629 + web 8630 + web-mobile 8631
 
 ## Pre-commit checks
 
-| Command | What it does |
-| --- | --- |
-| `pnpm run check` | Full check: typecheck / lint / format / test — this one command is enough before committing |
-| `pnpm run typecheck` | Type checks only |
-| `pnpm run lint` | ESLint only (including boundary rules) |
-| `pnpm run test` | Tests only (per-package + root HTTP integration tests) |
+| Command              | What it does                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------- |
+| `pnpm run check`     | Full check: typecheck / lint / format / test — this one command is enough before committing |
+| `pnpm run typecheck` | Type checks only                                                                            |
+| `pnpm run lint`      | ESLint only (including boundary rules)                                                      |
+| `pnpm run test`      | Tests only (per-package + root HTTP integration tests)                                      |
 
 The "what you changed is what you run" table lives in [AGENTS.md](AGENTS.md).
 
@@ -53,4 +53,4 @@ chore(deps): bump dependencies
 ## Further rules
 
 - Code boundaries, data discipline, test discipline: [AGENTS.md](AGENTS.md) ([中文](AGENTS.zh.md))
-- Architecture and per-domain contracts: [docs/README.md](docs/README.md)
+- Architecture: [docs/system-overview.md](docs/system-overview.md); per-domain contracts: [docs/features/](docs/features/)

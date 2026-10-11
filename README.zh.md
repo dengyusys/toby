@@ -6,7 +6,7 @@
 
 Toby 是自托管、单用户的个人助手,像一位贴身书童——帮你把日程、笔记和项目文件打理得井井有条。在一个对话框里用自然语言吩咐,AI 把你的话变成**结构化受限提案**,你核对后明确确认,服务端才执行确定性写入——确认之前,一个字节都不会落库。
 
-> **当前状态:框架搭建阶段。** 先立骨架(monorepo、服务端、CI、Docker),功能以经过 review 的 PR 逐步交付,见 [PLAN.md](PLAN.md)。
+> **当前阶段:框架搭建。** 骨架与服务端优先,功能逐步上线,见 [PLAN.md](PLAN.md)。
 
 ## 快速开始
 
@@ -23,16 +23,16 @@ docker compose up -d --build
 ```
 
 - 框架阶段无需配置 AI 密钥;AI 提供商配置随对话域一起到来。
-- 服务端默认只绑定 `127.0.0.1` —— 它属于你的机器,不对公网开放。
 
 ## 文档
 
-- [docs/README.md](docs/README.md) —— 文档总入口
-- [docs/product-overview.md](docs/product-overview.md) —— 定位、范围与路线图
+- [docs/product-overview.md](docs/product-overview.md) —— 产品介绍(面向用户)
 - [docs/system-overview.md](docs/system-overview.md) —— 系统架构
+- [docs/features/](docs/features/) —— 各域目标契约
+- [docs/decisions/](docs/decisions/) —— 架构决策记录(ADR)
 - [CONTRIBUTING.zh.md](CONTRIBUTING.zh.md)([英文](CONTRIBUTING.md))—— 贡献指南
 - [AGENTS.zh.md](AGENTS.zh.md)([英文](AGENTS.md))—— AI 编码代理工作规则
-- [PLAN.md](PLAN.md) —— 框架搭建计划(审阅中)
+- [PLAN.md](PLAN.md) —— 框架搭建计划
 
 ## 许可证
 

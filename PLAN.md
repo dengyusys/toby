@@ -1,6 +1,6 @@
 # Toby 重构框架搭建计划
 
-> 状态:待审阅,未实施。审阅后按此执行。
+> 状态:bootstrap 已完成(根配置 + 工具链已提交);待办:推送远端、建 GitHub 仓库与 Rulesets,随后进入三个框架 PR。
 
 ## 背景(Context)
 
@@ -44,7 +44,6 @@ toby/
 ├── LICENSE                       # MIT(版权行:dengyusys, 2026)—— 已完成
 ├── AGENTS.md + AGENTS.zh.md     # AI 代理指南(英文 + 中文,互链)—— 已完成
 ├── CONTRIBUTING.md + CONTRIBUTING.zh.md  # 贡献指南(英文 + 中文,互链)—— 已完成
-├── CLAUDE.md                    # 薄指向:仅 @AGENTS.md 导入,不重复内容
 ├── README.md + README.zh.md    # 双语 README(英文 + 中文,互链)—— 已完成
 ├── .github/                     # CODEOWNERS dependabot.yml PULL_REQUEST_TEMPLATE.md
 │   └── ISSUE_TEMPLATE/          # config.yml bug_report.yml feature_request.yml
@@ -74,53 +73,63 @@ toby/
 ## 关键设计
 
 ### 1. 走通骨架:system 域(长期保留)
+
 - `GET /api/system/health` → `{"status":"ok"}`;`GET /api/system/info` → name/version/node/started_at/uptime_seconds
 - 错误同构包络 `{"error":{code,message}}`;404 PAGE_NOT_FOUND、405 甄别
 - **每层有测试**:server(app.inject)、contract(stub fetch)、ui(渲染冒烟)、双 web(健康页断言)、根 HTTP 集成测试 → CI 全绿即框架成立
 - `main.ts` 组合根保持"每域一行装配",后续业务域 PR 只是加行
 
 ### 2. packages/ui(shadcn source-in-repo)
+
 - `exports` 直指 `src/*.tsx` 源码(无构建),peerDeps react 19
 - `components.json` aliases 用 `@toby/ui/*` 子路径自引用(避免与 app 的 `@/` 别名撞车),后续 `pnpm --filter @toby/ui exec shadcn add <组件>` 即双端可用
 - Tailwind v4 主题唯一真相在 `packages/ui/src/theme.css`;app 的 index.css `@import "@toby/ui/theme.css"` + `@source "../node_modules/@toby/ui"`(v4 默认不扫 node_modules)
 - 验证:`pnpm build` 后 dist CSS 含按钮类
 
 ### 3. ESLint 边界纪律(数据驱动白名单,裁剪自旧项目)
+
 - `DOMAIN_ALLOWED` 表:域互不导入,新域登记一行自动生成规则
 - 基础设施禁导入域(装配只在 main.ts 与各域 module.ts);域内 types.ts 纯净(禁 fastify/infrastructure/node:)
 - 双 web 互不导入,共享仅经 `@toby/contract` 与 `@toby/ui`;前端包禁导入 `@toby/server`;`packages/ui` 禁 fastify/node:/apps/**
 
 ### 4. 工具链
+
 - Prettier(endOfLine lf)+ commitlint(config-conventional,英文主题开箱即用)+ **simple-git-hooks + lint-staged**(prepare 自动装钩子)
 - 钩子:pre-commit → eslint --fix + prettier;commit-msg → commitlint
 
 ### 5. GitHub(gh CLI 创建私有仓库 toby,默认分支 main)
+
 - `git branch -m master main` → 首提交 → `gh repo create toby --private --source . --push`
 - 分支保护用 **Rulesets**(solo 开发者不能批准自己的 PR,required_approving_review_count=0 + 四项 required status checks + 禁 force push/deletion);私有仓库保护需 Pro,Free 则退化为纪律约束并记入 docs
 - ci.yml:push main / PR 触发;四 job(lint 含 PR 上的 commitlint --from base、typecheck、test、docker build);concurrency 取消旧跑
 - dependabot:npm 周更全量分组(前缀 `chore(deps): `)+ docker + actions;CODEOWNERS `* @dengyusys`
-- Wiki:docs-as-code 优先,docs/ 内容后续手动同步 Wiki(记录在 docs/README.md)
+- Wiki:docs-as-code 优先,docs/ 内容后续手动同步 Wiki(记录在根 README)
 
 ### 6. Docker
+
 - 多阶段:build 阶段 pnpm install --frozen-lockfile → pnpm build → `pnpm --filter @toby/server deploy --prod /pruned`;运行阶段 node:22-bookworm-slim,保留 monorepo 相对布局(`node apps/server/src/main.ts`),ENV TOBY_HOST=0.0.0.0
 - **预案**:pnpm deploy 产物异常则退级 COPY 全量 node_modules,实测拍板记入 docs
 - compose:服务名 `server`(镜像 toby)、端口只绑 127.0.0.1:8629、`./data:/app/data` 卷、healthcheck 打 /api/system/health、env_file 可选
 - .dockerignore 必含 `**/dist`(镜像内重新构建)
 
 ### 7. 版本要点(沿用旧项目实测组合)
+
 fastify ^5.12.3、@fastify/static ^10.1.3、better-sqlite3 ^13.0.3、zod ^4.6.4、pino ^10.1.0、react 19、vite 6、@tailwindcss/vite ^4.3.3、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。**不引入**:openai、sqlite-vec、Python(随业务域 PR 进)
 
-### 8. AGENTS.md(英文 + 中文)—— 已完成;CLAUDE.md 为薄指向(@AGENTS.md)
-一分钟看懂(定位+双 mermaid 图,提案管线标注预留)/ 表达规范(阅读障碍友好的短句结构)/ 动手前四件事 / 铁律(数据只有服务端能写、SHA-256 纪律、写路径必须走提案管线、密钥不进仓库、代码边界、**提交与注释用英文**)/ 命令表 / 改什么跑什么
+### 8. AGENTS.md(英文 + 中文)—— 已完成(不设 CLAUDE.md,AI 规则统一走 AGENTS.md)
+
+按业界共识的标准章节组织:项目简介(两三行 + 指向 README/docs)/ 命令表 / 测试约定(含"改什么跑什么")/ 目录结构(含边界纪律)/ 代码风格 / Git 工作流(含"AI 未经审批不得提交"铁律)/ 边界与安全。架构叙事(mermaid 图、提案管线流程)只在 docs/system-overview.md,不进 AGENTS.md。
 
 ## 提交序列(实践规范工作流)
 
 main 直接 bootstrap(保护规则生效前的鸡生蛋问题):
+
 1. `chore(repo): initialize pnpm workspace and root configs` → 推送、建远端、设 Rulesets
 2. `chore(tooling): add ESLint boundary rules, commitlint and git hooks`
 3. `docs(architecture): establish documentation skeleton and project rules`
 
 随后走 PR + squash merge(main 一 PR 一提交):
+
 - PR1 `feat/framework-server`:④ `feat(server): Fastify app factory and infrastructure skeleton` ⑤ `feat(system): walking-skeleton domain with health endpoints` ⑥ `feat(contract): pure contract package with system client`
 - PR2 `feat/framework-web`:⑦ `feat(ui): shared component package with dual-app theme` ⑧ `feat(web): minimal web and web-mobile skeletons with health page`
 - PR3 `chore/ci-docker`:⑨ `chore(dev): dev orchestration script and root integration tests` ⑩ `ci(collaboration): Actions pipeline, dependabot and templates` + `build(deploy): Docker image and compose stack`
@@ -151,6 +160,6 @@ CI:首个 PR 四项检查全绿后 squash 合并。
 
 ## 待审阅的开放问题
 
-1. 项目文档(docs/CLAUDE.md)语言:目前定为中文,提交与代码注释英文 —— 如需文档也改英文请注明
+1. 项目文档(docs/)语言:目前定为中文,提交与代码注释英文 —— 如需文档也改英文请注明
 2. GitHub 仓库名默认 `toby`、私有;如需公开或改名请注明
 3. Rulesets 分支保护需要 GitHub Pro(私有仓库);Free 账号则退化为纪律约束

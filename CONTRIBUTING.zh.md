@@ -19,12 +19,12 @@ pnpm run dev      # 开发环境:server 8629 + web 8630 + web-mobile 8631
 
 ## 提交前检查
 
-| 命令 | 干什么 |
-| --- | --- |
-| `pnpm run check` | 全量检查:typecheck / lint / format / test,提交前跑这一个就够 |
-| `pnpm run typecheck` | 仅类型检查 |
-| `pnpm run lint` | 仅 ESLint(含域边界纪律) |
-| `pnpm run test` | 仅测试(各包 + 根 HTTP 集成测试) |
+| 命令                 | 干什么                                                       |
+| -------------------- | ------------------------------------------------------------ |
+| `pnpm run check`     | 全量检查:typecheck / lint / format / test,提交前跑这一个就够 |
+| `pnpm run typecheck` | 仅类型检查                                                   |
+| `pnpm run lint`      | 仅 ESLint(含域边界纪律)                                      |
+| `pnpm run test`      | 仅测试(各包 + 根 HTTP 集成测试)                              |
 
 「改了什么就跑什么」的对照表见 [AGENTS.zh.md](AGENTS.zh.md)。
 
@@ -53,4 +53,4 @@ chore(deps): bump dependencies
 ## 更多规则
 
 - 代码边界、数据纪律、测试纪律:[AGENTS.zh.md](AGENTS.zh.md)([英文](AGENTS.md))
-- 架构与各域契约:[docs/README.md](docs/README.md)
+- 架构:[docs/system-overview.zh.md](docs/system-overview.zh.md);各域契约:[docs/features/](docs/features/)

@@ -2,21 +2,21 @@
 
 English | [简体中文](system-overview.zh.md)
 
-> Status: Active (target shape)
->
-> Created: 2026-10-10
->
-> Related modules: all
->
-> Current phase: framework, no code yet. This document describes the target architecture; implementation details live in code and tests.
->
-> Update discipline: this document changes only at ADR points (new domain, restructuring, process or dependency-direction change); changes without an ADR do not touch it.
-
 ## Purpose
 
 This document describes the repository's **module boundaries**, running processes, data flow, and dependency directions, at domain and process granularity.
 
 Three documents, three layers: product scope is owned by the [Product Overview](product-overview.md); per-domain contracts and acceptance by the `docs/features/` docs; implementation details by code and tests.
+
+## Stack
+
+| Layer    | Choice                                                                    |
+| -------- | ------------------------------------------------------------------------- |
+| Runtime  | Node 22.23.2, runs `.ts` directly, no build step                          |
+| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                         |
+| Server   | Fastify 5 + better-sqlite3 + pino + zod                                   |
+| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`) |
+| Tests    | vitest + happy-dom + @testing-library                                     |
 
 ## System context
 
@@ -59,11 +59,13 @@ test/             # root HTTP integration tests
 
 `pnpm run dev` is orchestrated by `scripts/dev.js`: the server starts first; once ready it launches the two Vite dev servers. Vite exists only in dev — pages, hot reload, and the `/api` proxy; production has no Vite process.
 
-| App | Dev process | Address | Role |
-| --- | --- | --- | --- |
-| Web (PC) | Vite | `127.0.0.1:8630` | Pages and hot reload; proxies `/api` to the server |
-| Mobile web | Vite | `127.0.0.1:8631` | Mobile pages and hot reload (entry `/m/`) |
-| server | itself | `127.0.0.1:8629` | APIs and business domains (same port in dev and production) |
+| App        | Dev process | Address          | Role                                                        |
+| ---------- | ----------- | ---------------- | ----------------------------------------------------------- |
+| Web (PC)   | Vite        | `127.0.0.1:8630` | Pages and hot reload; proxies `/api` to the server          |
+| Mobile web | Vite        | `127.0.0.1:8631` | Mobile pages and hot reload (entry `/m/`)                   |
+| server     | itself      | `127.0.0.1:8629` | APIs and business domains (same port in dev and production) |
+
+The ports form the 8629 block — 8629 spells TOBY on a T9 keypad.
 
 ### Production or local preview
 
