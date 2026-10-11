@@ -27,11 +27,13 @@ const PURE_TYPES = {
     "domain types.ts must stay pure: no fastify, infrastructure or node: imports",
 };
 
-// Domains never reach into HTTP assembly internals; assembly happens only in
-// main.ts and each domain's module.ts.
-// 域内不得导入 HTTP 装配内部模块;装配只发生在 main.ts 与各域 module.ts。
+// Domains never reach into HTTP assembly internals (app factory, error
+// handler, static assets). The shared contract, response writer and mount
+// type stay importable — domains build routes against them.
+// 域内不得导入 HTTP 装配内部模块(app 工厂、错误处理器、静态资源);
+// 共享契约、响应写出与挂载类型可导入——域路由依据它们构建。
 const ASSEMBLY = {
-  regex: "infrastructure/http/",
+  regex: "infrastructure/http/(app|error-handler|static-assets)",
   message:
     "domains must not import HTTP assembly internals (assembly lives in main.ts and domain module.ts files)",
 };
@@ -79,6 +81,7 @@ function domainBoundary(domain) {
     ...allowed.map((target) => `${target}/`),
     "\\.\\.",
     "infrastructure",
+    "utils",
   ].join("|");
   const prefixExceptions = [...allowed.map((target) => `${target}/`), "$"].join(
     "|",
@@ -276,5 +279,18 @@ export default defineConfig(
   // No exceptions: infrastructure has zero imports from business domains.
   // 无例外:基础设施对业务域零导入。
   forbid(["apps/server/src/infrastructure/**/*.ts"], [NO_DOMAIN_IMPORTS]),
+  // utils stays a leaf: shared low-level helpers never reach back into
+  // domains or infrastructure.
+  // utils 保持叶子:共享底层助手不回导入域或基础设施。
+  forbid(
+    ["apps/server/src/utils/**/*.ts"],
+    [
+      {
+        regex: "(domains/|infrastructure/)",
+        message:
+          "utils stays a leaf: no domain or infrastructure imports (they import utils, never the other way)",
+      },
+    ],
+  ),
   eslintConfigPrettier,
 );
