@@ -7,18 +7,20 @@
 import { resolveConfig } from "./infrastructure/config/config.ts";
 import { getLogger } from "./infrastructure/logging/logger.ts";
 import { createServer } from "./infrastructure/http/app.ts";
+import { assembleSystem } from "./domains/system/module.ts";
 
 async function main(): Promise<void> {
   const config = resolveConfig();
   const logger = getLogger(config);
 
   // One line per domain; later domains only add lines here.
+  const system = assembleSystem();
 
   const app = createServer({
     webRoot: config.paths.webRoot,
     mobileWebRoot: config.paths.mobileWebRoot,
     logger,
-    domains: [],
+    domains: [system],
   });
 
   try {
