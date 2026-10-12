@@ -24,7 +24,7 @@ Toby 是自托管个人助手(定位:像贴身书童,记录日程、笔记,管�
 - **代码注释:英文**
 - **README 双语**:`README.md`(英文)+ `README.zh.md`(中文),顶部互链 —— 已完成
 - **AGENTS.md / CONTRIBUTING.md 双语**:英文为主 + `.zh.md` 中文版,顶部互链 —— 已完成
-- **单文件配置注释中英双语**:无法出 `.zh` 版本的文件(`.gitignore`、`.gitattributes`、`.editorconfig`、`.npmrc`、`.env.example`、后续 `commitlint/eslint` 等配置)注释一律双语 —— 已完成存量五个;JSON 类无法写注释的除外
+- **单文件配置注释中英双语**:无法出 `.zh` 版本的文件(`.gitignore`、`.gitattributes`、`.editorconfig`、`.npmrc`、`.env.example`、后续 `commitlint/eslint` 等配置)注释一律双语,且**同一段注释英文块完整在前、中文块完整在后,不逐行穿插** —— 已完成存量五个;JSON 类无法写注释的除外
 - **PR 模板中英双语**:`PULL_REQUEST_TEMPLATE.md` GitHub 仅认单文件,内容双语;Issue 模板允许多文件、保持中文
 - 项目文档(docs/):英文为主(`.md`)+ `.zh.md` 中文对照,与 README 同构
 - PR 标题遵循提交规范(英文)
@@ -113,7 +113,7 @@ toby/
 
 ### 7. 版本要点(沿用旧项目实测组合)
 
-fastify ^5.12.3、@fastify/static ^10.1.3、better-sqlite3 ^13.0.3、zod ^4.6.4、pino ^10.1.0、react 19、vite 6、@tailwindcss/vite ^4.3.3、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。**不引入**:openai、sqlite-vec、Python(随业务域 PR 进)
+fastify ^5.12.3、@fastify/static ^10.1.3、better-sqlite3 ^13.0.3、zod ^4.6.4、pino ^10.1.0、react 19、vite 6、@tailwindcss/vite ^4.3.3、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。版本单一真相关在 `pnpm-workspace.yaml` 的 `catalog`,各 package.json 以 `"catalog:"` 引用。**不引入**:openai、sqlite-vec、Python(随业务域 PR 进)
 
 ### 8. AGENTS.md(英文 + 中文)—— 已完成(不设 CLAUDE.md,AI 规则统一走 AGENTS.md)
 
