@@ -2,7 +2,7 @@
 
 [English](CONTRIBUTING.md) | 简体中文
 
-感谢参与 Toby 的开发。本项目走规范的 PR 工作流,动手前请花两分钟读完本文。
+感谢参与 Toby 的开发。这是单人项目——改动以直接 push 进 `main` 落地,门禁是本地检查全绿。动手前请花两分钟读完本文。
 
 ## 开发环境
 
@@ -44,12 +44,12 @@ chore(deps): bump dependencies
 - 提交信息只留一行标题:不写正文段落,不加 Co-Authored-By 之类尾注。
 - commit-msg 钩子会校验格式,不合规则无法提交。
 
-## 分支与 PR
+## 分支与落地
 
-- `main` 受保护:一切改动走 PR,四项 CI 检查(lint / typecheck / test / docker)全绿后 **squash 合并**;PR 标题即最终提交信息,遵循上面的提交规范。
-- 分支命名:`feat/<scope>-<主题>`、`fix/<主题>`、`chore/<主题>`、`docs/<主题>`,如 `feat/framework-server`。
-- PR 请按模板填写:变更说明、契约影响(改了哪份 `docs/features/*.md`)、验证清单。
-- 缺陷与新功能先开 Issue(bug / feature 模板),PR 关联对应 Issue。
+- 改动直接 push 进 `main`:推之前先跑 `pnpm run check`,必须全绿。CI 在每次 push 后跑同样四项检查,作为事后保险。
+- 分支命名(本地实验用):`feat/<scope>-<主题>`、`fix/<主题>`、`chore/<主题>`、`docs/<主题>`,如 `feat/framework-server`。
+- 仅有的 PR 是 dependabot 的依赖升级——过目后一键合并(或手工套用)。
+- 缺陷与新功能先开 Issue(bug / feature 模板);有帮助时在提交信息里关联 Issue。
 
 ## 更多规则
 

@@ -32,7 +32,7 @@ flowchart LR
 - The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** (the pipeline is an architectural reservation, landing with the first business domain).
 - The AI receives field values only — no tools, no paths, no data contents.
 - Root `scripts/` only orchestrates dev and multi-process startup; it never touches data.
-- The nine business domains (chat, greeting, schedule, ledger, notes, todo, memory, library, proposals) land one PR at a time; each establishes its contract doc in `docs/features/` on arrival.
+- The nine business domains (chat, greeting, schedule, ledger, notes, todo, memory, library, proposals) land one at a time; each establishes its contract doc in `docs/features/` on arrival.
 
 ## Repository layout
 

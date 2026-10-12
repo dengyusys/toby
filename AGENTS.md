@@ -68,7 +68,7 @@ If one change touches several rows, run all the checks those rows list.
 - Run `git status --short` before starting — never touch or revert uncommitted changes that are not yours.
 - Commit messages and code comments in **English**; Conventional Commits with English scopes (e.g. `feat(schedule): add month view`).
 - Commits are a single subject line: no body paragraphs, no trailers such as Co-Authored-By.
-- Everything merged into `main` goes through a PR: feature branch → all four CI checks (lint / typecheck / test / docker) green → squash merge.
+- Changes land on `main` by direct push: run `pnpm run check` locally and make it green before pushing. CI runs the same four checks on every push as a post-hoc safety net; dependabot's upgrade PRs are the only PRs.
 - Update the matching `docs/features/` document only when a contract changes; pure implementation changes do not touch it. Architecture changes come with a new ADR in `docs/decisions/`. Progress is tracked by commit history.
 
 ## Boundaries and security

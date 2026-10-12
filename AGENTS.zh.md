@@ -68,7 +68,7 @@
 - 动手前先跑 `git status --short`——工作区里别人的改动,不碰也不回退。
 - 提交信息与代码注释用**英文**;Conventional Commits,scope 用英文域名(如 `feat(schedule): add month view`)。
 - 提交信息只留一行标题:不写正文段落,不加 Co-Authored-By 之类尾注。
-- 一切进 `main` 的改动走 PR:特性分支 → 四项 CI 检查(lint / typecheck / test / docker)全绿 → squash 合并。
+- 改动直接 push 进 `main`:推之前本地 `pnpm run check` 必须全绿。CI 在每次 push 后跑同样四项检查,作为事后保险;dependabot 的升级 PR 是仅有的 PR。
 - 契约变了才更新 `docs/features/` 对应文档,纯实现细节变化不用碰;架构变化伴随 `docs/decisions/` 新 ADR;进度以提交历史为准。
 
 ## 边界与安全

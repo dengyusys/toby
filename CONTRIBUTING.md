@@ -2,7 +2,7 @@
 
 English | [简体中文](CONTRIBUTING.zh.md)
 
-Thanks for contributing to Toby. This project runs a disciplined PR workflow — please take two minutes to read this before you start.
+Thanks for contributing to Toby. This is a solo project — changes land on `main` by direct push, gated by a green local check. Please take two minutes to read this before you start.
 
 ## Development environment
 
@@ -44,12 +44,12 @@ chore(deps): bump dependencies
 - Commits are a single subject line: no body paragraphs, no trailers such as Co-Authored-By.
 - A commit-msg hook validates the format; non-conforming commits are rejected.
 
-## Branches and PRs
+## Branches and landing changes
 
-- `main` is protected: all changes go through a PR; all four CI checks (lint / typecheck / test / docker) must pass; **squash merge**. The PR title becomes the final commit message and follows the conventions above.
-- Branch naming: `feat/<scope>-<topic>`, `fix/<topic>`, `chore/<topic>`, `docs/<topic>` — e.g. `feat/framework-server`.
-- Fill in the PR template: change summary, contract impact (which `docs/features/*.md` changed), verification checklist.
-- Open an issue first (bug / feature templates) and link it from the PR.
+- Changes land on `main` by direct push: run `pnpm run check` first — it must be green. CI runs the same four checks on every push as a post-hoc safety net.
+- Branch naming (for local experiments): `feat/<scope>-<topic>`, `fix/<topic>`, `chore/<topic>`, `docs/<topic>` — e.g. `feat/framework-server`.
+- The only PRs are dependabot's dependency upgrades — review and merge with one click (or apply manually).
+- Bugs and features start with an issue (bug / feature templates); reference it from the commit when useful.
 
 ## Further rules
 
