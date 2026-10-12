@@ -132,7 +132,7 @@ export default defineConfig(
   // app goes only through @toby/contract (pure logic); components and styles
   // are owned by each app and never shared.
   {
-    files: ["apps/web/src/**/*.{ts,tsx}"],
+    files: ["apps/web/**/*.{ts,tsx}"],
     languageOptions: {
       globals: { ...globals.browser },
     },
@@ -169,7 +169,7 @@ export default defineConfig(
   // Mobile web app: mirror of the PC app's rules.
   // 移动端 Web 应用:与 PC 端规则互为镜像。
   {
-    files: ["apps/web-mobile/src/**/*.{ts,tsx}"],
+    files: ["apps/web-mobile/**/*.{ts,tsx}"],
     languageOptions: {
       globals: { ...globals.browser },
     },
@@ -196,14 +196,6 @@ export default defineConfig(
           ],
         },
       ],
-    },
-  },
-  // Component render tests (vitest + happy-dom) run in a browser-like sandbox.
-  // 组件渲染测试运行在模拟浏览器环境。
-  {
-    files: ["apps/web/test/**/*.tsx", "apps/web-mobile/test/**/*.tsx"],
-    languageOptions: {
-      globals: { ...globals.browser },
     },
   },
   // @toby/contract: pure TypeScript, zero JSX, fetch-based. No React, no UI kit.
