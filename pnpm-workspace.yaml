@@ -1,20 +1,81 @@
-# Workspace members: server app, two web apps, shared packages.
-# 工作区成员:服务端、双 Web 应用、共享包。
+# Toby pnpm workspace: members, native build allowlist and the version
+# catalog. Package.json files reference catalog versions with "catalog:" so
+# every app and package builds against one tested combination (the version
+# matrix in PLAN.md).
+#
+# Toby pnpm 工作区:成员、原生构建白名单与版本 catalog。各 package.json
+# 以 "catalog:" 引用 catalog 版本,所有应用与包构建在同一套实测组合上
+# (即 PLAN.md 的版本要点)。
+
 packages:
   - apps/*
   - packages/*
 
-# Native build-script allowlist — pnpm blocks postinstall scripts unless listed here.
-# 原生构建脚本白名单 —— 未列出的包 pnpm 会阻止其 postinstall 脚本。
-# better-sqlite3 ships platform prebuilds inside its npm tarball (prebuilds/),
-# so its install script (GitHub download -> local compile) is blocked on purpose:
-# the bundled win32-x64/linux-x64 prebuilds load directly and no toolchain is needed.
-# better-sqlite3 的预编译二进制随 npm 包发布(prebuilds/ 目录),其安装脚本
-# (连 GitHub 下载 -> 本地编译)被有意阻断:内置预编译直接加载,无需工具链。
-# Hooks install via the repo's own "prepare" script, so the package's redundant
-# postinstall stays blocked.
-# 钩子由仓库自身的 "prepare" 脚本安装,该包冗余的 postinstall 保持阻断。
+# pnpm blocks postinstall scripts unless allowlisted below. better-sqlite3
+# ships platform prebuilds inside its npm tarball (prebuilds/), so its install
+# script (GitHub download -> local compile) is blocked on purpose: the bundled
+# win32-x64/linux-x64 prebuilds load directly and no toolchain is needed.
+# Git hooks install via the repo's own "prepare" script, so the package's
+# redundant postinstall stays blocked too.
+#
+# pnpm 会阻止未列入白名单的 postinstall 脚本。better-sqlite3 的预编译
+# 二进制随 npm 包发布(prebuilds/ 目录),其安装脚本(连 GitHub 下载 ->
+# 本地编译)被有意阻断:内置预编译直接加载,无需工具链。Git 钩子由仓库
+# 自身的 "prepare" 脚本安装,该包冗余的 postinstall 同样保持阻断。
+
 allowBuilds:
   esbuild: true
   better-sqlite3: false
   simple-git-hooks: false
+
+# Version table for the whole workspace. Groups run web runtime -> web build
+# -> server -> testing -> language & types; inside a group the core framework
+# comes first, peripheral packages after.
+#
+# 全工作区版本表。分组顺序:前端运行时 → 前端构建 → 服务端 → 测试 →
+# 语言与类型;组内核心框架在前,外围包在后。
+
+catalog:
+  # Web runtime — bundled into the two SPA apps.
+  # 前端运行时 —— 打包进双 SPA 应用。
+  react: ^19.0.0
+  react-dom: ^19.0.0
+  react-router: ^8.3.1
+  "@tanstack/react-query": ^5.104.1
+  cn: ^0.3.0
+  class-variance-authority: ^0.7.1
+  "@radix-ui/react-slot": ^1.3.3
+  lucide-react: ^1.33.0
+  sonner: ^2.0.8
+  tw-animate-css: ^1.4.0
+
+  # Web build toolchain — Vite + Tailwind v4 + the shadcn CLI.
+  # 前端构建工具链 —— Vite + Tailwind v4 + shadcn CLI。
+  vite: ^6.0.0
+  "@vitejs/plugin-react": ^4.3.4
+  shadcn: ^4.19.0
+  tailwindcss: ^4.3.3
+  "@tailwindcss/vite": ^4.3.3
+
+  # Server runtime — @toby/server only.
+  # 服务端运行时 —— 仅 @toby/server 使用。
+  fastify: ^5.12.3
+  "@fastify/static": ^10.1.3
+  better-sqlite3: ^13.0.3
+  pino: ^10.1.0
+
+  # Testing — vitest everywhere, DOM stack for the web apps.
+  # 测试 —— vitest 全局使用,DOM 栈归前端应用。
+  vitest: ^5.0.1
+  happy-dom: ^20.14.5
+  "@testing-library/react": ^16.3.3
+  "@testing-library/jest-dom": ^7.0.1
+  "@testing-library/user-event": ^14.6.7
+
+  # Language & type definitions.
+  # 语言与类型定义。
+  typescript: ~6.0.3
+  "@types/node": ^22.0.0
+  "@types/react": ~19.3.0
+  "@types/react-dom": ^19.2.4
+  "@types/better-sqlite3": ^9.6.0
