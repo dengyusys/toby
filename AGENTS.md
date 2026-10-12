@@ -35,14 +35,14 @@ Ports, processes, and deployment details live in `docs/operations/` — not repe
 - Automated tests never call real AI, never deploy remotely, never write production data. Running any of those requires explicit authorization in the task, and their results are reported separately from local automation.
 - What you changed is what you run:
 
-| Change                                                                | Must run                                                                        |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `apps/server/` code                                                   | `pnpm run test` (domain tests + root integration tests)                         |
-| `apps/web/`, `apps/web-mobile/`, `packages/contract/`, `packages/ui/` | `pnpm run test` + `pnpm run typecheck`                                          |
-| TS/JS sources or ESLint/Prettier config                               | `pnpm run lint`, `pnpm run format:check`                                        |
-| `package.json`, lockfile, workspace config                            | `pnpm install --frozen-lockfile`, `pnpm run check`                              |
-| `Dockerfile` / `compose.yaml` / `.dockerignore`                       | `docker compose build && docker compose up -d`; healthcheck must report healthy |
-| Markdown or document paths                                            | Check links and old path references in affected docs; run `git diff --check`    |
+| Change                                                | Must run                                                                        |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `apps/server/` code                                   | `pnpm run test` (domain tests + root integration tests)                         |
+| `apps/web/`, `apps/web-mobile/`, `packages/contract/` | `pnpm run test` + `pnpm run typecheck`                                          |
+| TS/JS sources or ESLint/Prettier config               | `pnpm run lint`, `pnpm run format:check`                                        |
+| `package.json`, lockfile, workspace config            | `pnpm install --frozen-lockfile`, `pnpm run check`                              |
+| `Dockerfile` / `compose.yaml` / `.dockerignore`       | `docker compose build && docker compose up -d`; healthcheck must report healthy |
+| Markdown or document paths                            | Check links and old path references in affected docs; run `git diff --check`    |
 
 If one change touches several rows, run all the checks those rows list.
 
@@ -50,7 +50,7 @@ If one change touches several rows, run all the checks those rows list.
 
 - `apps/server/` — single server process; composition root `src/main.ts`; vertical domain slices under `src/domains/<domain>/`.
 - `apps/web/` (PC, served at `/`) and `apps/web-mobile/` (mobile, `/m/`) — two React SPAs; they never import each other.
-- `packages/contract/` (pure logic) and `packages/ui/` (pure components) — the only cross-app sharing path.
+- `packages/contract/` (pure logic) — the only cross-app sharing path; components and styles are owned by each app and never shared.
 - Dependency direction is always `apps → packages`: packages never import apps; the web apps never import `@toby/server`.
 - Domains never import each other; cross-domain wiring happens only in the composition root. `infrastructure/` never imports business domains; a domain's `types.ts` stays pure (no fastify / infrastructure / `node:` imports).
 - These boundaries are machine-enforced by ESLint `no-restricted-imports`; a violation fails the build.

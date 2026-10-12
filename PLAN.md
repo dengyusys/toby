@@ -1,6 +1,6 @@
 # Toby 重构框架搭建计划
 
-> 状态:bootstrap 已完成(根配置 + 工具链已提交);待办:推送远端、建 GitHub 仓库与 Rulesets,随后进入三个框架 PR。
+> 状态:bootstrap 与远端仓库已完成,PR1(server 框架)已合并;待办:PR2(web 骨架)→ PR3(CI/Docker),Rulesets 分支保护视 GitHub 账号情况配置。
 
 ## 背景(Context)
 
@@ -13,7 +13,7 @@ Toby 是自托管个人助手(定位:像贴身书童,记录日程、笔记,管�
 - 技术栈沿用旧栈:Node 22 直跑 .ts(无构建)+ pnpm workspaces + Fastify 5 + better-sqlite3 + React 19/Vite 6/Tailwind v4/shadcn + vitest
 - 后端服务命名:**`server`**(目录 `apps/server`、包名 `@toby/server`、组合根 `src/main.ts`、文档术语"服务端 / Toby server"),不用旧项目的 gateway
 - 保留"对话→AI提案→确认→写入"模式,框架期仅做**架构预留**(ADR + 文档,不写代码)
-- 前端双应用(apps/web + apps/web-mobile)+ 共享包(packages/contract 纯逻辑 + packages/ui 纯组件)解决复制痛点
+- 前端双应用(apps/web + apps/web-mobile)+ 共享包(packages/contract 纯逻辑);组件与样式各端自持、永不共享(见 docs/decisions/web-split-dual-apps.md)
 - 部署 Docker Compose
 - 端口:**8629 块**(8629 = T9 键盘上的 TOBY),按角色排序:server `8629`(开发与生产同端口,永远是服务端)、开发 web `8630`、开发 web-mobile `8631`,Docker 只绑 `127.0.0.1:8629`。与旧项目 4173/4174/4176 错开,迁移期两项目可同机并行
 - GitHub 全套:Issue/PR 模板、Actions CI(lint/typecheck/test/docker)、dependabot、CODEOWNERS、Rulesets 分支保护
@@ -66,8 +66,7 @@ toby/
 │   └── src/...                  # HashRouter + QueryClient + features/system/HealthPage
 ├── apps/web-mobile/             # @toby/web-mobile,入口 /m/,base /m/,端口 8631
 └── packages/
-    ├── contract/                # @toby/contract,纯 TS 零 JSX:requestJson + system-client
-    └── ui/                      # @toby/ui,shadcn source-in-repo:theme.css + Button + cn
+    └── contract/                # @toby/contract,纯 TS 零 JSX:requestJson + system-client
 ```
 
 ## 关键设计
@@ -76,21 +75,21 @@ toby/
 
 - `GET /api/system/health` → `{"status":"ok"}`;`GET /api/system/info` → name/version/node/started_at/uptime_seconds
 - 错误同构包络 `{"error":{code,message}}`;404 PAGE_NOT_FOUND、405 甄别
-- **每层有测试**:server(app.inject)、contract(stub fetch)、ui(渲染冒烟)、双 web(健康页断言)、根 HTTP 集成测试 → CI 全绿即框架成立
+- **每层有测试**:server(app.inject)、contract(stub fetch)、双 web(健康页断言)、根 HTTP 集成测试 → CI 全绿即框架成立
 - `main.ts` 组合根保持"每域一行装配",后续业务域 PR 只是加行
 
-### 2. packages/ui(shadcn source-in-repo)
+### 2. 双端组件自持(无共享组件包)
 
-- `exports` 直指 `src/*.tsx` 源码(无构建),peerDeps react 19
-- `components.json` aliases 用 `@toby/ui/*` 子路径自引用(避免与 app 的 `@/` 别名撞车),后续 `pnpm --filter @toby/ui exec shadcn add <组件>` 即双端可用
-- Tailwind v4 主题唯一真相在 `packages/ui/src/theme.css`;app 的 index.css `@import "@toby/ui/theme.css"` + `@source "../node_modules/@toby/ui"`(v4 默认不扫 node_modules)
-- 验证:`pnpm build` 后 dist CSS 含按钮类
+- 组件、样式、主题永不跨端共享(见 docs/decisions/web-split-dual-apps.md);`@toby/contract` 是唯一共享通道,且永远零组件零样式
+- 每个 app 自己的 `components.json`(标准单应用 shadcn 布局)+ `src/components/ui/`,`shadcn add` 写入各自仓库
+- Tailwind v4 主题:各 app 的 `src/index.css` 自带 `@theme` 与基础样式;同一组件改两遍是已接受的代价
+- 验证:`pnpm build` 后各 dist CSS 含健康页用到的类
 
 ### 3. ESLint 边界纪律(数据驱动白名单,裁剪自旧项目)
 
 - `DOMAIN_ALLOWED` 表:域互不导入,新域登记一行自动生成规则
 - 基础设施禁导入域(装配只在 main.ts 与各域 module.ts);域内 types.ts 纯净(禁 fastify/infrastructure/node:)
-- 双 web 互不导入,共享仅经 `@toby/contract` 与 `@toby/ui`;前端包禁导入 `@toby/server`;`packages/ui` 禁 fastify/node:/apps/**
+- 双 web 互不导入,共享仅经 `@toby/contract`;前端包禁导入 `@toby/server`
 
 ### 4. 工具链
 
@@ -131,7 +130,7 @@ main 直接 bootstrap(保护规则生效前的鸡生蛋问题):
 随后走 PR + squash merge(main 一 PR 一提交):
 
 - PR1 `feat/framework-server`:④ `feat(server): Fastify app factory and infrastructure skeleton` ⑤ `feat(system): walking-skeleton domain with health endpoints` ⑥ `feat(contract): pure contract package with system client`
-- PR2 `feat/framework-web`:⑦ `feat(ui): shared component package with dual-app theme` ⑧ `feat(web): minimal web and web-mobile skeletons with health page`
+- PR2 `feat/framework-web`:⑦ `feat(web): minimal web and web-mobile skeletons with health page`(各端自持主题与组件)
 - PR3 `chore/ci-docker`:⑨ `chore(dev): dev orchestration script and root integration tests` ⑩ `ci(collaboration): Actions pipeline, dependabot and templates` + `build(deploy): Docker image and compose stack`
 
 ## 验证(框架成立判定)
@@ -141,7 +140,7 @@ corepack enable && pnpm install
 pnpm run check                    # typecheck + lint + format:check + test 全绿
 pnpm run dev                      # server 8629 → web 8630 / mobile 8631
 curl http://127.0.0.1:8629/api/system/health    # {"status":"ok"}
-# 浏览器 127.0.0.1:8630 与 127.0.0.1:8631/m/ 显示健康页(证明 ui 主题 + Query)
+# 浏览器 127.0.0.1:8630 与 127.0.0.1:8631/m/ 显示健康页(证明 Tailwind 主题 + Query)
 pnpm run build && pnpm run start
 curl http://127.0.0.1:8629/ && curl http://127.0.0.1:8629/m/    # 单进程服务端直接服务双 SPA
 docker compose build && docker compose up -d && curl .../health && docker compose ps  # healthy
@@ -152,8 +151,7 @@ CI:首个 PR 四项检查全绿后 squash 合并。
 ## 风险与对策
 
 - pnpm deploy 不确定 → 退级 COPY 全量 node_modules,实测拍板
-- Tailwind @source 符号链接路径 → 按官方 monorepo 写法,PR 里检查 dist CSS
-- shadcn CLI 写入位置 → aliases 子路径自引用,首次 add 人工核对
+- 双端组件/主题各写一份 → ADR 已接受此代价;复制时各自维护,不引入共享包
 - better-sqlite3 原生构建 → 三平台有 prebuilt;Docker 构建失败则 build 阶段装 python3/make/g++
 - Windows CRLF → .gitattributes + Prettier endOfLine lf 双保险
 - fresh clone 无 dist → static-assets 对缺失 root 告警跳过(对旧版的小改进)

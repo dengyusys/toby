@@ -35,14 +35,14 @@
 - 自动化测试不调真实 AI、不远程部署、不写正式数据。真要跑这些,任务必须明确授权,结果与本地自动化分开报告。
 - 改了什么,就跑什么:
 
-| 改动                                                                  | 必须执行                                                                |
-| --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `apps/server/` 代码                                                   | `pnpm run test`(域测试 + 根集成测试)                                    |
-| `apps/web/`、`apps/web-mobile/`、`packages/contract/`、`packages/ui/` | `pnpm run test` + `pnpm run typecheck`                                  |
-| TS/JS 源码或 ESLint/Prettier 配置                                     | `pnpm run lint`、`pnpm run format:check`                                |
-| `package.json`、lockfile、workspace 配置                              | `pnpm install --frozen-lockfile`、`pnpm run check`                      |
-| `Dockerfile` / `compose.yaml` / `.dockerignore`                       | `docker compose build && docker compose up -d`,healthcheck 应为 healthy |
-| Markdown 或文档路径                                                   | 查受影响文档的链接和旧路径引用,跑 `git diff --check`                    |
+| 改动                                                  | 必须执行                                                                |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- |
+| `apps/server/` 代码                                   | `pnpm run test`(域测试 + 根集成测试)                                    |
+| `apps/web/`、`apps/web-mobile/`、`packages/contract/` | `pnpm run test` + `pnpm run typecheck`                                  |
+| TS/JS 源码或 ESLint/Prettier 配置                     | `pnpm run lint`、`pnpm run format:check`                                |
+| `package.json`、lockfile、workspace 配置              | `pnpm install --frozen-lockfile`、`pnpm run check`                      |
+| `Dockerfile` / `compose.yaml` / `.dockerignore`       | `docker compose build && docker compose up -d`,healthcheck 应为 healthy |
+| Markdown 或文档路径                                   | 查受影响文档的链接和旧路径引用,跑 `git diff --check`                    |
 
 一次改到好几样,就把各行的检查都跑了。
 
@@ -50,7 +50,7 @@
 
 - `apps/server/`——服务端单进程;组合根 `src/main.ts`;垂直域切片在 `src/domains/<域>/`。
 - `apps/web/`(PC 端,`/`)与 `apps/web-mobile/`(移动端,`/m/`)——两个 React SPA,互不导入。
-- `packages/contract/`(纯逻辑)与 `packages/ui/`(纯组件)——唯一的跨端共享通道。
+- `packages/contract/`(纯逻辑)——唯一的跨端共享通道;组件与样式各端自持,永不共享。
 - 依赖方向永远 `apps → packages`:packages 不许 import apps;前端不许 import `@toby/server`。
 - 域互不导入;跨域接线只在组合根。`infrastructure/` 不导入业务域;域内 `types.ts` 保持纯净(禁 fastify / infrastructure / `node:`)。
 - 以上边界由 ESLint `no-restricted-imports` 机器强制,违规即构建失败。

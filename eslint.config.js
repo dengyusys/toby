@@ -129,7 +129,8 @@ export default defineConfig(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   // PC web app (docs/decisions/web-split-dual-apps.md): sharing with the mobile
-  // app goes only through @toby/contract (pure logic) and @toby/ui (components).
+  // app goes only through @toby/contract (pure logic); components and styles
+  // are owned by each app and never shared.
   {
     files: ["apps/web/src/**/*.{ts,tsx}"],
     languageOptions: {
@@ -157,7 +158,7 @@ export default defineConfig(
                 "@toby/web-mobile/**",
               ],
               message:
-                "web and web-mobile never import each other; share via @toby/contract and @toby/ui",
+                "web and web-mobile never import each other; share via @toby/contract",
             },
             NO_SERVER_IMPORT,
           ],
@@ -189,7 +190,7 @@ export default defineConfig(
             {
               group: ["**/web/*", "**/web/**", "@toby/web/*", "@toby/web/**"],
               message:
-                "web-mobile and web never import each other; share via @toby/contract and @toby/ui",
+                "web-mobile and web never import each other; share via @toby/contract",
             },
             NO_SERVER_IMPORT,
           ],
@@ -218,41 +219,9 @@ export default defineConfig(
         {
           patterns: [
             {
-              group: [
-                "react",
-                "react/*",
-                "react-dom",
-                "react-dom/*",
-                "@toby/ui",
-                "@toby/ui/*",
-                "@toby/ui/**",
-              ],
+              group: ["react", "react/*", "react-dom", "react-dom/*"],
               message:
                 "@toby/contract is pure logic: no React and no UI-kit imports",
-            },
-            NO_SERVER_IMPORT,
-            NO_APPS_IMPORT,
-          ],
-        },
-      ],
-    },
-  },
-  // @toby/ui: pure components. No server-side imports, no reaching into apps.
-  // @toby/ui:纯组件。零服务端依赖,不回导入 apps。
-  {
-    files: ["packages/ui/src/**/*.{ts,tsx}"],
-    languageOptions: {
-      globals: { ...globals.browser },
-    },
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              regex: "(fastify|@fastify|node:)",
-              message:
-                "@toby/ui is pure components: no fastify or node: imports",
             },
             NO_SERVER_IMPORT,
             NO_APPS_IMPORT,
