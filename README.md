@@ -8,6 +8,8 @@ Toby is a self-hosted, single-user personal assistant — a diligent study compa
 
 > **Current phase: framework.** Skeleton and server first; features arrive step by step. See [PLAN.md](PLAN.md).
 
+> **Learning project.** Toby is a personal project built for learning — a hands-on practice in building a self-hosted AI application end to end. Feel free to read the code and docs for reference.
+
 ## Quick start
 
 Requirements: Node.js `22.23.2` and pnpm `11.18.0` (`corepack enable`). All commands run from the repo root.
