@@ -17,9 +17,9 @@ The HTTP framework is Fastify: **small, fast, with a straightforward plugin mode
 - Not Express — too bare; error handling and validation would be DIY
 - Not NestJS — a personal project doesn't need the IoC-container and decorator ceremony
 
-## SQLite + better-sqlite3
+## The database: SQLite + better-sqlite3, plus a MySQL adapter
 
-The database is SQLite — the best bargain in this whole stack.
+The database is SQLite — the best bargain in this whole stack — reached through the adapter port of [db-adapter](db-adapter.md). The same port also carries a MySQL adapter — an addition for learning, explained in the last block of this section.
 
 **One file is one database.**
 
@@ -29,17 +29,17 @@ The database is SQLite — the best bargain in this whole stack.
 
 **Synchronous API — a transaction is a function call.**
 
-better-sqlite3 calls synchronously: no connection pool, no reconnect logic, no async races. A transaction is just a stretch of ordinary code wrapped in begin / commit. This fits the "confirm the proposal, then one transactional write" model perfectly: re-read targets, check conflicts, execute — atomic and reason-able as a whole.
+better-sqlite3 calls synchronously: no connection pool, no reconnect logic, no async races. A transaction is just a stretch of ordinary code wrapped in begin / commit. This fits the "confirm the proposal, then one transactional write" model perfectly: re-read targets, check conflicts, execute — atomic and reason-able as a whole. The database port puts an async-first face in front of this driver while keeping the same guarantee by serializing every operation.
 
 **The well-known weakness does not exist here.**
 
 SQLite's weakness is single-writer, poor fit for high concurrency. Toby has exactly one writer (the single server process), and writes all go through proposal confirmation — low-frequency and transactional, SQLite's most comfortable scenario by birth. Read-heavy, write-light; WAL mode keeps reads and writes from blocking each other. A single user's data volume doesn't scratch its capacity. SQLite is also one of the most thoroughly tested programs in existence — reliability is not in question.
 
-**Why not MySQL / PostgreSQL.**
+**Why not MySQL / PostgreSQL — and why a MySQL adapter exists anyway.**
 
-They require a daemon process: port, credentials, connection pool, backup tooling, upgrades — the operations surface doubles; the database password is yet another secret to guard. And what that cost buys — high concurrency, multi-app sharing, massive data volumes — this project uses none of.
+They require a daemon process: port, credentials, connection pool, backup tooling, upgrades — the operations surface doubles; the database password is yet another secret to guard. And what that cost buys — high concurrency, multi-app sharing, massive data volumes — this project uses none of. If multi-process writes or data volume ever become real, migrating later is fine: the data is in files, the migration path is clear.
 
-If multi-process writes or data volume ever become real, migrating later is fine: the data is in files, the migration path is clear.
+Even so, the adapter port carries a MySQL adapter — added by the author for learning: to see how another dialect feels behind one interface, where SQL is portable, where it is not, and what a connection pool changes. If a third database ever joins, it is just one more adapter. SQLite stays the recommended database; MySQL is there to experiment with, not a requirement. Domain code never sees the difference: driver, pool, and dialect details all stop at the port.
 
 ## zod
 

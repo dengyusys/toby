@@ -1,6 +1,6 @@
 # Toby 重构框架搭建计划
 
-> 状态:bootstrap 与远端仓库已完成,server 框架与 web 骨架两批已进 main;待办:CI/Docker 批次。合并方式已定为**直接 push main**(本地 check 全绿即推,不走 PR)。
+> 状态:bootstrap 与远端仓库已完成,server 框架与 web 骨架两批已进 main;待办:CI/Docker 批次与数据库适配 port 实现批次(方案已定,见 docs/decisions/db-adapter.md)。合并方式已定为**直接 push main**(本地 check 全绿即推,不走 PR)。
 
 ## 背景(Context)
 
@@ -11,6 +11,7 @@ Toby 是自托管个人助手(定位:像贴身书童,记录日程、笔记,管�
 ## 已确认决策
 
 - 技术栈沿用旧栈:Node 22 直跑 .ts(无构建)+ pnpm workspaces + Fastify 5 + better-sqlite3 + React 19/Vite 6/Tailwind v4/shadcn + vitest
+- 数据库访问:自建适配 port,推荐 SQLite;MySQL 适配器出于作者学习目的,第三种数据库加入只需再加一个适配器(不引入 ORM/查询构建器,domain store 手写 SQL、类型安全自维护;见 docs/decisions/db-adapter.md;方案已定,实现为批次四)
 - 后端服务命名:**`server`**(目录 `apps/server`、包名 `@toby/server`、组合根 `src/main.ts`、文档术语"服务端 / Toby server"),不用旧项目的 gateway
 - 保留"对话→AI提案→确认→写入"模式,框架期仅做**架构预留**(ADR + 文档,不写代码)
 - 前端双应用(apps/web + apps/web-mobile)+ 共享包(packages/contract 纯逻辑);组件与样式各端自持、永不共享(见 docs/decisions/web-split-dual-apps.md)
@@ -48,7 +49,7 @@ toby/
 │   └── workflows/ci.yml         # lint/typecheck/test/docker 四 job
 ├── docs/
 │   ├── README.md product-overview.md system-overview.md
-│   ├── decisions/               # ADR 无编号、按名称(已写:垂直域切片/双端拆分/共享契约包/服务端技术栈/前端技术栈/AI 接入/文档维护;待写:monorepo/无构建直跑/提案管线预留)
+│   ├── decisions/               # ADR 无编号、按名称(已写:垂直域切片/双端拆分/共享契约包/服务端技术栈/前端技术栈/AI 接入/文档维护/开发编排/数据库 port;待写:monorepo/无构建直跑/提案管线预留)
 │   ├── features/               # 各域目标契约(9 份已迁入;system 走通域契约随框架提交立)
 │   └── operations/              # local-dev.md docker-deploy.md
 ├── scripts/dev.js               # 开发编排:server 8629 先起,再拉 web 8630 / web-mobile 8631
@@ -57,9 +58,9 @@ toby/
 ├── apps/server/                 # @toby/server(后端单进程)
 │   └── src/
 │       ├── main.ts              # 组合根:resolveConfig → assembleSystem → createServer → listen
-│       ├── infrastructure/      # config(TOBY_* env)/http(createServer 工厂+错误包络+双SPA静态)/logging(pino)/db(open-database)
+│       ├── infrastructure/      # config(TOBY_* env)/http(createServer 工厂+错误包络+双SPA静态)/logging(pino)/db(适配 port:sqlite/mysql 适配器,可扩展)
 │       └── domains/system/      # 走通域:module.ts router.ts(health/info) types.ts
-│   └── test/                    # app.inject 测试 + sqlite 临时目录测试
+│   └── test/                    # app.inject 测试 + sqlite 临时目录测试 + mysql 门控测试(TOBY_TEST_MYSQL_URL)
 ├── apps/web/                    # @toby/web,PC 端入口 /
 │   └── src/...                  # HashRouter + QueryClient + features/system/HealthPage
 ├── apps/web-mobile/             # @toby/web-mobile,入口 /m/,base /m/,端口 8631
@@ -106,12 +107,12 @@ toby/
 
 - 多阶段:build 阶段 pnpm install --frozen-lockfile → pnpm build → `pnpm --filter @toby/server deploy --prod /pruned`;运行阶段 node:22-bookworm-slim,保留 monorepo 相对布局(`node apps/server/src/main.ts`),ENV TOBY_HOST=0.0.0.0
 - **预案**:pnpm deploy 产物异常则退级 COPY 全量 node_modules,实测拍板记入 docs
-- compose:服务名 `server`(镜像 toby)、端口只绑 127.0.0.1:8629、`./data:/app/data` 卷、healthcheck 打 /api/system/health、env_file 可选
+- compose:服务名 `server`(镜像 toby)、端口只绑 127.0.0.1:8629、`./data:/app/data` 卷、healthcheck 打 /api/system/health、env_file 可选、可选 mysql service(compose profile `mysql`,仅 TOBY_DB_DIALECT=mysql 时启用,绑 127.0.0.1:3306,utf8mb4)
 - .dockerignore 必含 `**/dist`(镜像内重新构建)
 
 ### 7. 版本要点(沿用旧项目实测组合)
 
-fastify ^5.12.3、@fastify/static ^10.1.3、better-sqlite3 ^13.0.3、zod ^4.6.4、pino ^10.1.0、react 19、vite 6、@tailwindcss/vite ^4.3.3、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。版本单一真相关在 `pnpm-workspace.yaml` 的 `catalog`,各 package.json 以 `"catalog:"` 引用。**不引入**:openai、sqlite-vec、Python(随业务域提交进)
+fastify ^5.12.3、@fastify/static ^10.1.3、better-sqlite3 ^13.0.3、mysql2 ^3.24.6(数据库驱动各配各的适配器、共用一个 port;mysql2 纯 JS、自带类型、无需 allowBuilds)、zod ^4.6.4、pino ^10.1.0、react 19、vite 6、@tailwindcss/vite ^4.3.3、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。版本单一真相关在 `pnpm-workspace.yaml` 的 `catalog`,各 package.json 以 `"catalog:"` 引用。**不引入**:openai、sqlite-vec、Python(随业务域提交进)
 
 ### 8. AGENTS.md(英文 + 中文)—— 已完成(不设 CLAUDE.md,AI 规则统一走 AGENTS.md)
 
@@ -129,7 +130,8 @@ main 直接 bootstrap(保护规则生效前的鸡生蛋问题):
 
 - 批次一 server 框架(已进 main):④ `feat(server): Fastify app factory and infrastructure skeleton` ⑤ `feat(system): walking-skeleton domain with health endpoints` ⑥ `feat(contract): pure contract package with system client`
 - 批次二 web 骨架(已进 main):⑦ `feat(web): minimal web and web-mobile skeletons with health page`(各端自持主题与组件),辅以 `chore(deps)` catalog 与 `docs(plan)` 等规范提交
-- 批次三 CI/Docker:⑨ `chore(dev): dev orchestration script and root integration tests` ⑩ `ci(collaboration): Actions pipeline, dependabot and templates` + `build(deploy): Docker image and compose stack`
+- 批次三 CI/Docker:⑨ `chore(dev): dev orchestration script and root integration tests`(已进 main)⑩ `ci(collaboration): Actions pipeline, dependabot and templates` + `build(deploy): Docker image and compose stack`
+- 批次四 数据库适配 port(方案 ADR 已先行进 main):⑪ `feat(server): database port with sqlite and mysql adapters` —— `infrastructure/db` 重构为适配 port(types/errors/sqlite/mysql/create-db/migrate,吸收现有 open-database.ts)、config 增 TOBY_DB_* 数据库段、catalog 增 mysql2、port 级 contract 测试套件(mysql 部分由 TOBY_TEST_MYSQL_URL 门控、默认 skip);届时同步跟进 system-overview / local-dev / .env.example / todo / ledger 文档
 
 ## 验证(框架成立判定)
 
