@@ -7,6 +7,8 @@
 
 import Fastify, {
   type FastifyInstance,
+  type FastifyReply,
+  type FastifyRequest,
   type FastifyServerOptions,
 } from "fastify";
 import type { Logger } from "pino";
@@ -21,6 +23,14 @@ export interface TobyServerOptions {
   mobileWebRoot: string;
   /** Domain mount list: each domain's module factory produces a MountedDomain. */
   domains?: readonly MountedDomain[];
+  /**
+   * Root-level preHandler for cross-cutting request gating (sessions).
+   * Async and error-throwing like any handler; the error boundary catches.
+   */
+  requestGuard?: (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => Promise<void>;
   /** Runtime pino instance: enables access logs and request.log. Omit for silence (tests). */
   logger?: Logger;
 }
@@ -32,6 +42,7 @@ export function createServer({
   webRoot,
   mobileWebRoot,
   domains = [],
+  requestGuard,
   logger,
 }: TobyServerOptions): FastifyInstance {
   // Injected-instance and silence are mutually exclusive: quiet mode is
@@ -43,6 +54,11 @@ export function createServer({
 
   // Unified error boundary: domain errors, body-parse errors, sanitized 500.
   registerErrorHandler(app);
+
+  // Root-level request gating (auth sessions), before every route handler.
+  if (requestGuard) {
+    app.addHook("preHandler", requestGuard);
+  }
 
   // Single exit for unmatched paths and method mismatches:
   //   - path exists under another method -> 405;

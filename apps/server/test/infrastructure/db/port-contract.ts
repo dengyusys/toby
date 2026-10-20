@@ -10,10 +10,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { createDomainDb } from "../../src/infrastructure/db/create-db.ts";
-import { DbError } from "../../src/infrastructure/db/errors.ts";
-import type { DomainDb } from "../../src/infrastructure/db/types.ts";
+import { resolveConfig } from "../../../src/infrastructure/config/config.ts";
+import { createDomainDb } from "../../../src/infrastructure/db/create-db.ts";
+import { DbError } from "../../../src/infrastructure/db/errors.ts";
+import type { DomainDb } from "../../../src/infrastructure/db/types.ts";
 
 export type MakeDomainDb = () => Promise<DomainDb>;
 

@@ -10,9 +10,10 @@ import {
   findPackageJsonPath,
   findUp,
   repositoryRoot,
-} from "../src/utils/paths/index.ts";
+} from "../../src/utils/paths/index.ts";
 
-// This test lives at apps/server/test/ — three levels below the root.
+// This test lives at apps/server/test/infrastructure/ — four levels below
+// the repository root.
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 describe("utils/paths", () => {
@@ -22,13 +23,15 @@ describe("utils/paths", () => {
   });
 
   it("repositoryRoot is the directory holding pnpm-workspace.yaml", () => {
-    expect(repositoryRoot).toBe(path.resolve(testDirectory, "../../.."));
+    expect(repositoryRoot).toBe(path.resolve(testDirectory, "../../../.."));
   });
 
   it("findPackageJsonPath locates the nearest package.json", () => {
     const packageJson = findPackageJsonPath(testDirectory);
     expect(path.basename(packageJson)).toBe("package.json");
     // From the test directory the nearest one is the server package's.
-    expect(path.dirname(packageJson)).toBe(path.resolve(testDirectory, ".."));
+    expect(path.dirname(packageJson)).toBe(
+      path.resolve(testDirectory, "../.."),
+    );
   });
 });

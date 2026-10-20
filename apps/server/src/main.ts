@@ -8,6 +8,8 @@ import { resolveConfig } from "./infrastructure/config/config.ts";
 import { getLogger } from "./infrastructure/logging/logger.ts";
 import { createServer } from "./infrastructure/http/app.ts";
 import { assembleSystem } from "./domains/system/module.ts";
+import { assembleLedger } from "./domains/ledger/module.ts";
+import { assembleAuth } from "./domains/auth/module.ts";
 
 async function main(): Promise<void> {
   const config = resolveConfig();
@@ -15,12 +17,15 @@ async function main(): Promise<void> {
 
   // One line per domain; later domains only add lines here.
   const system = assembleSystem();
+  const ledger = await assembleLedger(config);
+  const auth = await assembleAuth(config);
 
   const app = createServer({
     webRoot: config.paths.webRoot,
     mobileWebRoot: config.paths.mobileWebRoot,
     logger,
-    domains: [system],
+    domains: [system, ledger, auth.mounted],
+    requestGuard: auth.requestGuard,
   });
 
   try {

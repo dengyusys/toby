@@ -9,8 +9,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { createServer } from "../src/infrastructure/http/app.ts";
-import type { MountedDomain } from "../src/infrastructure/http/domain-mount.ts";
+import { createServer } from "../../src/infrastructure/http/app.ts";
+import type { MountedDomain } from "../../src/infrastructure/http/domain-mount.ts";
 
 const missingRoot = path.join(
   mkdtempSync(path.join(tmpdir(), "toby-eh-")),

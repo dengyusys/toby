@@ -17,6 +17,8 @@ import tseslint from "typescript-eslint";
 // 各域允许依赖的其他业务域。新域落地时在此登记一行,导入边界规则自动生成。
 const DOMAIN_ALLOWED = {
   system: [],
+  ledger: [],
+  auth: [],
 };
 
 // A domain's types.ts stays pure: no transport, no infrastructure, no node: APIs.

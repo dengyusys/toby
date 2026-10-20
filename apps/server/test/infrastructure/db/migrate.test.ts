@@ -5,12 +5,12 @@
  */
 
 import { afterAll, describe, expect, it } from "vitest";
-import { DbError } from "../../src/infrastructure/db/errors.ts";
+import { DbError } from "../../../src/infrastructure/db/errors.ts";
 import {
   type DomainMigrations,
   applyMigrations,
-} from "../../src/infrastructure/db/migrate.ts";
-import type { DomainDb } from "../../src/infrastructure/db/types.ts";
+} from "../../../src/infrastructure/db/migrate.ts";
+import type { DomainDb } from "../../../src/infrastructure/db/types.ts";
 import {
   createMysqlTestDbs,
   createSqliteTestDbs,

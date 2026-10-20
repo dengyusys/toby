@@ -2,7 +2,7 @@
 
 English | [简体中文](ledger.zh.md)
 
-> Target contract (domain not yet implemented): responsibilities, interface, and key rules; implementation details live in code and tests.
+> Responsibilities, interface, and key rules; implementation details live in code and tests.
 
 ## Responsibilities and boundaries
 
@@ -13,7 +13,7 @@ English | [简体中文](ledger.zh.md)
 
 ## Core concepts
 
-- A transaction = date + type (expense/income) + category + account + amount (cents) + note.
+- A transaction = date + type (expense/income) + category + account + amount (cents) + note; the account is optional and defaults to “未关联”.
 - Every entry in a sentence is extracted: one proposal carries 1–10 transactions, confirmed once, written atomically as a batch.
 
 ## Interface
@@ -33,12 +33,5 @@ All JSON; errors follow the server's standard envelope.
 - AI extraction is untrusted input: it must pass the domain's deterministic validation and normalization before a proposal exists.
 - Amounts: non-negative numbers with at most two decimal places, parsed digit-wise into cents. Dates: local format plus calendar validation; any past or future date is legal (backfill).
 - Uncertain fields return a follow-up question, never a guess; the user retries with more detail.
-- The structured single entry is the same endpoint's deterministic path, for tests and programmatic callers.
-- Proposal TTL 10 minutes; uncancelled after 30 seconds the server auto-writes; commit is idempotent — no duplicate rows.
-- One failed entry rolls back the batch; the panel refetches after confirmation, same cadence as the schedule view.
-
-## Acceptance highlights
-
-- Validation and normalization: bad amounts and dates rejected with zero writes and zero proposals; bad AI output is caught too (anchored by stub tests).
-- Proposal lifecycle's four states: commit persists, idempotent, cancellation refuses, expiry returns 410.
-- Multi-entry atomicity; empty-database empty states; HTTP contract across endpoints.
+- Proposal TTL 10 minutes; uncancelled after 30 seconds the server auto-writes; commit is idempotent — no duplicate rows; cancelled proposals refuse commit, expired ones answer 410.
+- One failed entry rolls back the batch.

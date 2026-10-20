@@ -7,6 +7,7 @@
 import path from "node:path";
 import { repositoryRoot } from "../../utils/paths/index.ts";
 import type { DbDialect } from "../db/types.ts";
+import type { AiTransportConfig } from "../ai/types.ts";
 
 export { repositoryRoot };
 
@@ -37,10 +38,22 @@ export interface DatabaseConfig {
   mysql: MySqlConfig;
 }
 
+export interface AuthConfig {
+  /** A configured password hash enables authentication. */
+  enabled: boolean;
+  passwordHash: string;
+  sessionTtlMs: number;
+  rateLimitMax: number;
+  rateLimitWindowMs: number;
+  secureCookie: boolean;
+}
+
 export interface TobyConfig {
   server: ServerConfig;
   paths: PathConfig;
   db: DatabaseConfig;
+  ai: AiTransportConfig;
+  auth: AuthConfig;
   logLevel: string;
 }
 
@@ -110,6 +123,89 @@ function resolveRelative(value: string | undefined, fallback: string): string {
   return value ? path.resolve(repositoryRoot, value) : fallback;
 }
 
+function resolveTimeout(
+  value: string | undefined,
+  name: string,
+  fallback: number,
+  bounds: { min: number; max: number },
+): number {
+  const timeout = Number(value ?? String(fallback));
+  if (
+    !Number.isInteger(timeout) ||
+    timeout < bounds.min ||
+    timeout > bounds.max
+  ) {
+    throw new Error(
+      `${name} must be an integer between ${bounds.min} and ${bounds.max}`,
+    );
+  }
+  return timeout;
+}
+
+/** AI transport; an empty key keeps the AI paths plainly unavailable. */
+function resolveAiConfig(env: Env): AiTransportConfig {
+  const apiKey = env.TOBY_AI_API_KEY ?? "";
+  const model = env.TOBY_AI_MODEL ?? "";
+  if (apiKey && !model) {
+    throw new Error(
+      "TOBY_AI_MODEL is required when TOBY_AI_API_KEY is configured",
+    );
+  }
+  return {
+    baseUrl: env.TOBY_AI_BASE_URL || "https://api.openai.com/v1",
+    apiKey,
+    model,
+    timeoutMs: resolveTimeout(
+      env.TOBY_AI_TIMEOUT_MS,
+      "TOBY_AI_TIMEOUT_MS",
+      30_000,
+      { min: 1_000, max: 120_000 },
+    ),
+  };
+}
+
+const SCRYPT_HASH_PATTERN =
+  /^scrypt\$\d+\$\d+\$\d+\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/;
+
+/** Auth stays off until a password hash is explicitly configured. */
+function resolveAuthConfig(env: Env): AuthConfig {
+  const passwordHash = env.TOBY_AUTH_PASSWORD_HASH ?? "";
+  if (passwordHash && !SCRYPT_HASH_PATTERN.test(passwordHash)) {
+    throw new Error(
+      "TOBY_AUTH_PASSWORD_HASH must be an scrypt$N$r$p$salt$hash value from scripts/hash-password.js",
+    );
+  }
+  const ttlHours = Number(env.TOBY_AUTH_SESSION_TTL_HOURS ?? "168");
+  if (!Number.isInteger(ttlHours) || ttlHours < 1 || ttlHours > 8760) {
+    throw new Error(
+      "TOBY_AUTH_SESSION_TTL_HOURS must be an integer between 1 and 8760",
+    );
+  }
+  const rateLimitMax = Number(env.TOBY_AUTH_RATE_LIMIT_MAX ?? "5");
+  if (
+    !Number.isInteger(rateLimitMax) ||
+    rateLimitMax < 1 ||
+    rateLimitMax > 100
+  ) {
+    throw new Error(
+      "TOBY_AUTH_RATE_LIMIT_MAX must be an integer between 1 and 100",
+    );
+  }
+  return {
+    enabled: passwordHash !== "",
+    passwordHash,
+    sessionTtlMs: ttlHours * 3_600_000,
+    rateLimitMax,
+    rateLimitWindowMs: resolveTimeout(
+      env.TOBY_AUTH_RATE_LIMIT_WINDOW_MS,
+      "TOBY_AUTH_RATE_LIMIT_WINDOW_MS",
+      60_000,
+      { min: 1_000, max: 3_600_000 },
+    ),
+    secureCookie: env.TOBY_AUTH_SECURE_COOKIE === "true",
+  };
+}
+
 export function resolveConfig(options: { env?: Env } = {}): TobyConfig {
   const env = options.env ?? process.env;
   return {
@@ -126,6 +222,8 @@ export function resolveConfig(options: { env?: Env } = {}): TobyConfig {
       mobileWebRoot: path.resolve(repositoryRoot, "apps/web-mobile/dist"),
     },
     db: resolveDatabaseConfig(env),
+    ai: resolveAiConfig(env),
+    auth: resolveAuthConfig(env),
     logLevel: env.TOBY_LOG_LEVEL || "info",
   };
 }

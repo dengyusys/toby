@@ -2,7 +2,7 @@
 
 English | [简体中文](auth.zh.md)
 
-> Target contract (domain not yet implemented): responsibilities, interface, and key rules; implementation details live in code and tests.
+> Responsibilities, interface, and key rules; implementation details live in code and tests.
 
 ## Responsibilities and boundaries
 
@@ -30,14 +30,9 @@ All JSON; errors follow the server's standard envelope.
 
 ## Key rules
 
-- With authentication on, every page and `/api/*` requires a valid session except the auth endpoints themselves and static page assets (login UI only, no business data); otherwise a uniform 401.
+- With authentication on, every page and `/api/*` requires a valid session except the auth endpoints themselves (login, the idempotent logout, the session query that feeds the login page) and static page assets (login UI only, no business data); otherwise a uniform 401.
 - The web returns to the login page on 401; proposal-confirmation requests never auto-retry.
 - Login rate limiting is a fixed window per client IP; over the limit returns 429 with Retry-After.
 - No plaintext passwords or tokens are stored; passwords, tokens, and keys never enter source, Git, configs, or logs.
 - The server and dev ports never open to the public internet.
 - Authentication never changes the proposal rules: only explicitly confirmed proposals write.
-
-## Acceptance highlights
-
-- Five scenarios covered: not logged in, wrong password, logout, expiry, revocation; the exemption surface (auth endpoints + static assets) judged correctly.
-- Rate limiting engages and recovers; cookie attributes match the deployment shape.

@@ -6,9 +6,9 @@
  */
 
 import { afterAll, describe, expect, it } from "vitest";
-import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { createDomainDb } from "../../src/infrastructure/db/create-db.ts";
-import { DbError } from "../../src/infrastructure/db/errors.ts";
+import { resolveConfig } from "../../../src/infrastructure/config/config.ts";
+import { createDomainDb } from "../../../src/infrastructure/db/create-db.ts";
+import { DbError } from "../../../src/infrastructure/db/errors.ts";
 import {
   createMysqlTestDbs,
   runDomainDbContractSuite,

@@ -8,8 +8,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { createServer } from "../src/infrastructure/http/app.ts";
-import { assembleSystem } from "../src/domains/system/module.ts";
+import { createServer } from "../../src/infrastructure/http/app.ts";
+import { assembleSystem } from "../../src/domains/system/module.ts";
 
 // Non-existent static roots: the API server must still work (fresh clone
 // without web builds) and warn instead of crashing.

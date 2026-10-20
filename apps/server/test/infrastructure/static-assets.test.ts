@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { createServer } from "../src/infrastructure/http/app.ts";
+import { createServer } from "../../src/infrastructure/http/app.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-static-"));
 const webRoot = path.join(baseDir, "web-dist");
