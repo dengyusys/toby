@@ -37,13 +37,6 @@ All JSON; errors follow the server's standard envelope. Response shapes and erro
 - No due date expressible → undated; never guess. A time always requires a date.
 - Multi-item writes share one database transaction; one invalid entry rolls back the batch.
 - Check-off-all snapshots the open set at drafting time; todos added later are not swept in.
-- Proposal TTL is 10 minutes; uncancelled after 30 seconds the server auto-writes — same path as manual confirmation, idempotent.
-- Board direct writes are PC-only "explicit selection + confirm dialog", bypassing proposals; mobile is review-only.
+- Proposal TTL is 10 minutes; uncancelled after 30 seconds the server auto-writes — same path as manual confirmation, idempotent; cancelled proposals refuse commit, expired ones answer 410.
+- Board direct writes are PC-only "explicit selection + confirm dialog", bypassing proposals; any unknown id rolls back the whole batch; mobile is review-only.
 - Intent boundaries: "remind me…" (one-shot) → this domain; "from now on always…" → memory; daily check-ins → schedule; thoughts and moods → notes.
-
-## Acceptance highlights
-
-- Proposal flow: generation writes nothing, confirmation is idempotent, cancelled proposals refuse commit, expiry returns 410.
-- Direct writes: any unknown id rolls back the whole batch; tear-off is irreversible and check-off cannot reopen — stated in the confirm dialog.
-- Intents: add / check off / tear off / follow-up all covered, including multi-item splitting from one sentence.
-- Web: multi-item proposal cards, strikethrough review, batch-mode interaction.

@@ -40,13 +40,7 @@ All JSON except attachment upload (multipart, the sole exception to "JSON only")
 - The `none` intent goes to the companion agent: read-only tools, bounded rounds, real data only, honest truncation notices; on failure it falls back to fixed copy.
 - Three write triggers: the explicit confirm button, tacit approval by the next message (pending proposals committed oldest-first), and the server's 30-second auto-write; cancel is the only refusal path.
 - The user message persists before the AI is called; on AI failure no reply or proposal is produced and the client keeps the input for retry.
-- Attachments are two-stage: upload for an id, reference it in the message; messages with attachments skip intent classification and go straight to the agent; attachments are one-shot, orphans cleaned after 24 hours.
+- Restored history renders cards in their recorded final states — past proposals carry no confirm buttons.
+- Attachments are two-stage: upload for an id, reference it in the message; messages with attachments skip intent classification and go straight to the agent; attachments are one-shot, orphans cleaned after 24 hours; non-whitelist files reject 415, oversized ones 413.
 - Read-only tools actually called map deterministically to inspect chips that jump to the matching preview panel; the AI never annotates them.
 - The chat domain writes only its own chat.db; cross-domain calls go through injected ports — domain files never import other business domains.
-
-## Acceptance highlights
-
-- Intent dispatch and companion answers: tool budgets, truncation markers, loop termination, failure fallback; HTTP contracts and rate limiting for all endpoints.
-- Tacit approval runs before the new message; existing proposal endpoint contracts unchanged (integration tests pass untouched).
-- History survives a restart: cards render as read-only final states without confirm buttons.
-- Attachment chain and edges (non-whitelist 415, oversized 413); chip mapping and panel jumps.

@@ -32,9 +32,3 @@ All JSON, read-only, no parameters; errors follow the server's standard envelope
 - Every response carries `Cache-Control: no-store`.
 - 404/405 match the server-wide shape: unknown paths `PAGE_NOT_FOUND`, method mismatches `METHOD_NOT_ALLOWED`.
 - The endpoint paths are stable long-term — the Docker healthcheck depends on them.
-
-## Acceptance highlights
-
-- Field-by-field assertions on both 200 response shapes.
-- Unknown path → 404 envelope; POST against a GET endpoint → 405 envelope.
-- A Docker container's healthcheck hits health and reports healthy.

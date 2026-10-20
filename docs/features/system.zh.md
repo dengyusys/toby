@@ -32,9 +32,3 @@
 - 所有响应 `Cache-Control: no-store`。
 - 404/405 与全站同构:未知路径 `PAGE_NOT_FOUND`,方法不匹配 `METHOD_NOT_ALLOWED`。
 - 端点路径长期稳定,Docker healthcheck 依赖它。
-
-## 验收要点
-
-- 两端点 200 响应形状逐字段断言。
-- 未知路径 404 包络、POST 打 GET 端点 405 包络。
-- Docker 容器的 healthcheck 命中 health 并报 healthy。

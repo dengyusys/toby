@@ -37,11 +37,5 @@ Upload is multipart (one of the exceptions to "JSON only"); the rest JSON; error
 - The splitting subprocess receives only a temp-file path: array arguments, no shell, read-only, no network.
 - This domain sends nothing to AI providers; library data never leaves the machine.
 - Title priority: the epub's built-in title → the uploaded filename without extension.
-- Non-whitelisted formats 415, oversized 413, unreadable (no text layer/corrupt/DRM/interpreter missing) reported honestly as one error — no half-uploads.
+- Non-whitelisted formats 415, oversized 413, unreadable files (no text layer/corrupt/DRM/interpreter missing) 422 — no half-uploads.
 - The proposal lifecycle matches the other write domains (10-minute TTL, 30-second auto-write, cancel as the only refusal); confirmation carries only the `proposal_id`.
-
-## Acceptance highlights
-
-- Atomic placement and path-traversal rejection; manifest validity.
-- Full HTTP chain through a real Python subprocess: upload → proposal → confirm → read-only browsing; corrupt files 422; cancel writes nothing; idempotent commits.
-- Split-quality spot checks on real sample books (chapter count, title integrity, no giant chapters).

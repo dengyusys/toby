@@ -39,11 +39,5 @@ All JSON (the context endpoint returns text/plain); errors follow the server's s
 - Distillation runs synchronously before the first user message after a 24-hour gap; the watermark advances at proposal generation, cancelled items are never re-proposed; failures pass silently.
 - Sensitive content (regex hits for keys, ID numbers) is never sent to the external embedding service — literal retrieval only.
 - Memory content goes to an external service for vectorization, the same exposure class as chat text sent to the AI.
-- Distillation output goes through the same proposal review; automated tests never call real embeddings — those get a manual regression.
-
-## Acceptance highlights
-
-- Proposal flow's four states: generation writes nothing, confirmation is idempotent, cancellation refuses commit, expiry returns 410.
-- Retrieval: three-way fusion and the constraint seat, degradation chain, access accounting, expiry filtering (deterministic unit tests with fake embeddings).
-- Distillation: trigger window, watermark advance (cancelled items not re-proposed), near-duplicate merging, silent failure.
-- Empty actions produce no card — the reply becomes conversation body; remove targets outside the list are rejected.
+- Distillation output goes through the same proposal review.
+- Proposal lifecycle: generation writes nothing, commit is idempotent, cancelled proposals refuse commit, expiry answers 410.

@@ -39,9 +39,3 @@ All JSON; errors follow the server's standard envelope.
 - Reads are tolerant, writes are strict: historical unregistered enum values still display; writes always validate against the current definition.
 - Commit re-reads target fields inside a transaction, compares against the proposal's expectation, then writes through a serial queue; any mismatch rejects the whole proposal with zero changes.
 - Four proposal actions: field writes, create tracker, archive tracker, amend tracker; TTL 10 minutes, auto-write after 30 seconds uncancelled (same commit path).
-
-## Acceptance highlights
-
-- Four zero-write states: unconfirmed, cancelled, expired, and ambiguity follow-ups change nothing; repeat confirmation is idempotent; field conflicts reject the whole transaction; unrelated fields are preserved.
-- Cold start entirely by conversation: create trackers (with enum fields) → record continuously → archive, no code changes; AI output stays within definitions.
-- Real AI calls go through manual verification, not automated tests.

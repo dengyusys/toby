@@ -40,9 +40,4 @@ All JSON; errors follow the server's standard envelope.
 - Server-side validation of new topic names (length, path separators, leading dot, monthly-name squatting) doubles as the only path-traversal defense.
 - Intent boundaries: writing note content → this domain; viewing/summarizing/reviewing → the companion's read-only tools.
 - Proposal TTL 10 minutes; uncancelled after 30 seconds the server auto-writes, same path as manual confirmation.
-
-## Acceptance highlights
-
-- Seven-operation dispatch and out-of-range degradation; snapshot conflict rejection; topic naming's four shapes (hit / miss / illegal name / existing notebook).
-- Path hardening: separators, `..`, overlong names, monthly-name squatting all rejected.
-- Read contract: absent files return `exists: false` rather than 404; overlong notebooks truncate with a marker.
+- Reads: an absent monthly file answers `exists: false`, never 404; an oversized notebook truncates with a marker.

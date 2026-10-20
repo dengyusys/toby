@@ -4,12 +4,12 @@ English | [简体中文](living-docs.zh.md)
 
 Docs maintain only two kinds of content: **behavior contracts** and **design decisions**.
 
-- `features/`: each domain's responsibilities, behavior agreements, security boundaries, and acceptance criteria.
+- `features/`: each domain's responsibilities, behavior agreements, and security boundaries.
 - `decisions/`: the reasoning behind architecture and technology choices, and the trade-offs considered when making them.
 - `system-overview.md`: the architecture map, updated when the architecture changes.
 - `README.md`: the documentation index.
 
-Implementation detail belongs to the code; development progress belongs to the Git commit history — neither is duplicated in docs.
+Implementation detail belongs to the code; development progress belongs to the Git commit history; acceptance criteria belong to the test suite — none of them are duplicated in docs.
 
 ## Maintenance rules
 
