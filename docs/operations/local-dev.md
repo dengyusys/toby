@@ -27,12 +27,20 @@ Known limitation: the health gate reads `TOBY_PORT` from exported environment va
 
 Loaded from the repository-root `.env` when present (copy `.env.example` to start). Relative `TOBY_DATA_ROOT` resolves against the repository root, not the current directory.
 
-| Variable         | Default       | Meaning                                              |
-| ---------------- | ------------- | ---------------------------------------------------- |
-| `TOBY_HOST`      | `127.0.0.1`   | Bind address; loopback or `0.0.0.0` (container) only |
-| `TOBY_PORT`      | `8629`        | Server port (dev and production share it)            |
-| `TOBY_DATA_ROOT` | `<repo>/data` | SQLite data directory                                |
-| `TOBY_LOG_LEVEL` | `info`        | pino level (`warn` quiets dev output)                |
+| Variable                        | Default       | Meaning                                                                                           |
+| ------------------------------- | ------------- | ------------------------------------------------------------------------------------------------- |
+| `TOBY_HOST`                     | `127.0.0.1`   | Bind address; loopback or `0.0.0.0` (container) only                                              |
+| `TOBY_PORT`                     | `8629`        | Server port (dev and production share it)                                                         |
+| `TOBY_DATA_ROOT`                | `<repo>/data` | Domain database directory (SQLite dialect)                                                        |
+| `TOBY_DB_DIALECT`               | `sqlite`      | Database dialect for all domain databases; `mysql` switches to per-domain schemas `toby_<domain>` |
+| `TOBY_DB_MYSQL_HOST`            | `127.0.0.1`   | MySQL host (mysql dialect only)                                                                   |
+| `TOBY_DB_MYSQL_PORT`            | `3306`        | MySQL port (mysql dialect only)                                                                   |
+| `TOBY_DB_MYSQL_USER`            | `toby`        | MySQL user (mysql dialect only)                                                                   |
+| `TOBY_DB_MYSQL_PASSWORD`        | _(empty)_     | MySQL password (mysql dialect only)                                                               |
+| `TOBY_DB_MYSQL_DATABASE_PREFIX` | `toby_`       | MySQL schema name prefix (mysql dialect only)                                                     |
+| `TOBY_LOG_LEVEL`                | `info`        | pino level (`warn` quiets dev output)                                                             |
+
+The MySQL adapter is optional (see the [db adapter decision](../decisions/db-adapter.md)); SQLite is the recommended default and `pnpm run test` never needs a MySQL daemon — MySQL adapter tests run only when `TOBY_TEST_MYSQL_URL` is set.
 
 ## Windows notes
 

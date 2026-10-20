@@ -6,7 +6,7 @@ English | [简体中文](ledger.zh.md)
 
 ## Responsibilities and boundaries
 
-- Recording: one sentence in the chat (multiple entries allowed) becomes a proposal; confirmation writes into `data/ledger.db`.
+- Recording: one sentence in the chat (multiple entries allowed) becomes a proposal; confirmation writes into the ledger database (`data/ledger.db` on SQLite; MySQL schema `toby_ledger`).
 - Viewing: per-day subtotals and monthly summaries, category totals, by month.
 - Amounts are stored as **integer cents** end to end — no floating-point drift.
 - **Does not own**: editing or deleting records, budgets and report charts, multi-account systems, multi-currency.

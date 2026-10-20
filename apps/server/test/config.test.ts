@@ -31,6 +31,51 @@ describe("resolveConfig", () => {
     expect(config.logLevel).toBe("info");
   });
 
+  it("db defaults: sqlite dialect, loopback mysql target held in reserve", () => {
+    const config = resolveConfig({ env: {} });
+    expect(config.db.dialect).toBe("sqlite");
+    expect(config.db.mysql).toEqual({
+      host: "127.0.0.1",
+      port: 3306,
+      user: "toby",
+      password: "",
+      databasePrefix: "toby_",
+    });
+  });
+
+  it("TOBY_DB_* overrides are honored", () => {
+    const config = resolveConfig({
+      env: {
+        TOBY_DB_DIALECT: "mysql",
+        TOBY_DB_MYSQL_HOST: "db.internal",
+        TOBY_DB_MYSQL_PORT: "3307",
+        TOBY_DB_MYSQL_USER: "tobyuser",
+        TOBY_DB_MYSQL_PASSWORD: "secret",
+        TOBY_DB_MYSQL_DATABASE_PREFIX: "tobydev_",
+      },
+    });
+    expect(config.db.dialect).toBe("mysql");
+    expect(config.db.mysql).toEqual({
+      host: "db.internal",
+      port: 3307,
+      user: "tobyuser",
+      password: "secret",
+      databasePrefix: "tobydev_",
+    });
+  });
+
+  it("invalid db dialect, mysql port and prefix are rejected", () => {
+    expect(() =>
+      resolveConfig({ env: { TOBY_DB_DIALECT: "postgres" } }),
+    ).toThrow(/TOBY_DB_DIALECT/);
+    expect(() =>
+      resolveConfig({ env: { TOBY_DB_MYSQL_PORT: "not-a-port" } }),
+    ).toThrow(/TOBY_DB_MYSQL_PORT/);
+    expect(() =>
+      resolveConfig({ env: { TOBY_DB_MYSQL_DATABASE_PREFIX: "bad prefix" } }),
+    ).toThrow(/TOBY_DB_MYSQL_DATABASE_PREFIX/);
+  });
+
   it("repositoryRoot matches the independent test anchor", () => {
     expect(repositoryRoot).toBe(testAnchorRoot);
   });

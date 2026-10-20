@@ -27,12 +27,20 @@
 
 存在时从仓库根 `.env` 加载(可从 `.env.example` 复制起步)。相对的 `TOBY_DATA_ROOT` 相对仓库根解析,不相对当前目录。
 
-| 变量             | 默认值        | 含义                                      |
-| ---------------- | ------------- | ----------------------------------------- |
-| `TOBY_HOST`      | `127.0.0.1`   | 绑定地址;仅允许回环地址或 `0.0.0.0`(容器) |
-| `TOBY_PORT`      | `8629`        | 服务端端口(开发与生产同端口)              |
-| `TOBY_DATA_ROOT` | `<仓库>/data` | SQLite 数据目录                           |
-| `TOBY_LOG_LEVEL` | `info`        | pino 级别(`warn` 可让开发输出安静)        |
+| 变量                            | 默认值        | 含义                                                        |
+| ------------------------------- | ------------- | ----------------------------------------------------------- |
+| `TOBY_HOST`                     | `127.0.0.1`   | 绑定地址;仅允许回环地址或 `0.0.0.0`(容器)                   |
+| `TOBY_PORT`                     | `8629`        | 服务端端口(开发与生产同端口)                                |
+| `TOBY_DATA_ROOT`                | `<仓库>/data` | 域数据库目录(SQLite 方言)                                   |
+| `TOBY_DB_DIALECT`               | `sqlite`      | 所有域数据库的方言;设 `mysql` 切换为按域 schema `toby_<域>` |
+| `TOBY_DB_MYSQL_HOST`            | `127.0.0.1`   | MySQL 主机(仅 mysql 方言)                                   |
+| `TOBY_DB_MYSQL_PORT`            | `3306`        | MySQL 端口(仅 mysql 方言)                                   |
+| `TOBY_DB_MYSQL_USER`            | `toby`        | MySQL 用户(仅 mysql 方言)                                   |
+| `TOBY_DB_MYSQL_PASSWORD`        | _(空)_        | MySQL 密码(仅 mysql 方言)                                   |
+| `TOBY_DB_MYSQL_DATABASE_PREFIX` | `toby_`       | MySQL schema 名前缀(仅 mysql 方言)                          |
+| `TOBY_LOG_LEVEL`                | `info`        | pino 级别(`warn` 可让开发输出安静)                          |
+
+MySQL 适配器是可选项(见[数据库适配器决策](../decisions/db-adapter.zh.md));推荐默认仍是 SQLite,`pnpm run test` 永远不需要运行中的 MySQL —— MySQL 适配器测试仅在设置了 `TOBY_TEST_MYSQL_URL` 时运行。
 
 ## Windows 注意事项
 

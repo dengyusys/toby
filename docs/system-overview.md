@@ -10,13 +10,13 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 
 ## Stack
 
-| Layer    | Choice                                                                    |
-| -------- | ------------------------------------------------------------------------- |
-| Runtime  | Node 22.23.2, runs `.ts` directly, no build step                          |
-| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                         |
-| Server   | Fastify 5 + better-sqlite3 + pino + zod                                   |
-| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`) |
-| Tests    | vitest + happy-dom + @testing-library                                     |
+| Layer    | Choice                                                                        |
+| -------- | ----------------------------------------------------------------------------- |
+| Runtime  | Node 22.23.2, runs `.ts` directly, no build step                              |
+| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                             |
+| Server   | Fastify 5 + own db adapter port (SQLite default, MySQL optional) + pino + zod |
+| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)     |
+| Tests    | vitest + happy-dom + @testing-library                                         |
 
 ## System context
 
@@ -24,7 +24,7 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 flowchart LR
     U(("User")) --> W["Two web apps (React SPAs:<br/>PC at / and mobile at /m/)"]
     W -->|"read-only APIs / proposals (HTTP)"| S["Toby server · single process (Fastify)<br/>vertical domains · proposal lifecycle (reserved)"]
-    S --> DB[("SQLite (data/)<br/>only the server writes")]
+    S --> DB[("Databases via the adapter port<br/>SQLite (default) · MySQL (optional)<br/>only the server writes")]
     S -->|"field values only: no database, no shell, no file paths"| AI(("AI provider<br/>(arrives with the first domain)"))
 ```
 
@@ -44,7 +44,7 @@ apps/
 packages/
 ├─ contract/      # @toby/contract: shared contract package for both apps (pure TS, zero JSX/CSS/DOM)
 scripts/          # dev and multi-process orchestration (dev.js)
-data/             # runtime data (SQLite and files), git-ignored, server-only writes
+data/             # runtime data (domain databases and files), git-ignored, server-only writes
 docs/             # product, architecture, ADRs, feature contracts, operations
 test/             # root HTTP integration tests
 ```
@@ -81,7 +81,7 @@ The full path of one write (endpoint contracts are finalized in each domain's `f
 3. The AI returns only restricted dates, categories, fields, and values; the server then applies schema, domain, and semantic validation.
 4. The server reads current fields and produces a short-lived proposal carrying `proposal_id`, before and after values.
 5. The client's only actions are confirm or cancel with that `proposal_id`; empty request bodies.
-6. On commit the server re-reads target fields inside a SQLite transaction, checks conflicts, executes serially, and commits — or rolls back entirely.
+6. On commit the server re-reads target fields inside a database transaction, checks conflicts, executes serially, and commits — or rolls back entirely.
 
 ```mermaid
 sequenceDiagram
@@ -89,7 +89,7 @@ sequenceDiagram
     participant W as Web (chat page)
     participant S as Toby server (proposal domain)
     participant A as AI provider
-    participant D as SQLite
+    participant D as Database (adapter port)
 
     W->>S: one sentence (text, time, timezone)
     S->>A: parse request (instruction text only)
@@ -118,16 +118,16 @@ sequenceDiagram
 - `data/` is production data: nobody touches it by default; maintenance requires explicit user instruction, with SHA-256 compared before and after any move or restore.
 - Daily reads go only through server APIs; daily writes only through proposal confirmation. Clients, AI, and scripts never connect to a database directly.
 - Explicit `false` and numeric `0` are valid data, never treated as missing.
-- The server edits field by field: SQLite `NULL` means missing, omitted on read; unrelated fields stay untouched.
-- A multi-field commit is one SQLite transaction; failure or interruption rolls back via the database. No user history, no undo.
-- Each domain's database files (`schedule.db` etc.) are decided when that domain lands; databases are never shared across domains.
+- The server edits field by field: `NULL` means missing, omitted on read; unrelated fields stay untouched.
+- A multi-field commit is one database transaction; failure or interruption rolls back via the database. No user history, no undo.
+- Each domain owns one database — a SQLite file `data/<domain>.db`, or a MySQL schema `toby_<domain>` when that dialect is on (see the [db adapter decision](decisions/db-adapter.md)); databases are never shared across domains.
 
 ## Security and dependency direction
 
 ```mermaid
 flowchart TB
     BOOT["main.ts (composition root)<br/>one line per domain; all cross-domain wiring lives here"]
-    INFRA["infrastructure/<br/>config (TOBY_*) · http (Fastify factory / error envelope / dual-SPA static)<br/>logging (pino) · db (open-database)"]
+    INFRA["infrastructure/<br/>config (TOBY_*) · http (Fastify factory / error envelope / dual-SPA static)<br/>logging (pino) · db (adapter port: sqlite / mysql)"]
     DOM["domains/*<br/>nine business domains, landing one by one"]
     BOOT --> INFRA
     BOOT --> DOM

@@ -61,5 +61,3 @@ export interface DomainDb extends DbOperations {
 - Where SQL cannot be shared across dialects (DDL, dialect specifics), it is written once per dialect. At this project's scale that duplication is cheap; if it ever stops being cheap, reopen this record.
 
 This design trades ORM convenience for a dependency-free seam we fully understand — the same criterion that governs the rest of the stack.
-
-> Framework-phase reservation: the design is settled here; the implementation batch is tracked in `PLAN.md`.

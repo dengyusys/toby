@@ -12,6 +12,7 @@
     "@fastify/static": "catalog:",
     "better-sqlite3": "catalog:",
     "fastify": "catalog:",
+    "mysql2": "catalog:",
     "pino": "catalog:"
   },
   "devDependencies": {

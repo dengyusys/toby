@@ -10,13 +10,13 @@
 
 ## 技术栈
 
-| 层     | 选型                                                                  |
-| ------ | --------------------------------------------------------------------- |
-| 运行   | Node 22.23.2,`.ts` 直跑,无构建步骤                                    |
-| 包管理 | pnpm 11.18.0 workspaces(`apps/*` + `packages/*`)                      |
-| 服务端 | Fastify 5 + better-sqlite3 + pino + zod                               |
-| 前端   | React 19 + Vite 6 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`) |
-| 测试   | vitest + happy-dom + @testing-library                                 |
+| 层     | 选型                                                                   |
+| ------ | ---------------------------------------------------------------------- |
+| 运行   | Node 22.23.2,`.ts` 直跑,无构建步骤                                     |
+| 包管理 | pnpm 11.18.0 workspaces(`apps/*` + `packages/*`)                       |
+| 服务端 | Fastify 5 + 自建数据库适配 port（默认 SQLite，可选 MySQL）+ pino + zod |
+| 前端   | React 19 + Vite 6 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`)  |
+| 测试   | vitest + happy-dom + @testing-library                                  |
 
 ## 系统上下文
 
@@ -24,7 +24,7 @@
 flowchart LR
     U(("用户")) --> W["Web 双应用(React SPA:<br/>PC 端 / 与移动端 /m/)"]
     W -->|"只读 API / 提案(HTTP)"| S["Toby server 单进程(Fastify)<br/>垂直域 · 提案生命周期(预留)"]
-    S --> DB[("SQLite(data/)<br/>只有 server 写")]
+    S --> DB[("数据库，经适配 port 访问<br/>SQLite（默认）·MySQL（可选）<br/>只有 server 写")]
     S -->|"只传字段值:无数据库、无 shell、无文件路径"| AI(("AI provider<br/>(随首个业务域接入)"))
 ```
 
@@ -44,7 +44,7 @@ apps/
 packages/
 ├─ contract/      # @toby/contract:双端共享契约包(纯 TS,零 JSX/CSS/DOM)
 scripts/          # 开发与多进程启动编排(dev.js)
-data/             # 运行数据(SQLite 与文件),Git 忽略,只有 server 写
+data/             # 运行数据（域数据库与文件），Git 忽略，只有 server 写
 docs/             # 产品、架构、ADR、功能契约与运维文档
 test/             # 根 HTTP 集成测试
 ```
@@ -81,7 +81,7 @@ test/             # 根 HTTP 集成测试
 3. AI 只返回受限的日期、分类、字段和值;server 再做 schema、领域和语义校验。
 4. server 读取当前字段,生成带 `proposal_id`、前值和后值的短期提案。
 5. 客户端仅凭 `proposal_id` 调用确认或取消,请求体为空。
-6. 确认时 server 在 SQLite 事务中重读目标字段、检查冲突、串行执行并提交,或整体回滚。
+6. 确认时 server 在数据库事务中重读目标字段、检查冲突、串行执行并提交,或整体回滚。
 
 ```mermaid
 sequenceDiagram
@@ -89,7 +89,7 @@ sequenceDiagram
     participant W as Web(对话页)
     participant S as Toby server(提案域)
     participant A as AI provider
-    participant D as SQLite
+    participant D as 数据库（适配 port）
 
     W->>S: 一句话(text、时间、时区)
     S->>A: 解析请求(只含指令文字)
@@ -118,16 +118,16 @@ sequenceDiagram
 - `data/` 是生产数据:默认谁都不碰;维护任务需用户点名,挪动或恢复前后比对 SHA-256。
 - 日常读取只经 server API;日常写入只经提案确认。客户端、AI 和脚本不能直连数据库。
 - 显式 `false` 和数值 `0` 是有效数据,不能按缺失值处理。
-- server 做字段级修改:SQLite `NULL` 表示缺失,读取时省略;无关字段保持不变。
-- 多字段提交是一条 SQLite 事务;失败或中断由数据库回滚,不提供用户历史或撤销。
-- 各域的数据库文件划分(`schedule.db` 等)随域落地时确定,互不混用。
+- server 做字段级修改:`NULL` 表示缺失,读取时省略;无关字段保持不变。
+- 多字段提交是一条数据库事务;失败或中断由数据库回滚,不提供用户历史或撤销。
+- 每个域拥有自己的数据库 —— SQLite 方言为文件 `data/<域>.db`,MySQL 方言为 schema `toby_<域>`(见[数据库适配器决策](decisions/db-adapter.zh.md));跨域永不共享数据库。
 
 ## 安全与依赖方向
 
 ```mermaid
 flowchart TB
     BOOT["main.ts(组合根)<br/>每域一行装配,跨域接线只在这里"]
-    INFRA["infrastructure/<br/>config(TOBY_*)·http(Fastify 工厂/错误包络/双 SPA 静态)<br/>logging(pino)·db(open-database)"]
+    INFRA["infrastructure/<br/>config(TOBY_*)·http(Fastify 工厂/错误包络/双 SPA 静态)<br/>logging(pino)·db(适配 port:sqlite / mysql)"]
     DOM["domains/*<br/>九个业务域,逐个落地"]
     BOOT --> INFRA
     BOOT --> DOM

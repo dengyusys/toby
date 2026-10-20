@@ -1,6 +1,6 @@
 # Toby 重构框架搭建计划
 
-> 状态:bootstrap 与远端仓库已完成,server 框架与 web 骨架两批已进 main;待办:CI/Docker 批次与数据库适配 port 实现批次(方案已定,见 docs/decisions/db-adapter.md)。合并方式已定为**直接 push main**(本地 check 全绿即推,不走 PR)。
+> 状态:bootstrap 与远端仓库已完成,server 框架、web 骨架与数据库适配 port 三批已进 main;待办:CI/Docker 批次。合并方式已定为**直接 push main**(本地 check 全绿即推,不走 PR)。
 
 ## 背景(Context)
 
@@ -131,7 +131,7 @@ main 直接 bootstrap(保护规则生效前的鸡生蛋问题):
 - 批次一 server 框架(已进 main):④ `feat(server): Fastify app factory and infrastructure skeleton` ⑤ `feat(system): walking-skeleton domain with health endpoints` ⑥ `feat(contract): pure contract package with system client`
 - 批次二 web 骨架(已进 main):⑦ `feat(web): minimal web and web-mobile skeletons with health page`(各端自持主题与组件),辅以 `chore(deps)` catalog 与 `docs(plan)` 等规范提交
 - 批次三 CI/Docker:⑨ `chore(dev): dev orchestration script and root integration tests`(已进 main)⑩ `ci(collaboration): Actions pipeline, dependabot and templates` + `build(deploy): Docker image and compose stack`
-- 批次四 数据库适配 port(方案 ADR 已先行进 main):⑪ `feat(server): database port with sqlite and mysql adapters` —— `infrastructure/db` 重构为适配 port(types/errors/sqlite/mysql/create-db/migrate,吸收现有 open-database.ts)、config 增 TOBY_DB_* 数据库段、catalog 增 mysql2、port 级 contract 测试套件(mysql 部分由 TOBY_TEST_MYSQL_URL 门控、默认 skip);届时同步跟进 system-overview / local-dev / .env.example / todo / ledger 文档
+- 批次四 数据库适配 port(方案 ADR 已先行进 main;实现已进 main):⑪ `feat(server): database port with sqlite and mysql adapters` —— `infrastructure/db` 重构为适配 port(types/errors/sqlite/mysql/create-db/migrate,吸收现有 open-database.ts)、config 增 TOBY_DB_* 数据库段、catalog 增 mysql2、port 级 contract 测试套件(mysql 部分由 TOBY_TEST_MYSQL_URL 门控、默认 skip);已同步跟进 system-overview / local-dev / .env.example / todo / ledger 文档
 
 ## 验证(框架成立判定)
 

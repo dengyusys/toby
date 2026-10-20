@@ -6,7 +6,7 @@ English | [简体中文](todo.zh.md)
 
 ## Responsibilities and boundaries
 
-A one-shot todo board: one sentence in the chat, a proposal card confirmed, then a write into `data/todo.db`.
+A one-shot todo board: one sentence in the chat, a proposal card confirmed, then a write into the todo database (`data/todo.db` on SQLite; MySQL schema `toby_todo`).
 
 - **Owns**: adding (one sentence, single or multiple items), checking off (done), tearing off (not wanted), and reviewing by due date.
 - **Does not own**: recurring routines (schedule), long-term preferences (memory), thoughts and moods (notes); rescheduling, priorities, subtasks, reopening a checked item.
@@ -35,7 +35,7 @@ All JSON; errors follow the server's standard envelope. Response shapes and erro
 - The AI drafts only title and due date; the note always keeps the user's original words.
 - Check-off/tear-off targets can only be picked from the open list injected by the server, re-verified server-side.
 - No due date expressible → undated; never guess. A time always requires a date.
-- Multi-item writes share one SQLite transaction; one invalid entry rolls back the batch.
+- Multi-item writes share one database transaction; one invalid entry rolls back the batch.
 - Check-off-all snapshots the open set at drafting time; todos added later are not swept in.
 - Proposal TTL is 10 minutes; uncancelled after 30 seconds the server auto-writes — same path as manual confirmation, idempotent.
 - Board direct writes are PC-only "explicit selection + confirm dialog", bypassing proposals; mobile is review-only.
