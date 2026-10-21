@@ -38,5 +38,5 @@ All JSON; errors follow the server's standard envelope. Response shapes and erro
 - Multi-item writes share one database transaction; one invalid entry rolls back the batch.
 - Check-off-all snapshots the open set at drafting time; todos added later are not swept in.
 - Proposal TTL is 10 minutes; uncancelled after 30 seconds the server auto-writes — same path as manual confirmation, idempotent; cancelled proposals refuse commit, expired ones answer 410.
-- Board direct writes are PC-only "explicit selection + confirm dialog", bypassing proposals; any unknown id rolls back the whole batch; mobile is review-only.
+- Board direct writes are PC-only "explicit selection + confirm dialog", bypassing proposals; any unknown id rolls back the whole batch; tear-off is irreversible; mobile is review-only.
 - Intent boundaries: "remind me…" (one-shot) → this domain; "from now on always…" → memory; daily check-ins → schedule; thoughts and moods → notes.

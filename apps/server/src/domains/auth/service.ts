@@ -5,9 +5,10 @@
  */
 
 import type { AuthConfig } from "../../infrastructure/config/config.ts";
+import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
 import { verifyPassword } from "./password.ts";
 import { createLoginRateLimiter } from "./rate-limit.ts";
-import { createSessionRegistry } from "./sessions.ts";
+import { createSessionRegistry, type SessionHandle } from "./sessions.ts";
 import type { AuthLoginSuccess, AuthSessionInfo } from "./types.ts";
 
 /** Domain-shaped error recognized by the unified HTTP error boundary. */
@@ -34,10 +35,8 @@ export interface AuthServiceDeps {
   now?: () => number;
 }
 
-export interface SessionGrant {
-  readonly token: string;
-  readonly expiresAtMs: number;
-}
+/** A freshly created session: the token travels in the cookie only. */
+export type SessionGrant = SessionHandle;
 
 export interface AuthService {
   /** Wrong password 401, over the limit 429, disabled 400. */
@@ -47,6 +46,8 @@ export interface AuthService {
   session(token: string | undefined): AuthSessionInfo;
   /** The preHandler guard used by the app factory. */
   requireSession(pathname: string, token: string | undefined): void;
+  /** Prune expired sessions; called by the module's sweeper. */
+  sweepSessions(): void;
 }
 
 export const SESSION_COOKIE = "toby_session";
@@ -68,7 +69,7 @@ export function assembleAuthService(
       if (!config.enabled) {
         throw new AuthError(
           "AUTH_DISABLED",
-          400,
+          HTTP_STATUS.badRequest,
           "authentication is not configured (TOBY_AUTH_PASSWORD_HASH is unset)",
         );
       }
@@ -76,7 +77,7 @@ export function assembleAuthService(
       if (!decision.allowed) {
         throw new AuthError(
           "RATE_LIMITED",
-          429,
+          HTTP_STATUS.tooManyRequests,
           "too many login attempts",
           decision.retryAfterSeconds,
         );
@@ -85,7 +86,11 @@ export function assembleAuthService(
         typeof password !== "string" ||
         !verifyPassword(password, config.passwordHash)
       ) {
-        throw new AuthError("INVALID_CREDENTIALS", 401, "wrong password");
+        throw new AuthError(
+          "INVALID_CREDENTIALS",
+          HTTP_STATUS.unauthorized,
+          "wrong password",
+        );
       }
       return sessions.create(config.sessionTtlMs);
     },
@@ -100,10 +105,16 @@ export function assembleAuthService(
       if (!config.enabled) {
         return { enabled: false, authenticated: false };
       }
-      if (token === undefined || !sessions.verify(token)) {
+      const expiresAtMs =
+        token === undefined ? undefined : sessions.expiryOf(token);
+      if (expiresAtMs === undefined) {
         return { enabled: true, authenticated: false };
       }
-      return { enabled: true, authenticated: true };
+      return {
+        enabled: true,
+        authenticated: true,
+        expires_at: new Date(expiresAtMs).toISOString(),
+      };
     },
 
     requireSession(pathname, token) {
@@ -119,8 +130,16 @@ export function assembleAuthService(
         return;
       }
       if (token === undefined || !sessions.verify(token)) {
-        throw new AuthError("AUTH_REQUIRED", 401, "login required");
+        throw new AuthError(
+          "AUTH_REQUIRED",
+          HTTP_STATUS.unauthorized,
+          "login required",
+        );
       }
+    },
+
+    sweepSessions() {
+      sessions.sweep();
     },
   };
 }

@@ -9,7 +9,7 @@
 
 import type { AiClient } from "../../infrastructure/ai/types.ts";
 import type { LedgerEntry } from "./types.ts";
-import { LedgerInputError, normalizeEntries } from "./validation.ts";
+import { isRecord, LedgerInputError, normalizeEntries } from "./validation.ts";
 
 /** The AI could not resolve the sentence: ask the user one question. */
 export interface LedgerFollowUp {
@@ -33,10 +33,6 @@ function systemPrompt(now: Date): string {
     '每条的字段: date(YYYY-MM-DD,"昨天"等相对说法按今天换算)、type("expense" 或 "income")、category(分类,不超过 24 字)、account(账户,不超过 24 字,用户未提及就省略此字段)、amount(非负数字符串,最多两位小数)、note(备注,可空字符串,尽量保留用户原话)。',
     '日期、类型或金额不确定时不要猜:输出 {"question": "一个中文追问"}。',
   ].join("\n");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export async function extractLedgerEntries(

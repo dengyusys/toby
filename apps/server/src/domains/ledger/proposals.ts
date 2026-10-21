@@ -8,6 +8,7 @@
  * stays bounded; after that a commit reports plain 404.
  */
 
+import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
 import type {
   LedgerCancelResult,
   LedgerCommitResult,
@@ -93,7 +94,7 @@ export function createProposalRegistry(
     if (!record) {
       throw new ProposalStateError(
         "PROPOSAL_NOT_FOUND",
-        404,
+        HTTP_STATUS.notFound,
         "proposal not found",
       );
     }
@@ -125,14 +126,14 @@ export function createProposalRegistry(
       if (record.status === "expired") {
         throw new ProposalStateError(
           "PROPOSAL_EXPIRED",
-          410,
+          HTTP_STATUS.gone,
           "proposal has expired",
         );
       }
       if (record.status === "cancelled") {
         throw new ProposalStateError(
           "PROPOSAL_CANCELLED",
-          409,
+          HTTP_STATUS.conflict,
           "proposal was cancelled and cannot be committed",
         );
       }
@@ -148,7 +149,7 @@ export function createProposalRegistry(
         record.status = "expired";
         throw new ProposalStateError(
           "PROPOSAL_EXPIRED",
-          410,
+          HTTP_STATUS.gone,
           "proposal has expired",
         );
       }
@@ -182,21 +183,21 @@ export function createProposalRegistry(
         record.status = "expired";
         throw new ProposalStateError(
           "PROPOSAL_EXPIRED",
-          410,
+          HTTP_STATUS.gone,
           "proposal has expired",
         );
       }
       if (record.status === "committed") {
         throw new ProposalStateError(
           "PROPOSAL_COMMITTED",
-          409,
+          HTTP_STATUS.conflict,
           "proposal is already committed",
         );
       }
       if (record.inFlight) {
         throw new ProposalStateError(
           "PROPOSAL_COMMITTED",
-          409,
+          HTTP_STATUS.conflict,
           "proposal commit is already in progress",
         );
       }

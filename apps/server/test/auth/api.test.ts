@@ -47,6 +47,7 @@ async function buildApp(env: Record<string, string>): Promise<void> {
     mobileWebRoot: path.join(staticRoot, "mobile"),
     domains: [assembleSystem(), ledger, auth.mounted],
     requestGuard: auth.requestGuard,
+    trustProxy: config.trustProxy,
   });
 }
 
@@ -55,12 +56,16 @@ function inject(
   url: string,
   payload?: Record<string, unknown>,
   cookie?: string,
+  extraHeaders?: Record<string, string>,
 ) {
   const options = {
     method,
     url,
     ...(payload === undefined ? {} : { payload }),
     ...(cookie === undefined ? {} : { headers: { cookie } }),
+    ...(extraHeaders === undefined
+      ? {}
+      : { headers: { ...extraHeaders, ...(cookie ? { cookie } : {}) } }),
   };
   return app.inject(options);
 }
@@ -160,11 +165,17 @@ describe("auth enabled", () => {
 
     const session = await inject("GET", "/api/auth/session", undefined, cookie);
     expect(session.statusCode).toBe(200);
-    expect(session.json()).toEqual({
-      enabled: true,
-      authenticated: true,
-      expires_at: session.json().expires_at,
-    });
+    const body = session.json() as {
+      enabled: boolean;
+      authenticated: boolean;
+      expires_at?: string;
+    };
+    expect(body.enabled).toBe(true);
+    expect(body.authenticated).toBe(true);
+    // TTL is 7 days from the fixed test clock, returned as a UTC ISO string.
+    expect(body.expires_at).toBe(
+      new Date(BASE_MS + 7 * 24 * 3_600_000).toISOString(),
+    );
   });
 
   it("logout revokes the session; repeating logout stays 200", async () => {
@@ -209,6 +220,27 @@ describe("auth enabled", () => {
     nowMs += 61_000; // window rolls over
     const recovered = await login(PASSWORD);
     expect(recovered.statusCode).toBe(200);
+  });
+
+  it("behind a trusted proxy, rate limiting buckets by forwarded client IP", async () => {
+    // The default app does NOT trust the header: every caller shares the
+    // proxy's socket address. TOBY_TRUST_PROXY restores per-client buckets.
+    await app.close();
+    await buildApp({
+      TOBY_AUTH_PASSWORD_HASH: PASSWORD_HASH,
+      TOBY_TRUST_PROXY: "true",
+    });
+    const attemptFrom = (ip: string) =>
+      inject("POST", "/api/auth/login", { password: "nope" }, undefined, {
+        "x-forwarded-for": ip,
+      });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      expect((await attemptFrom("203.0.113.9")).statusCode).toBe(401);
+    }
+    expect((await attemptFrom("203.0.113.9")).statusCode).toBe(429);
+    // A different real client keeps its own bucket: the lockout above does
+    // not bleed into everyone behind the proxy.
+    expect((await attemptFrom("198.51.100.7")).statusCode).toBe(401);
   });
 });
 

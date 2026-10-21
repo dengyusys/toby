@@ -44,6 +44,13 @@ export function verifyPassword(password: string, stored: string): boolean {
   if (salt.length === 0 || expected.length === 0) {
     return false;
   }
-  const computed = scryptSync(password, salt, expected.length, { N, r, p });
+  // Even a shape-valid hash can carry parameters the runtime rejects;
+  // verification answers false, it never turns into a 500.
+  let computed: Buffer;
+  try {
+    computed = scryptSync(password, salt, expected.length, { N, r, p });
+  } catch {
+    return false;
+  }
   return timingSafeEqual(computed, expected);
 }

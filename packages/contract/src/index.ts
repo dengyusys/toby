@@ -1,4 +1,4 @@
-export { ApiError, requestJson } from "./request-json.ts";
+export { ApiError, endpoint, requestJson } from "./request-json.ts";
 export { createSystemClient } from "./system-client.ts";
 export type {
   SystemClient,

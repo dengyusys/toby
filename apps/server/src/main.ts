@@ -26,6 +26,7 @@ async function main(): Promise<void> {
     logger,
     domains: [system, ledger, auth.mounted],
     requestGuard: auth.requestGuard,
+    trustProxy: config.trustProxy,
   });
 
   try {

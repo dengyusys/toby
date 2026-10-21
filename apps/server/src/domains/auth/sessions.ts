@@ -19,6 +19,8 @@ export interface SessionRegistry {
   create(ttlMs: number): SessionHandle;
   /** Expired or unknown tokens verify as false; expiry is lazy. */
   verify(token: string): boolean;
+  /** Expiry timestamp for a live session; undefined for unknown/expired. */
+  expiryOf(token: string): number | undefined;
   /** Unknown tokens revoke as no-ops. */
   revoke(token: string): void;
   sweep(): void;
@@ -33,6 +35,18 @@ export function createSessionRegistry(
 ): SessionRegistry {
   const sessions = new Map<string, number>(); // sha256(token) -> expiresAtMs
 
+  function expiryOf(token: string): number | undefined {
+    const expiresAtMs = sessions.get(digestOf(token));
+    if (expiresAtMs === undefined) {
+      return undefined;
+    }
+    if (deps.now() >= expiresAtMs) {
+      sessions.delete(digestOf(token));
+      return undefined;
+    }
+    return expiresAtMs;
+  }
+
   return {
     create(ttlMs) {
       const token = randomBytes(32).toString("base64url");
@@ -42,16 +56,10 @@ export function createSessionRegistry(
     },
 
     verify(token) {
-      const expiresAtMs = sessions.get(digestOf(token));
-      if (expiresAtMs === undefined) {
-        return false;
-      }
-      if (deps.now() >= expiresAtMs) {
-        sessions.delete(digestOf(token));
-        return false;
-      }
-      return true;
+      return expiryOf(token) !== undefined;
     },
+
+    expiryOf,
 
     revoke(token) {
       sessions.delete(digestOf(token));

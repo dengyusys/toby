@@ -31,6 +31,12 @@ export interface TobyServerOptions {
     request: FastifyRequest,
     reply: FastifyReply,
   ) => Promise<void>;
+  /**
+   * Trust X-Forwarded-For from a fronting reverse proxy (TOBY_TRUST_PROXY),
+   * so request.ip and per-IP limits see real client addresses. Off by
+   * default: enable only behind a proxy you control.
+   */
+  trustProxy?: boolean;
   /** Runtime pino instance: enables access logs and request.log. Omit for silence (tests). */
   logger?: Logger;
 }
@@ -43,13 +49,16 @@ export function createServer({
   mobileWebRoot,
   domains = [],
   requestGuard,
+  trustProxy,
   logger,
 }: TobyServerOptions): FastifyInstance {
   // Injected-instance and silence are mutually exclusive: quiet mode is
   // always `logger: false`, never a fake instance.
-  const fastifyOptions: FastifyServerOptions = logger
-    ? { loggerInstance: logger, bodyLimit: 16 * 1024 }
-    : { logger: false, bodyLimit: 16 * 1024 };
+  const fastifyOptions: FastifyServerOptions = {
+    bodyLimit: 16 * 1024,
+    ...(trustProxy ? { trustProxy: true } : {}),
+    ...(logger ? { loggerInstance: logger } : { logger: false }),
+  };
   const app = Fastify(fastifyOptions);
 
   // Unified error boundary: domain errors, body-parse errors, sanitized 500.

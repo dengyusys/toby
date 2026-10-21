@@ -4,7 +4,7 @@
  * dates are "YYYY-MM-DD" strings.
  */
 
-import { requestJson } from "./request-json.ts";
+import { endpoint, requestJson } from "./request-json.ts";
 
 export type LedgerEntryType = "income" | "expense";
 
@@ -91,10 +91,6 @@ export interface LedgerClient {
   /** Months that have records, descending. */
   listMonths(): Promise<string[]>;
   monthReport(month: string): Promise<LedgerMonthReport>;
-}
-
-function endpoint(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}${path}`;
 }
 
 export function createLedgerClient(baseUrl: string): LedgerClient {

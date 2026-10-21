@@ -30,3 +30,6 @@ Desktop.ini
 # Editors / 编辑器
 .idea/
 .vscode/
+
+# Local agent session files / 本地代理会话文件
+.zcode/

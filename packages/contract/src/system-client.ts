@@ -2,7 +2,7 @@
  * System domain client: typed access to the walking-skeleton endpoints.
  */
 
-import { requestJson } from "./request-json.ts";
+import { endpoint, requestJson } from "./request-json.ts";
 
 export interface SystemHealth {
   status: "ok";
@@ -19,10 +19,6 @@ export interface SystemInfo {
 export interface SystemClient {
   health(): Promise<SystemHealth>;
   info(): Promise<SystemInfo>;
-}
-
-function endpoint(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}${path}`;
 }
 
 export function createSystemClient(baseUrl: string): SystemClient {

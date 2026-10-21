@@ -39,6 +39,11 @@ function decodeErrorBody(status: number, text: string): ApiError {
   );
 }
 
+/** Join a client's base URL with an API path, tolerating trailing slashes. */
+export function endpoint(baseUrl: string, path: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}${path}`;
+}
+
 export async function requestJson<T>(
   url: string,
   init?: RequestInit,

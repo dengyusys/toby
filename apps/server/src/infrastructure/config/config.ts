@@ -54,7 +54,31 @@ export interface TobyConfig {
   db: DatabaseConfig;
   ai: AiTransportConfig;
   auth: AuthConfig;
+  /**
+   * Trust X-Forwarded-For from a reverse proxy in front of the server, so
+   * request.ip (and the login rate limiter) see real client addresses.
+   * Enable only behind a proxy you control — a directly exposed server
+   * would let clients spoof the header and bypass per-IP limits.
+   */
+  trustProxy: boolean;
   logLevel: string;
+}
+
+function resolveBoolean(
+  value: string | undefined,
+  name: string,
+  fallback: boolean,
+): boolean {
+  if (value === undefined || value === "") {
+    return fallback;
+  }
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  throw new Error(`${name} must be "true" or "false"`);
 }
 
 /**
@@ -164,8 +188,11 @@ function resolveAiConfig(env: Env): AiTransportConfig {
   };
 }
 
+// The generator (scripts/hash-password.js) fixes the scrypt parameters;
+// pinning them here rejects malformed hashes at startup instead of at
+// login time.
 const SCRYPT_HASH_PATTERN =
-  /^scrypt\$\d+\$\d+\$\d+\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/;
+  /^scrypt\$16384\$8\$1\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/;
 
 /** Auth stays off until a password hash is explicitly configured. */
 function resolveAuthConfig(env: Env): AuthConfig {
@@ -202,7 +229,11 @@ function resolveAuthConfig(env: Env): AuthConfig {
       60_000,
       { min: 1_000, max: 3_600_000 },
     ),
-    secureCookie: env.TOBY_AUTH_SECURE_COOKIE === "true",
+    secureCookie: resolveBoolean(
+      env.TOBY_AUTH_SECURE_COOKIE,
+      "TOBY_AUTH_SECURE_COOKIE",
+      false,
+    ),
   };
 }
 
@@ -224,6 +255,7 @@ export function resolveConfig(options: { env?: Env } = {}): TobyConfig {
     db: resolveDatabaseConfig(env),
     ai: resolveAiConfig(env),
     auth: resolveAuthConfig(env),
+    trustProxy: resolveBoolean(env.TOBY_TRUST_PROXY, "TOBY_TRUST_PROXY", false),
     logLevel: env.TOBY_LOG_LEVEL || "info",
   };
 }

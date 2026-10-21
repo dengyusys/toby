@@ -23,19 +23,23 @@ export interface LoginRateLimiter {
 export function createLoginRateLimiter(
   deps: RateLimiterDeps,
 ): LoginRateLimiter {
-  const windows = new Map<string, { windowIndex: number; count: number }>();
+  // Windows align to global time, so one stamp suffices: when the window
+  // rolls over every stored entry is dead — clear them all at once, and
+  // the map never holds more than one window's worth of client keys.
+  const windows = new Map<string, number>(); // ip -> attempts in this window
+  let stampedWindowIndex = -1;
 
   return {
     attempt(ip) {
       const nowMs = deps.now();
       const windowIndex = Math.floor(nowMs / deps.windowMs);
-      const current = windows.get(ip);
-      if (!current || current.windowIndex !== windowIndex) {
-        windows.set(ip, { windowIndex, count: 1 });
-        return { allowed: true };
+      if (windowIndex !== stampedWindowIndex) {
+        windows.clear();
+        stampedWindowIndex = windowIndex;
       }
-      current.count += 1;
-      if (current.count > deps.max) {
+      const count = (windows.get(ip) ?? 0) + 1;
+      windows.set(ip, count);
+      if (count > deps.max) {
         const windowEndMs = (windowIndex + 1) * deps.windowMs;
         return {
           allowed: false,

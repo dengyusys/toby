@@ -179,11 +179,35 @@ describe("resolveConfig", () => {
     expect(() =>
       resolveConfig({ env: { TOBY_AUTH_PASSWORD_HASH: "plaintext" } }),
     ).toThrow(/TOBY_AUTH_PASSWORD_HASH/);
+    // The scrypt parameters are pinned to the generator's — anything else
+    // fails at startup instead of at login time.
+    expect(() =>
+      resolveConfig({
+        env: { TOBY_AUTH_PASSWORD_HASH: "scrypt$1$1$1$c2FsdA==$aGFzaA==" },
+      }),
+    ).toThrow(/TOBY_AUTH_PASSWORD_HASH/);
     expect(() =>
       resolveConfig({ env: { TOBY_AUTH_SESSION_TTL_HOURS: "0" } }),
     ).toThrow(/TOBY_AUTH_SESSION_TTL_HOURS/);
     expect(() =>
       resolveConfig({ env: { TOBY_AUTH_RATE_LIMIT_MAX: "0" } }),
     ).toThrow(/TOBY_AUTH_RATE_LIMIT_MAX/);
+  });
+
+  it("boolean flags accept only true/false; trustProxy defaults off", () => {
+    expect(resolveConfig({ env: {} }).trustProxy).toBe(false);
+    expect(
+      resolveConfig({ env: { TOBY_TRUST_PROXY: "true" } }).trustProxy,
+    ).toBe(true);
+    expect(
+      resolveConfig({ env: { TOBY_AUTH_SECURE_COOKIE: "false" } }).auth
+        .secureCookie,
+    ).toBe(false);
+    expect(() => resolveConfig({ env: { TOBY_TRUST_PROXY: "yes" } })).toThrow(
+      /TOBY_TRUST_PROXY/,
+    );
+    expect(() =>
+      resolveConfig({ env: { TOBY_AUTH_SECURE_COOKIE: "True" } }),
+    ).toThrow(/TOBY_AUTH_SECURE_COOKIE/);
   });
 });

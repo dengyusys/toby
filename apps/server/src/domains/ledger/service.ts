@@ -8,6 +8,7 @@
 import { randomUUID } from "node:crypto";
 import { AiError } from "../../infrastructure/ai/errors.ts";
 import type { AiClient } from "../../infrastructure/ai/types.ts";
+import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
 import { type LedgerStore } from "./store.ts";
 import { createProposalRegistry, type ProposalRegistry } from "./proposals.ts";
 import {
@@ -15,7 +16,7 @@ import {
   type LedgerDraft,
   type LedgerFollowUp,
 } from "./extraction.ts";
-import { normalizeEntry } from "./validation.ts";
+import { isRecord, normalizeEntry } from "./validation.ts";
 import type {
   LedgerCancelResult,
   LedgerCategorySummary,
@@ -105,16 +106,20 @@ function aiHttpError(error: AiError): LedgerRequestError {
   if (error.code === "unconfigured") {
     return new LedgerRequestError(
       "AI_UNAVAILABLE",
-      501,
-      "AI is not configured: set TOBY_AI_API_KEY and TOBY_AI_MODEL",
+      HTTP_STATUS.notImplemented,
+      AI_UNCONFIGURED_MESSAGE,
     );
   }
-  return new LedgerRequestError("AI_REQUEST_FAILED", 502, error.message);
+  return new LedgerRequestError(
+    "AI_REQUEST_FAILED",
+    HTTP_STATUS.badGateway,
+    error.message,
+  );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+/** One message for every 501 AI_UNAVAILABLE path. */
+const AI_UNCONFIGURED_MESSAGE =
+  "AI is not configured: set TOBY_AI_API_KEY and TOBY_AI_MODEL";
 
 export function assembleLedgerService(
   store: LedgerStore,
@@ -133,7 +138,7 @@ export function assembleLedgerService(
       if (!isRecord(body)) {
         throw new LedgerRequestError(
           "INVALID_ENTRY",
-          400,
+          HTTP_STATUS.badRequest,
           "request body must be a JSON object",
         );
       }
@@ -142,15 +147,15 @@ export function assembleLedgerService(
         if (!text) {
           throw new LedgerRequestError(
             "INVALID_ENTRY",
-            400,
+            HTTP_STATUS.badRequest,
             "text must not be empty",
           );
         }
         if (!deps.ai) {
           throw new LedgerRequestError(
             "AI_UNAVAILABLE",
-            501,
-            "the one-sentence AI path needs an AI transport; use the structured entry path",
+            HTTP_STATUS.notImplemented,
+            AI_UNCONFIGURED_MESSAGE,
           );
         }
         let draft: LedgerDraft;
@@ -194,7 +199,7 @@ export function assembleLedgerService(
       if (month === undefined || !MONTH_PATTERN.test(month)) {
         throw new LedgerRequestError(
           "INVALID_MONTH",
-          400,
+          HTTP_STATUS.badRequest,
           'month query parameter is required as "YYYY-MM"',
         );
       }

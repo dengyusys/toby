@@ -3,7 +3,7 @@
  * HttpOnly cookie set by the server; this client never sees or stores it.
  */
 
-import { requestJson } from "./request-json.ts";
+import { endpoint, requestJson } from "./request-json.ts";
 
 export interface AuthSessionInfo {
   enabled: boolean;
@@ -20,10 +20,6 @@ export interface AuthClient {
   /** Idempotent: logging out while logged out succeeds. */
   logout(): Promise<{ status: "ok" }>;
   session(): Promise<AuthSessionInfo>;
-}
-
-function endpoint(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}${path}`;
 }
 
 export function createAuthClient(baseUrl: string): AuthClient {

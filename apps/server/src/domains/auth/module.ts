@@ -24,6 +24,8 @@ export interface AuthAssembly {
   service: AuthService;
 }
 
+const SESSION_SWEEP_INTERVAL_MS = 60_000;
+
 export async function assembleAuth(
   config: TobyConfig,
   deps: AuthServiceDeps = {},
@@ -36,12 +38,23 @@ export async function assembleAuth(
       readSessionCookie(request, SESSION_COOKIE),
     );
   };
+
+  // Lazy expiry already covers correctness; the sweeper bounds memory by
+  // pruning sessions whose owners never come back.
+  const sweeper = setInterval(() => {
+    service.sweepSessions();
+  }, SESSION_SWEEP_INTERVAL_MS);
+  sweeper.unref();
+
   return {
     service,
     requestGuard,
     mounted: {
       name: "auth",
       plugin: async (app) => {
+        app.addHook("onClose", () => {
+          clearInterval(sweeper);
+        });
         await app.register(authRouter, {
           service,
           secureCookie: config.auth.secureCookie,

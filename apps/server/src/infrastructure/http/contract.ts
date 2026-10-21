@@ -7,12 +7,15 @@
 export const HTTP_STATUS = {
   ok: 200,
   badRequest: 400,
+  unauthorized: 401,
   conflict: 409,
   gone: 410,
   notFound: 404,
   methodNotAllowed: 405,
   payloadTooLarge: 413,
+  tooManyRequests: 429,
   notImplemented: 501,
+  badGateway: 502,
   internalServerError: 500,
 } as const;
 

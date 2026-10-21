@@ -14,7 +14,7 @@ export interface LedgerEntry {
   readonly type: LedgerEntryType;
   readonly category: string;
   readonly account: string;
-  /** Integer cents, always positive. */
+  /** Integer cents, non-negative (0 is a valid amount). */
   readonly amount: number;
   readonly note: string;
 }
