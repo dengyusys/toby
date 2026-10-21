@@ -36,7 +36,9 @@ export function LoginPage() {
     mutationFn: () => authClient.login(password),
     onSuccess: () => {
       setPassword("");
-      window.location.hash = "#/m/";
+      // The mobile HashRouter has no basename — its routes are /, /login,
+      // /system; the /m/ prefix exists only in server-side static serving.
+      window.location.hash = "#/";
     },
   });
 
