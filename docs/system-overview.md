@@ -10,27 +10,27 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 
 ## Stack
 
-| Layer    | Choice                                                                        |
-| -------- | ----------------------------------------------------------------------------- |
-| Runtime  | Node 22.23.2, runs `.ts` directly, no build step                              |
-| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                             |
-| Server   | Fastify 5 + own db adapter port (SQLite default, MySQL optional) + pino + zod |
-| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)     |
-| Tests    | vitest + happy-dom + @testing-library                                         |
+| Layer    | Choice                                                                                                        |
+| -------- | ------------------------------------------------------------------------------------------------------------- |
+| Runtime  | Node 22.23.2, runs `.ts` directly, no build step                                                              |
+| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                             |
+| Server   | Fastify 5 + own db adapter port (SQLite default, MySQL optional) + pino + typebox (AI: pi-ai + pi-agent-core) |
+| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                     |
+| Tests    | vitest + happy-dom + @testing-library                                                                         |
 
 ## System context
 
 ```mermaid
 flowchart LR
     U(("User")) --> W["Two web apps (React SPAs:<br/>PC at / and mobile at /m/)"]
-    W -->|"read-only APIs / proposals (HTTP)"| S["Toby server · single process (Fastify)<br/>vertical domains · proposal lifecycle (reserved)"]
+    W -->|"read-only APIs / proposals (HTTP)"| S["Toby server · single process (Fastify)<br/>vertical domains · proposal lifecycle (actions kernel)"]
     S --> DB[("Databases via the adapter port<br/>SQLite (default) · MySQL (optional)<br/>only the server writes")]
-    S -->|"field values only: no database, no shell, no file paths"| AI(("AI provider<br/>(arrives with the first domain)"))
+    S -->|"kind-gated tools; writes only via proposals"| AI(("AI via pi-ai / pi-agent-core"))
 ```
 
 - The web apps reach data only through server APIs; they never touch the file system.
-- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** (the pipeline is an architectural reservation, landing with the first business domain).
-- The AI receives field values only — no tools, no paths, no data contents.
+- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** (ledger is live on it; the confirm-gate kernel is shared in `infrastructure/actions/`).
+- AI tools carry a safety kind (read-only / write-intent) and run behind a policy gate; real effects still require proposal confirmation (docs/decisions/ai-pi-runtime.md).
 - Root `scripts/` only orchestrates dev and multi-process startup; it never touches data.
 - The nine business domains (chat, greeting, schedule, ledger, notes, todo, memory, library, proposals) land one at a time; each establishes its contract doc in `docs/features/` on arrival.
 
@@ -78,7 +78,7 @@ The full path of one write (endpoint contracts are finalized in each domain's `f
 
 1. The web chat page sends the user's sentence to the server.
 2. The server routes by intent and dispatches to the matching domain's proposal pipeline.
-3. The AI returns only restricted dates, categories, fields, and values; the server then applies schema, domain, and semantic validation.
+3. The extraction agent hands the server a schema-validated draft through its submit tool; the server then applies shape, domain, and semantic validation (validation.ts is the trust boundary).
 4. The server reads current fields and produces a short-lived proposal carrying `proposal_id`, before and after values.
 5. The client's only actions are confirm or cancel with that `proposal_id`; empty request bodies.
 6. On commit the server re-reads target fields inside a database transaction, checks conflicts, executes serially, and commits — or rolls back entirely.
@@ -93,7 +93,7 @@ sequenceDiagram
 
     W->>S: one sentence (text, time, timezone)
     S->>A: parse request (instruction text only)
-    A-->>S: restricted dates, categories, fields, values
+    A-->>S: schema-validated entry drafts (submit_entries)
     S->>S: schema, domain, and semantic validation
     S->>D: read current fields
     S-->>W: short-lived proposal (proposal_id, before, after)
@@ -142,8 +142,8 @@ Domain organization discipline:
 
 Security boundaries:
 
-- HTTP write paths must go through the proposal pipeline; any write endpoint bypassing it is a defect. The framework phase has no write endpoints.
-- The AI gets no file paths, no data contents, no shell, no write tools; secrets live only in local environment config, never inside web bundles.
+- HTTP write paths must go through the proposal pipeline; any write endpoint bypassing it is a defect. Ledger is live on it; later domains reuse the same kernel (`infrastructure/actions/`).
+- The AI gets no file paths, no data contents, and no shell; its tools are kind-gated, and write-intent tools only produce proposals (docs/decisions/ai-pi-runtime.md). Secrets live only in local environment config, never inside web bundles.
 - Introducing new runtimes (Python etc.) requires an ADR first.
 - These disciplines are machine-enforced by file-level ESLint rules (see `eslint.config.js`).
 

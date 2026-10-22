@@ -24,7 +24,7 @@ pnpm run start    # 生产模式:构建前端,单进程服务端同时提供页�
 docker compose up -d --build
 ```
 
-- 框架阶段无需配置 AI 密钥;AI 提供商配置随对话域一起到来。
+- AI 为可选:一句话记账路径需设置 `TOBY_AI_MODEL` 与对应供应商密钥(见 `.env.example`);其余功能无需 AI。
 
 ## 文档
 

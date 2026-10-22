@@ -4,7 +4,7 @@ English | [简体中文](AGENTS.zh.md)
 
 Instructions for AI coding agents working in this repository.
 
-> **Current status: framework phase.** The command tables and directory layout below describe the target state once the framework lands; until then, `PLAN.md` is authoritative.
+> **Current status: domains are landing.** system / auth / ledger are live; the `docs/features/` contracts and `docs/decisions/` ADRs are authoritative for what has landed. `PLAN.md` stays as the framework-era plan, its version matrix still the catalog's source of truth.
 
 ## Project overview
 
@@ -75,6 +75,6 @@ If one change touches several rows, run all the checks those rows list.
 
 - Everything under `data/` is production data. Nobody touches it by default; only maintenance tasks the user explicitly names may touch it. Before and after moving or restoring data, compare **SHA-256** checksums.
 - Only the server (`apps/server`) writes to the databases. Web, AI, and scripts never connect to a database directly.
-- Every create/update/delete goes through the "AI proposal → user confirmation → server transactional write" pipeline; any write endpoint that bypasses it is a defect. The AI produces field values only: no database, no shell, no file paths, no tool calls.
+- Every create/update/delete goes through the "AI proposal → user confirmation → server transactional write" pipeline; any write endpoint that bypasses it is a defect. AI tools are registered with a safety kind (read-only / write-intent) and policy-gated; prohibited capabilities (database, shell, file paths) are absent as tool definitions. See docs/decisions/ai-pi-runtime.md.
 - API keys, tokens, certificate private keys, server credentials, personal sensitive data, full production logs: never enter source code, docs, tests, snapshots, or commits — nowhere.
 - If code and docs disagree and the conflict involves data / security / public interfaces: stop and ask the user; do not pick a side yourself.

@@ -8,11 +8,15 @@ import { describe, expect, it } from "vitest";
 import { assembleLedgerService } from "../../src/domains/ledger/service.ts";
 import type { LedgerStore } from "../../src/domains/ledger/store.ts";
 import type {
+  LedgerDraft,
+  LedgerExtractor,
+} from "../../src/domains/ledger/extraction.ts";
+import type {
   LedgerEntry,
   LedgerProposalView,
 } from "../../src/domains/ledger/types.ts";
 import { AiError } from "../../src/infrastructure/ai/errors.ts";
-import type { AiClient } from "../../src/infrastructure/ai/types.ts";
+import type { Logger } from "../../src/infrastructure/logging/logger.ts";
 
 const AUTO_WRITE_MS = 30_000;
 const TTL_MS = 600_000;
@@ -57,14 +61,14 @@ function fakeStore(options: { failFirstWrites?: number } = {}) {
   return { store, calls };
 }
 
-function makeService(store: LedgerStore, ai?: AiClient) {
+function makeService(store: LedgerStore, extractor?: LedgerExtractor) {
   let nowMs = Date.parse("2026-10-20T08:00:00.000Z");
   const service = assembleLedgerService(store, {
     now: () => nowMs,
     autoWriteDelayMs: AUTO_WRITE_MS,
     ttlMs: TTL_MS,
     retentionMs: RETENTION_MS,
-    ...(ai ? { ai } : {}),
+    ...(extractor ? { extractor } : {}),
   });
   return {
     service,
@@ -187,6 +191,26 @@ describe("ledger service proposal lifecycle", () => {
     expect((await service.commit(view.proposal_id)).written).toBe(1);
   });
 
+  it("a failing auto-write logs a warning on every sweep", async () => {
+    const { store } = fakeStore({ failFirstWrites: 99 });
+    const warnings: unknown[][] = [];
+    let nowMs = Date.parse("2026-10-20T08:00:00.000Z");
+    const service = assembleLedgerService(store, {
+      now: () => nowMs,
+      autoWriteDelayMs: AUTO_WRITE_MS,
+      ttlMs: TTL_MS,
+      retentionMs: RETENTION_MS,
+      logger: {
+        warn: (...args: unknown[]) => warnings.push(args),
+      } as unknown as Logger,
+    });
+    await service.createProposal(structuredBody);
+    nowMs += AUTO_WRITE_MS;
+    await service.sweep();
+    await service.sweep();
+    expect(warnings).toHaveLength(2);
+  });
+
   it("expired proposals answer 410 on commit and cancel", async () => {
     const { store } = fakeStore();
     const { service, advance } = makeService(store);
@@ -221,7 +245,7 @@ describe("ledger service proposal lifecycle", () => {
     });
   });
 
-  it("unknown proposals are 404; text without an AI transport answers 501", async () => {
+  it("unknown proposals are 404; text without an extractor answers 501", async () => {
     const { service } = makeService(fakeStore().store);
     await expect(service.commit("missing")).rejects.toMatchObject({
       code: "PROPOSAL_NOT_FOUND",
@@ -252,48 +276,43 @@ describe("ledger service proposal lifecycle", () => {
 });
 
 describe("ledger service one-sentence path", () => {
-  function fakeAi(reply: () => unknown) {
-    const calls: { messages: { role: string; content: string }[] }[] = [];
-    return {
-      calls,
-      json: async (
-        messages: readonly { role: string; content: string }[],
-      ): Promise<unknown> => {
-        calls.push({ messages: [...messages] });
-        return reply();
+  function fakeExtractor(draft: () => LedgerDraft | Promise<LedgerDraft>) {
+    const texts: string[] = [];
+    const extractor: LedgerExtractor = {
+      async extract(text) {
+        texts.push(text);
+        return draft();
       },
-      text: async (): Promise<string> => "unused",
     };
+    return { texts, extractor };
   }
 
   function makeAiService(
-    reply: () => unknown,
+    draft: () => LedgerDraft | Promise<LedgerDraft>,
     store: LedgerStore = fakeStore().store,
   ) {
-    const ai = fakeAi(reply);
-    const harness = makeService(store, ai as unknown as AiClient);
-    return { ...harness, ai };
+    const fake = fakeExtractor(draft);
+    const harness = makeService(store, fake.extractor);
+    return { ...harness, ...fake };
   }
 
-  it("turns a sentence into a normalized proposal via the AI", async () => {
-    const { service, ai } = makeAiService(() => ({
+  it("turns a sentence into a normalized proposal via the extractor", async () => {
+    const { service, texts } = makeAiService(() => ({
       entries: [
-        {
+        entry({
           date: "2026-10-19",
-          type: "expense",
-          category: "餐饮",
-          // No account named in the sentence — the AI omits the field.
-          amount: "35",
+          account: "未关联",
+          amount: 3500,
           note: "昨晚外卖",
-        },
-        {
+        }),
+        entry({
           date: "2026-10-20",
           type: "income",
           category: "退款",
           account: "支付宝",
-          amount: "12.5",
+          amount: 1250,
           note: "",
-        },
+        }),
       ],
     }));
     const result = await service.createProposal({
@@ -319,9 +338,7 @@ describe("ledger service one-sentence path", () => {
         note: "",
       }),
     ]);
-    // The prompt pins today's local date for relative-date resolution.
-    expect(ai.calls[0]!.messages[0]!.content).toContain("2026-10-20");
-    expect(ai.calls[0]!.messages[1]!.content).toContain("外卖");
+    expect(texts).toEqual(["昨晚外卖35,今天退了个12块5"]);
   });
 
   it("returns the AI's clarifying question instead of guessing", async () => {
@@ -332,7 +349,7 @@ describe("ledger service one-sentence path", () => {
     expect(result).toEqual({ question: "这笔是支出还是收入?" });
   });
 
-  it("maps transport failures to 501/502 domain errors", async () => {
+  it("maps extractor failures to 501/502 domain errors", async () => {
     const unconfigured = makeAiService(() => {
       throw new AiError("unconfigured", "no key");
     });
@@ -351,39 +368,24 @@ describe("ledger service one-sentence path", () => {
       code: "AI_REQUEST_FAILED",
       status: 502,
     });
-  });
-
-  it("bad AI entries are intercepted with zero proposals and zero writes", async () => {
-    const { store, calls } = fakeStore();
-    const { service } = makeAiService(
-      () => ({
-        entries: [
-          {
-            date: "2026-10-20",
-            type: "expense",
-            category: "餐饮",
-            account: "微信",
-            amount: "abc",
-          },
-        ],
-      }),
-      store,
-    );
-    await expect(
-      service.createProposal({ text: "午饭 abc 元" }),
-    ).rejects.toMatchObject({
-      code: "INVALID_ENTRY",
+    const capped = makeAiService(() => {
+      throw new AiError("max-turns-exceeded", "capped");
     });
-    expect(calls).toHaveLength(0);
+    await expect(
+      capped.service.createProposal({ text: "x" }),
+    ).rejects.toMatchObject({
+      code: "AI_REQUEST_FAILED",
+      status: 502,
+    });
   });
 
-  it("empty text is rejected before any AI call", async () => {
-    const { service, ai } = makeAiService(() => ({ entries: [] }));
+  it("empty text is rejected before the extractor runs", async () => {
+    const { service, texts } = makeAiService(() => ({ entries: [] }));
     await expect(service.createProposal({ text: "   " })).rejects.toMatchObject(
       {
         code: "INVALID_ENTRY",
       },
     );
-    expect(ai.calls).toHaveLength(0);
+    expect(texts).toHaveLength(0);
   });
 });

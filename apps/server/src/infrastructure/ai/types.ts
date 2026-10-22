@@ -1,8 +1,8 @@
 /**
- * The AI port (docs/decisions/ai-integration.md): a restricted JSON
- * protocol over one small transport interface. The model returns candidate
- * data only — parsing, validation and execution stay on the server. This
- * file is the contract and stays free of transport imports.
+ * The AI ports (docs/decisions/ai-pi-runtime.md): a restricted single-shot
+ * completion port plus the runtime configuration shared by both AI paths.
+ * All transport lives in pi-ai; this file is the contract and stays free of
+ * transport imports.
  */
 
 export type AiRole = "system" | "user" | "assistant";
@@ -17,6 +17,11 @@ export interface AiRequestOptions {
   readonly temperature?: number;
 }
 
+/**
+ * Single-shot completion port for AI paths that need no tool loop (intent
+ * classification and the like). Tool-loop paths go through the agent
+ * factory in agent.ts instead.
+ */
 export interface AiClient {
   /**
    * Structured data: instructs JSON output, parses it, retries the whole
@@ -35,10 +40,13 @@ export interface AiClient {
   ): Promise<string>;
 }
 
-/** Transport configuration resolved from TOBY_AI_* environment variables. */
-export interface AiTransportConfig {
-  readonly baseUrl: string;
-  readonly apiKey: string;
+/**
+ * AI runtime configuration resolved from TOBY_AI_* environment variables.
+ * `model` is pi-ai's "provider/model" pair (e.g. "zai/glm-4.7"); provider
+ * credentials live in pi-ai's per-provider environment variables (e.g.
+ * ZAI_API_KEY) or its credential store — never in this config.
+ */
+export interface AiRuntimeConfig {
   readonly model: string;
   readonly timeoutMs: number;
 }

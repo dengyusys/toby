@@ -108,36 +108,24 @@ describe("resolveConfig", () => {
     expect(() => resolveConfig({ env: { TOBY_PORT: "70000" } })).toThrow();
   });
 
-  it("ai defaults: unconfigured openai-compatible transport", () => {
+  it("ai defaults: disabled when TOBY_AI_MODEL is unset", () => {
     const config = resolveConfig({ env: {} });
-    expect(config.ai).toEqual({
-      baseUrl: "https://api.openai.com/v1",
-      apiKey: "",
-      model: "",
-      timeoutMs: 30_000,
-    });
+    expect(config.ai).toBeUndefined();
   });
 
-  it("TOBY_AI_* overrides are honored", () => {
+  it("TOBY_AI_MODEL as provider/model and the timeout are honored", () => {
     const config = resolveConfig({
       env: {
-        TOBY_AI_BASE_URL: "https://ai.example/v1",
-        TOBY_AI_API_KEY: "secret",
-        TOBY_AI_MODEL: "glm-4.7",
+        TOBY_AI_MODEL: "zai/glm-4.7",
         TOBY_AI_TIMEOUT_MS: "60000",
       },
     });
-    expect(config.ai).toEqual({
-      baseUrl: "https://ai.example/v1",
-      apiKey: "secret",
-      model: "glm-4.7",
-      timeoutMs: 60_000,
-    });
+    expect(config.ai).toEqual({ model: "zai/glm-4.7", timeoutMs: 60_000 });
   });
 
-  it("an api key without a model, or a bad timeout, is rejected", () => {
-    expect(() => resolveConfig({ env: { TOBY_AI_API_KEY: "k" } })).toThrow(
-      /TOBY_AI_MODEL/,
+  it("a bare model name (old format) is rejected with a migration hint", () => {
+    expect(() => resolveConfig({ env: { TOBY_AI_MODEL: "glm-4.7" } })).toThrow(
+      /provider\/model/,
     );
     expect(() => resolveConfig({ env: { TOBY_AI_TIMEOUT_MS: "10" } })).toThrow(
       /TOBY_AI_TIMEOUT_MS/,

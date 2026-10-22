@@ -36,7 +36,7 @@ All JSON except attachment upload (multipart, the sole exception to "JSON only")
 ## Key rules
 
 - Intent classification outputs an intent plus a self-contained sentence: follow-up fragments are folded before dispatch; corrections about the previous turn re-classify to the corrected domain.
-- All AI structured output goes through the kernel's single `json()` entry: JSON mode, tolerant extraction, one automatic retry; final failure returns an honest "say that again" reply — never 5xx, never silently dropped.
+- All AI structured output goes through schema-validated channels (TypeBox tool arguments, or the single-shot `json()` entry for loop-free calls): invalid output is fed back to the model for correction; final failure returns an honest "say that again" reply — never 5xx, never silently dropped.
 - The `none` intent goes to the companion agent: read-only tools, bounded rounds, real data only, honest truncation notices; on failure it falls back to fixed copy.
 - Three write triggers: the explicit confirm button, tacit approval by the next message (pending proposals committed oldest-first), and the server's 30-second auto-write; cancel is the only refusal path.
 - The user message persists before the AI is called; on AI failure no reply or proposal is produced and the client keeps the input for retry.

@@ -7,7 +7,7 @@
 import path from "node:path";
 import { repositoryRoot } from "../../utils/paths/index.ts";
 import type { DbDialect } from "../db/types.ts";
-import type { AiTransportConfig } from "../ai/types.ts";
+import type { AiRuntimeConfig } from "../ai/types.ts";
 
 export { repositoryRoot };
 
@@ -52,7 +52,8 @@ export interface TobyConfig {
   server: ServerConfig;
   paths: PathConfig;
   db: DatabaseConfig;
-  ai: AiTransportConfig;
+  /** Absent = AI paths disabled (the one-sentence ledger path answers 501). */
+  ai?: AiRuntimeConfig;
   auth: AuthConfig;
   /**
    * Trust X-Forwarded-For from a reverse proxy in front of the server, so
@@ -166,26 +167,34 @@ function resolveTimeout(
   return timeout;
 }
 
-/** AI transport; an empty key keeps the AI paths plainly unavailable. */
-function resolveAiConfig(env: Env): AiTransportConfig {
-  const apiKey = env.TOBY_AI_API_KEY ?? "";
-  const model = env.TOBY_AI_MODEL ?? "";
-  if (apiKey && !model) {
+/**
+ * AI runtime: TOBY_AI_MODEL is pi-ai's "provider/model" pair (e.g.
+ * "zai/glm-4.7"). Provider credentials live in pi-ai's per-provider
+ * environment variables (e.g. ZAI_API_KEY) or its credential store — not
+ * here. An unset model keeps the AI paths plainly unavailable.
+ */
+const AI_MODEL_PATTERN = /^([a-z0-9][a-z0-9_-]*)\/(\S+)$/;
+
+function resolveAiConfig(env: Env): AiRuntimeConfig | undefined {
+  // The timeout is validated even when the model is unset, so a typo in
+  // TOBY_AI_TIMEOUT_MS fails at startup instead of hiding until the day AI
+  // is actually enabled.
+  const timeoutMs = resolveTimeout(
+    env.TOBY_AI_TIMEOUT_MS,
+    "TOBY_AI_TIMEOUT_MS",
+    30_000,
+    { min: 1_000, max: 120_000 },
+  );
+  const model = (env.TOBY_AI_MODEL ?? "").trim();
+  if (!model) {
+    return undefined;
+  }
+  if (!AI_MODEL_PATTERN.test(model)) {
     throw new Error(
-      "TOBY_AI_MODEL is required when TOBY_AI_API_KEY is configured",
+      'TOBY_AI_MODEL must be a "provider/model" pair (e.g. "zai/glm-4.7")',
     );
   }
-  return {
-    baseUrl: env.TOBY_AI_BASE_URL || "https://api.openai.com/v1",
-    apiKey,
-    model,
-    timeoutMs: resolveTimeout(
-      env.TOBY_AI_TIMEOUT_MS,
-      "TOBY_AI_TIMEOUT_MS",
-      30_000,
-      { min: 1_000, max: 120_000 },
-    ),
-  };
+  return { model, timeoutMs };
 }
 
 // The generator (scripts/hash-password.js) fixes the scrypt parameters;

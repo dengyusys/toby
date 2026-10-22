@@ -112,7 +112,7 @@ toby/
 
 ### 7. 版本要点(沿用旧项目实测组合)
 
-fastify ^5.12.3、@fastify/static ^10.1.3、better-sqlite3 ^13.0.3、mysql2 ^3.24.6(数据库驱动各配各的适配器、共用一个 port;mysql2 纯 JS、自带类型、无需 allowBuilds)、zod ^4.6.4、pino ^10.1.0、react 19、vite 6、@tailwindcss/vite ^4.3.3、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。版本单一真相关在 `pnpm-workspace.yaml` 的 `catalog`,各 package.json 以 `"catalog:"` 引用。**不引入**:openai、sqlite-vec、Python(随业务域提交进)
+fastify ^5.12.3、@fastify/static ^10.1.3、better-sqlite3 ^13.0.3、mysql2 ^3.24.6(数据库驱动各配各的适配器、共用一个 port;mysql2 纯 JS、自带类型、无需 allowBuilds)、typebox 1.3.27(精确钉,与 pi-agent-core 同版)、@earendil-works/pi-ai 1.3.0、@earendil-works/pi-agent-core 1.3.0(两者精确钉:pi-agent-core 对 pi-ai 是精确依赖,用 ^ 会装出双副本类型分叉)、pino ^10.1.0、react 19、vite 6、@tailwindcss/vite ^4.3.3、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。版本单一真相关在 `pnpm-workspace.yaml` 的 `catalog`,各 package.json 以 `"catalog:"` 引用。**不引入**:openai 等厂商 SDK(应用代码不直接 import 厂商 SDK;LLM 接入统一经 @earendil-works/pi-ai,其传递依赖除外)、sqlite-vec、Python(随业务域提交进)
 
 ### 8. AGENTS.md(英文 + 中文)—— 已完成(不设 CLAUDE.md,AI 规则统一走 AGENTS.md)
 

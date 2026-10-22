@@ -129,7 +129,7 @@ export function describeError(error: unknown): string {
       case "PROPOSAL_NOT_FOUND":
         return "提案不存在或已被清理";
       case "AI_UNAVAILABLE":
-        return "AI 未配置:需要在服务端设置 TOBY_AI_API_KEY 与 TOBY_AI_MODEL";
+        return "AI 未配置:需要在服务端设置 TOBY_AI_MODEL(格式 provider/model,如 zai/glm-4.7)";
       case "AI_REQUEST_FAILED":
         return "AI 服务出错,请稍后再试";
       default:

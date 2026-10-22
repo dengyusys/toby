@@ -2,6 +2,12 @@
 
 English | [简体中文](ai-integration.zh.md)
 
+> **Superseded by [ai-pi-runtime.md](ai-pi-runtime.md)** (2026-10-22): AI
+> transport and agent execution now run on the pi ecosystem, and the ban on
+> endpoint-native tool calling has been reversed there. The red lines that
+> remain (untrusted AI output, server-side deterministic validation,
+> proposal → confirmation → transactional writes) carry over unchanged.
+
 This repository receives AI output through a restricted JSON protocol and does not use endpoint-native tool calling.
 
 **The reason: AI only produces candidate data — parsing, validation, and execution are all controlled by the server.**

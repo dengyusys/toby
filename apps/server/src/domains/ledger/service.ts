@@ -7,13 +7,13 @@
 
 import { randomUUID } from "node:crypto";
 import { AiError } from "../../infrastructure/ai/errors.ts";
-import type { AiClient } from "../../infrastructure/ai/types.ts";
 import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
+import type { Logger } from "../../infrastructure/logging/logger.ts";
 import { type LedgerStore } from "./store.ts";
 import { createProposalRegistry, type ProposalRegistry } from "./proposals.ts";
 import {
-  extractLedgerEntries,
   type LedgerDraft,
+  type LedgerExtractor,
   type LedgerFollowUp,
 } from "./extraction.ts";
 import { isRecord, normalizeEntry } from "./validation.ts";
@@ -86,8 +86,10 @@ export interface LedgerServiceDeps {
   autoWriteDelayMs?: number;
   ttlMs?: number;
   retentionMs?: number;
-  /** AI transport for the one-sentence path; absent keeps it 501. */
-  ai?: AiClient;
+  /** Extraction agent for the one-sentence path; absent keeps it 501. */
+  extractor?: LedgerExtractor;
+  /** pino logger; auto-write failures surface here instead of dying silent. */
+  logger?: Logger;
 }
 
 /** A proposal, or the AI asking the user one clarifying question. */
@@ -101,6 +103,10 @@ export interface LedgerService {
   monthReport(month: string | undefined): Promise<LedgerMonthReport>;
   sweep(): Promise<void>;
 }
+
+/** One message for every 501 AI_UNAVAILABLE path. */
+const AI_UNCONFIGURED_MESSAGE =
+  'AI is not configured: set TOBY_AI_MODEL to a "provider/model" pair (e.g. "zai/glm-4.7")';
 
 function aiHttpError(error: AiError): LedgerRequestError {
   if (error.code === "unconfigured") {
@@ -116,10 +122,6 @@ function aiHttpError(error: AiError): LedgerRequestError {
     error.message,
   );
 }
-
-/** One message for every 501 AI_UNAVAILABLE path. */
-const AI_UNCONFIGURED_MESSAGE =
-  "AI is not configured: set TOBY_AI_API_KEY and TOBY_AI_MODEL";
 
 export function assembleLedgerService(
   store: LedgerStore,
@@ -151,7 +153,7 @@ export function assembleLedgerService(
             "text must not be empty",
           );
         }
-        if (!deps.ai) {
+        if (!deps.extractor) {
           throw new LedgerRequestError(
             "AI_UNAVAILABLE",
             HTTP_STATUS.notImplemented,
@@ -160,9 +162,7 @@ export function assembleLedgerService(
         }
         let draft: LedgerDraft;
         try {
-          draft = await extractLedgerEntries(deps.ai, text, {
-            now: () => new Date(now()),
-          });
+          draft = await deps.extractor.extract(text, new Date(now()));
         } catch (error) {
           if (error instanceof AiError) {
             throw aiHttpError(error);
@@ -210,8 +210,15 @@ export function assembleLedgerService(
     async sweep() {
       for (const id of registry.dueForAutoWrite()) {
         // A failing write leaves the proposal pending; the next sweep
-        // retries it until the TTL backstop expires the proposal.
-        await this.commit(id).catch(() => undefined);
+        // retries it until the TTL backstop expires the proposal. The
+        // failure is logged so a persistently failing store never eats
+        // data silently.
+        await this.commit(id).catch((error: unknown) => {
+          deps.logger?.warn(
+            { proposal_id: id, err: error },
+            "auto-write failed; retrying until the proposal expires",
+          );
+        });
       }
       registry.sweep();
     },

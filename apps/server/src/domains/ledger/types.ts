@@ -25,6 +25,10 @@ export interface LedgerTransactionRow extends LedgerEntry {
   readonly created_at: string;
 }
 
+/**
+ * Mirrors the actions kernel's ActionStatus value for value; kept literal
+ * here so this file stays free of infrastructure imports.
+ */
 export type LedgerProposalStatus =
   "pending" | "committed" | "cancelled" | "expired";
 

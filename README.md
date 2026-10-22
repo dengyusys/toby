@@ -24,7 +24,7 @@ pnpm run start    # production mode: build webs, single server process serves pa
 docker compose up -d --build
 ```
 
-- No AI key is needed during the framework phase; AI provider configuration arrives with the chat domain.
+- AI is optional: the one-sentence ledger path needs `TOBY_AI_MODEL` plus the matching provider key (see `.env.example`); everything else runs without AI.
 
 ## Documentation
 

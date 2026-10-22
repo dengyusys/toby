@@ -1,146 +1,157 @@
 /**
- * OpenAI-compatible transport against a stubbed fetch: request shape,
- * auth, JSON recovery (code fences), the single parse retry, and error
- * mapping. Automated tests never touch a real model.
+ * Single-shot pi-ai transport against a scripted faux provider: system
+ * prompt mapping, tolerant JSON recovery, the single parse retry, and the
+ * AiError mapping (error stop reasons consult provider auth, aborts are
+ * timeouts). Automated tests never touch a real model.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { createModels } from "@earendil-works/pi-ai";
+import {
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxText,
+} from "@earendil-works/pi-ai/providers/faux";
+import { zaiProvider } from "@earendil-works/pi-ai/providers/zai";
 import { AiError } from "../../src/infrastructure/ai/errors.ts";
-import { createOpenAiCompatibleClient } from "../../src/infrastructure/ai/openai-compatible.ts";
+import { createPiAiClient } from "../../src/infrastructure/ai/pi-ai-client.ts";
 
-const CONFIG = {
-  baseUrl: "https://ai.example/v1/",
-  apiKey: "key-1",
-  model: "test-model",
-  timeoutMs: 5_000,
-};
+const TIMEOUT_MS = 5_000;
 
-function completion(content: string): Response {
-  return new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
-    status: 200,
-  });
+function makeHarness() {
+  const models = createModels();
+  const faux = fauxProvider();
+  models.setProvider(faux.provider);
+  const client = createPiAiClient(
+    { model: "faux/faux-1", timeoutMs: TIMEOUT_MS },
+    { models },
+  );
+  return { client, faux };
 }
 
-function stubFetch(
-  responder: () => Response | "throw",
-): ReturnType<typeof vi.fn> {
-  const fetchMock = vi.fn(() => {
-    const result = responder();
-    return result === "throw"
-      ? Promise.reject(new Error("network down"))
-      : Promise.resolve(result);
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
+async function caught(promise: Promise<unknown>): Promise<AiError> {
+  return (await promise.catch((thrown: unknown) => thrown)) as AiError;
 }
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
-
-describe("createOpenAiCompatibleClient", () => {
-  it("sends the chat-completions request with bearer auth and model", async () => {
-    const fetchMock = stubFetch(() => completion('{"a":1}'));
-    const client = createOpenAiCompatibleClient(CONFIG);
-    expect(await client.json([{ role: "user", content: "hi" }])).toEqual({
-      a: 1,
-    });
-    const [url, init] = fetchMock.mock.calls[0] as [
-      string,
-      RequestInit | undefined,
-    ];
-    expect(url).toBe("https://ai.example/v1/chat/completions");
-    expect(new Headers(init?.headers).get("authorization")).toBe(
-      "Bearer key-1",
-    );
-    const body = JSON.parse(String(init?.body)) as {
-      model: string;
-      stream: boolean;
-      messages: { role: string; content: string }[];
+describe("createPiAiClient", () => {
+  it("completes text and carries the system message into the transcript", async () => {
+    const { client, faux } = makeHarness();
+    let seenContext: unknown;
+    faux.appendResponses([
+      (context) => {
+        seenContext = context;
+        return fauxAssistantMessage("hello there");
+      },
+    ]);
+    const reply = await client.text([
+      { role: "system", content: "be brief" },
+      { role: "user", content: "hi" },
+    ]);
+    expect(reply).toBe("hello there");
+    // pi-ai normalizes the system prompt into a leading transcript message.
+    const context = seenContext as {
+      messages: { role: string; content: unknown }[];
     };
-    expect(body.model).toBe("test-model");
-    expect(body.stream).toBe(false);
-    expect(body.messages).toEqual([{ role: "user", content: "hi" }]);
+    const system = context.messages.find(
+      (message) => message.role === "system",
+    );
+    expect(JSON.stringify(system)).toContain("be brief");
+    expect(context.messages.filter((m) => m.role === "user")).toHaveLength(1);
   });
 
   it("recovers JSON wrapped in code fences without a retry", async () => {
-    const fetchMock = stubFetch(() =>
-      completion('```json\n{"entries": []}\n```'),
-    );
-    const client = createOpenAiCompatibleClient(CONFIG);
+    const { client, faux } = makeHarness();
+    faux.appendResponses([
+      fauxAssistantMessage('```json\n{"entries": []}\n```'),
+    ]);
     expect(await client.json([{ role: "user", content: "x" }])).toEqual({
       entries: [],
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(faux.state.callCount).toBe(1);
   });
 
   it("retries exactly once with a correction prompt on unparseable output", async () => {
-    const fetchMock = stubFetch(() => completion("not json at all"));
-    const client = createOpenAiCompatibleClient(CONFIG);
-    const error = (await client
-      .json([{ role: "user", content: "x" }])
-      .catch((thrown: unknown) => thrown)) as AiError;
-    expect(error).toBeInstanceOf(AiError);
-    expect(error.code).toBe("unparseable-output");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const retryInit = fetchMock.mock.calls[1]?.[1] as RequestInit;
-    const retryBody = JSON.parse(String(retryInit.body)) as {
-      messages: { content: string }[];
-    };
-    expect(retryBody.messages.at(-1)?.content).toContain("not valid JSON");
-  });
-
-  it("succeeds when the retry produces valid JSON", async () => {
+    const { client, faux } = makeHarness();
+    const prompts: string[] = [];
     let call = 0;
-    const fetchMock = stubFetch(() => {
-      call += 1;
-      return completion(call === 1 ? "garbage" : '{"ok": true}');
-    });
-    const client = createOpenAiCompatibleClient(CONFIG);
+    faux.appendResponses([
+      (context) => {
+        call += 1;
+        prompts.push(
+          context.messages.map((message) => JSON.stringify(message)).join("\n"),
+        );
+        return fauxAssistantMessage("not json at all");
+      },
+      (context) => {
+        call += 1;
+        prompts.push(
+          context.messages.map((message) => JSON.stringify(message)).join("\n"),
+        );
+        return fauxAssistantMessage('{"ok": true}');
+      },
+    ]);
     expect(await client.json([{ role: "user", content: "x" }])).toEqual({
       ok: true,
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(call).toBe(2);
+    // The retry carries the original exchange plus the correction prompt.
+    expect(prompts[1]).toContain("not valid JSON");
   });
 
-  it("maps non-ok provider responses to request-failed with the status", async () => {
-    stubFetch(() => new Response('{"error":"bad key"}', { status: 401 }));
-    const client = createOpenAiCompatibleClient(CONFIG);
-    const error = (await client
-      .text([{ role: "user", content: "x" }])
-      .catch((thrown: unknown) => thrown)) as AiError;
+  it("fails with unparseable-output after the single retry", async () => {
+    const { client, faux } = makeHarness();
+    faux.appendResponses([
+      fauxAssistantMessage("garbage"),
+      fauxAssistantMessage(fauxText("still garbage").text),
+    ]);
+    const error = await caught(client.json([{ role: "user", content: "x" }]));
+    expect(error).toBeInstanceOf(AiError);
+    expect(error.code).toBe("unparseable-output");
+    expect(faux.state.callCount).toBe(2);
+  });
+
+  it("maps an error stop reason with resolvable auth to request-failed", async () => {
+    const { client, faux } = makeHarness();
+    faux.appendResponses([
+      fauxAssistantMessage("", { stopReason: "error", errorMessage: "boom" }),
+    ]);
+    // The faux provider's auth resolves, so the failure is a plain 502.
+    const error = await caught(client.text([{ role: "user", content: "x" }]));
     expect(error.code).toBe("request-failed");
-    expect(error.message).toContain("401");
+    expect(error.message).toContain("boom");
   });
 
-  it("maps network failures and empty content to request-failed", async () => {
-    stubFetch(() => "throw");
-    const client = createOpenAiCompatibleClient(CONFIG);
-    const networkError = (await client
-      .text([{ role: "user", content: "x" }])
-      .catch((thrown: unknown) => thrown)) as AiError;
-    expect(networkError.code).toBe("request-failed");
-
-    stubFetch(
-      () => new Response(JSON.stringify({ choices: [] }), { status: 200 }),
+  it("maps an error on a provider with no credentials to unconfigured", async () => {
+    // The real zai provider with no ZAI_API_KEY in the environment: the
+    // request fails before any network I/O and the auth check maps the
+    // failure onto the 501-flavored code.
+    const models = createModels();
+    models.setProvider(zaiProvider());
+    const client = createPiAiClient(
+      { model: "zai/glm-4.7", timeoutMs: TIMEOUT_MS },
+      { models },
     );
-    const emptyError = (await client
-      .text([{ role: "user", content: "x" }])
-      .catch((thrown: unknown) => thrown)) as AiError;
-    expect(emptyError.code).toBe("request-failed");
+    const error = await caught(client.text([{ role: "user", content: "x" }]));
+    expect(error.code).toBe("unconfigured");
   });
 
-  it("refuses to call out when unconfigured", async () => {
-    const fetchMock = stubFetch(() => completion("{}"));
-    const client = createOpenAiCompatibleClient({
-      ...CONFIG,
-      apiKey: "",
-      model: "",
-    });
-    const error = (await client
-      .json([{ role: "user", content: "x" }])
-      .catch((thrown: unknown) => thrown)) as AiError;
-    expect(error.code).toBe("unconfigured");
-    expect(fetchMock).not.toHaveBeenCalled();
+  it("maps an aborted run (timeout) to the timeout code", async () => {
+    const models = createModels();
+    const faux = fauxProvider({ tokensPerSecond: 100 });
+    models.setProvider(faux.provider);
+    const client = createPiAiClient(
+      // Long text at ~40 ms per chunk cannot finish inside 50 ms.
+      { model: "faux/faux-1", timeoutMs: 50 },
+      { models },
+    );
+    faux.appendResponses([fauxAssistantMessage("word ".repeat(200))]);
+    const error = await caught(client.text([{ role: "user", content: "x" }]));
+    expect(error.code).toBe("timeout");
+  });
+
+  it("rejects unknown provider/model pairs at construction", () => {
+    expect(() =>
+      createPiAiClient({ model: "nope/not-a-model", timeoutMs: TIMEOUT_MS }),
+    ).toThrow(/provider\/model/);
   });
 });

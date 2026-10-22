@@ -15,7 +15,7 @@ The HTTP framework is Fastify: **small, fast, with a straightforward plugin mode
 - The everyday necessities are built in: JSON parsing, schema validation, error handling, route organization — no assembling piece by piece
 - Static files, cookies, and the like mount as plugins on demand; the core stays clean
 - Not Express — too bare; error handling and validation would be DIY
-- Not NestJS — a personal project doesn't need the IoC-container and decorator ceremony
+- Not NestJS — a personal project doesn't need the IoC-container and decorator ceremony (revisited 2026-10: a NestJS migration is planned as a later phase; this section will be superseded when that ADR lands)
 
 ## The database: SQLite + better-sqlite3, plus a MySQL adapter
 
@@ -41,13 +41,22 @@ They require a daemon process: port, credentials, connection pool, backup toolin
 
 Even so, the adapter port carries a MySQL adapter — added by the author for learning: to see how another dialect feels behind one interface, where SQL is portable, where it is not, and what a connection pool changes. If a third database ever joins, it is just one more adapter. SQLite stays the recommended database; MySQL is there to experiment with, not a requirement. Domain code never sees the difference: driver, pool, and dialect details all stop at the port.
 
-## zod
+## typebox
 
-**One definition, both runtime validation and type inference.**
+**One schema library, one definition.** (The earlier zod section described
+an aspiration — zod was never actually installed; validation was
+hand-written. typebox makes the promise real, chosen with the AI runtime —
+see [ai-pi-runtime.md](ai-pi-runtime.md).)
 
-- Foreign data (AI output, HTTP bodies, environment variables) is trusted only after validation — and the TypeScript types come along, no defining things twice
-- Validation failures point at the offending field, no guessing
-- In the AI pipeline it is the deterministic gate: whether the model's JSON conforms to the schema is decided here, not by the prompt
+- Foreign data (AI output, HTTP bodies, environment variables) is trusted
+  only after validation; schemas are defined once and shared — the ledger
+  draft schema is simultaneously the model-facing tool contract and the
+  server's shape gate, so the two can never drift.
+- TypeBox schemas _are_ JSON Schema: the model-facing contract and the
+  runtime check come from one definition, with `typebox/value`'s
+  `Check`/`Errors` on the validation side.
+- Validation failures point at the offending path, no guessing; the same
+  error text can be fed back to the model as a tool error.
 
 ## pino
 
@@ -60,4 +69,4 @@ Even so, the adapter port carries a MySQL adapter — added by the author for le
 ## Conventions in this repository
 
 - Production is one process: the server serves both the API and the two frontends
-- Foreign data (AI output, HTTP bodies) passes zod validation before entering business logic
+- Foreign data (AI output, HTTP bodies) passes schema validation (typebox for the AI pipeline) before entering business logic

@@ -17,7 +17,7 @@ async function main(): Promise<void> {
 
   // One line per domain; later domains only add lines here.
   const system = assembleSystem();
-  const ledger = await assembleLedger(config);
+  const ledger = await assembleLedger(config, { logger });
   const auth = await assembleAuth(config);
 
   const app = createServer({

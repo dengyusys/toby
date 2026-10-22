@@ -10,27 +10,27 @@
 
 ## 技术栈
 
-| 层     | 选型                                                                   |
-| ------ | ---------------------------------------------------------------------- |
-| 运行   | Node 22.23.2,`.ts` 直跑,无构建步骤                                     |
-| 包管理 | pnpm 11.18.0 workspaces(`apps/*` + `packages/*`)                       |
-| 服务端 | Fastify 5 + 自建数据库适配 port（默认 SQLite，可选 MySQL）+ pino + zod |
-| 前端   | React 19 + Vite 6 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`)  |
-| 测试   | vitest + happy-dom + @testing-library                                  |
+| 层     | 选型                                                                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------ |
+| 运行   | Node 22.23.2,`.ts` 直跑,无构建步骤                                                                     |
+| 包管理 | pnpm 11.18.0 workspaces(`apps/*` + `packages/*`)                                                       |
+| 服务端 | Fastify 5 + 自建数据库适配 port（默认 SQLite，可选 MySQL）+ pino + typebox（AI:pi-ai + pi-agent-core） |
+| 前端   | React 19 + Vite 6 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`)                                  |
+| 测试   | vitest + happy-dom + @testing-library                                                                  |
 
 ## 系统上下文
 
 ```mermaid
 flowchart LR
     U(("用户")) --> W["Web 双应用(React SPA:<br/>PC 端 / 与移动端 /m/)"]
-    W -->|"只读 API / 提案(HTTP)"| S["Toby server 单进程(Fastify)<br/>垂直域 · 提案生命周期(预留)"]
+    W -->|"只读 API / 提案(HTTP)"| S["Toby server 单进程(Fastify)<br/>垂直域 · 提案生命周期(actions 内核)"]
     S --> DB[("数据库，经适配 port 访问<br/>SQLite（默认）·MySQL（可选）<br/>只有 server 写")]
-    S -->|"只传字段值:无数据库、无 shell、无文件路径"| AI(("AI provider<br/>(随首个业务域接入)"))
+    S -->|"分级门卫的工具调用;写入只经提案"| AI(("AI 经 pi-ai / pi-agent-core 接入"))
 ```
 
 - Web 只能通过 server API 访问数据,不能读取文件系统。
-- server 是唯一日常读写入口:查询走只读 API;新增、修改和删除必须经**提案确认**(管线为架构预留,随首个业务域落地)。
-- AI 只拿到字段值,没有工具、没有路径、没有数据内容。
+- server 是唯一日常读写入口:查询走只读 API;新增、修改和删除必须经**提案确认**(记账域已在使用;确认门内核位于 infrastructure/actions/,供各域共用)。
+- AI 工具携带安全分级(read-only / write-intent)并在策略门卫下运行;真实效果仍需提案确认(docs/decisions/ai-pi-runtime.zh.md)。
 - 根 `scripts/` 只做开发与多进程启动编排,不接触数据。
 - 九个业务域(对话、问候、日程、记账、手账、告示板、记忆、书库、提案)逐个独立落地;每个域落地时在 `docs/features/` 立契约文档。
 
@@ -78,7 +78,7 @@ test/             # 根 HTTP 集成测试
 
 1. Web 对话页把用户一句话发给 server。
 2. server 做意图路由,分发给对应域的提案管线。
-3. AI 只返回受限的日期、分类、字段和值;server 再做 schema、领域和语义校验。
+3. 提取 agent 经 submit 工具递交通过 schema 校验的草稿;server 再做形状、领域和语义校验(validation.ts 是信任边界)。
 4. server 读取当前字段,生成带 `proposal_id`、前值和后值的短期提案。
 5. 客户端仅凭 `proposal_id` 调用确认或取消,请求体为空。
 6. 确认时 server 在数据库事务中重读目标字段、检查冲突、串行执行并提交,或整体回滚。
@@ -93,7 +93,7 @@ sequenceDiagram
 
     W->>S: 一句话(text、时间、时区)
     S->>A: 解析请求(只含指令文字)
-    A-->>S: 受限的日期、分类、字段和值
+    A-->>S: schema 校验过的条目草稿(submit_entries)
     S->>S: schema、领域与语义校验
     S->>D: 读取当前字段
     S-->>W: 短期提案(proposal_id、前值、后值)
@@ -142,8 +142,8 @@ flowchart TB
 
 安全边界:
 
-- HTTP 写路径必须经提案管线;任何绕过提案的写端点都是缺陷。框架期没有任何写端点。
-- AI 不获得文件路径、数据内容、shell 或写入工具;密钥只存在于本地环境配置,Web 包内不得包含密钥。
+- HTTP 写路径必须经提案管线;任何绕过提案的写端点都是缺陷。记账域已在使用;后续域复用同一内核(infrastructure/actions/)。
+- AI 不获得文件路径、数据内容与 shell;其工具经 kind 分级门卫,write-intent 工具只产出提案(docs/decisions/ai-pi-runtime.zh.md)。密钥只存在于本地环境配置,Web 包内不得包含密钥。
 - 引入 Python 等新运行时需先立 ADR。
 - 上述纪律由 ESLint 文件级规则机器强制(见 `eslint.config.js`)。
 

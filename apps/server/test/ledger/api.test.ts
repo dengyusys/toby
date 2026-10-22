@@ -13,7 +13,10 @@ import type { FastifyInstance } from "fastify";
 import { createServer } from "../../src/infrastructure/http/app.ts";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
 import { assembleLedger } from "../../src/domains/ledger/module.ts";
-import type { AiClient } from "../../src/infrastructure/ai/types.ts";
+import type {
+  LedgerDraft,
+  LedgerExtractor,
+} from "../../src/domains/ledger/extraction.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-ledger-api-"));
 const staticRoot = path.join(baseDir, "static");
@@ -30,7 +33,7 @@ let app: FastifyInstance;
 let nowMs: number;
 let caseCounter = 0;
 
-async function buildApp(ai?: AiClient): Promise<void> {
+async function buildApp(extractor?: LedgerExtractor): Promise<void> {
   caseCounter += 1;
   nowMs = BASE_MS;
   const config = resolveConfig({
@@ -40,7 +43,7 @@ async function buildApp(ai?: AiClient): Promise<void> {
     now: () => nowMs,
     autoWriteDelayMs: AUTO_WRITE_MS,
     ttlMs: TTL_MS,
-    ...(ai ? { ai } : {}),
+    ...(extractor ? { extractor } : {}),
   });
   app = createServer({
     webRoot: path.join(staticRoot, "web"),
@@ -130,7 +133,7 @@ describe("ledger api: proposals", () => {
     expect(months.json()).toEqual({ months: [] });
   });
 
-  it("the one-sentence text path answers AI_UNAVAILABLE until AI lands", async () => {
+  it("the one-sentence text path answers 501 when the extractor is absent", async () => {
     const response = await inject("POST", "/api/ledger/proposals", {
       text: "午饭花了25",
     });
@@ -139,7 +142,7 @@ describe("ledger api: proposals", () => {
   });
 
   it("the one-sentence AI path returns a proposal or a follow-up question", async () => {
-    const replies: unknown[] = [
+    const replies: LedgerDraft[] = [
       {
         entries: [
           {
@@ -147,19 +150,18 @@ describe("ledger api: proposals", () => {
             type: "expense",
             category: "餐饮",
             account: "微信",
-            amount: "25",
+            amount: 2500,
             note: "午饭",
           },
         ],
       },
       { question: "这笔用的哪个账户?" },
     ];
-    const ai: AiClient = {
-      json: async () => replies.shift(),
-      text: async () => "unused",
+    const extractor: LedgerExtractor = {
+      extract: async () => replies.shift() as LedgerDraft,
     };
     await app.close(); // release the beforeEach assembly before rebuilding
-    await buildApp(ai);
+    await buildApp(extractor);
 
     const proposed = await inject("POST", "/api/ledger/proposals", {
       text: "午饭花了25",

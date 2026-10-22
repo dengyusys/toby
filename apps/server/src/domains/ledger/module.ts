@@ -9,11 +9,13 @@ import type { MountedDomain } from "../../infrastructure/http/domain-mount.ts";
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
 import { createDomainDb } from "../../infrastructure/db/create-db.ts";
 import { applyMigrations } from "../../infrastructure/db/migrate.ts";
-import { createOpenAiCompatibleClient } from "../../infrastructure/ai/openai-compatible.ts";
+import { createTobyAgentFactory } from "../../infrastructure/ai/agent.ts";
 import { ledgerRouter } from "./router.ts";
 import { LEDGER_MIGRATIONS, createLedgerStore } from "./store.ts";
 import { assembleLedgerService, type LedgerServiceDeps } from "./service.ts";
+import { createLedgerExtractor, type LedgerExtractor } from "./extraction.ts";
 
+// A 1 s tick bounds the auto-write moment's timing error to about a second.
 const SWEEP_INTERVAL_MS = 1_000;
 
 export async function assembleLedger(
@@ -24,10 +26,24 @@ export async function assembleLedger(
   await applyMigrations(db, LEDGER_MIGRATIONS);
   const now = deps.now ?? Date.now;
   const store = createLedgerStore(db, { now: () => new Date(now()) });
+  // AI disabled (no TOBY_AI_MODEL) keeps the extractor absent: the service
+  // then answers the one-sentence path with 501.
+  const extractor: LedgerExtractor | undefined =
+    deps.extractor ??
+    (config.ai
+      ? createLedgerExtractor({
+          agentFactory: createTobyAgentFactory(config.ai, {
+            logger: deps.logger,
+          }),
+        })
+      : undefined);
   const service = assembleLedgerService(store, {
     ...deps,
     now,
-    ai: deps.ai ?? createOpenAiCompatibleClient(config.ai),
+    extractor,
+    // One logger for both the agent factory (usage/gate audit) and the
+    // service (auto-write failures).
+    logger: deps.logger,
   });
 
   const sweeper = setInterval(() => {

@@ -27,6 +27,15 @@ allowBuilds:
   esbuild: true
   better-sqlite3: false
   simple-git-hooks: false
+  # pi-ai transitive deps: @google/genai has no real postinstall (no-op
+  # echoes + a prepare that only runs for git checkouts); protobufjs'
+  # postinstall is a source-build leftover — the npm tarball ships its
+  # prebuilt files, so neither script is needed at runtime.
+  # pi-ai 的传递依赖:@google/genai 没有真正的 postinstall(no-op 回显 +
+  # 仅 git 检出才运行的 prepare);protobufjs 的 postinstall 是源码构建
+  # 残留 —— npm 包自带预构建产物,两者的脚本运行时都不需要。
+  "@google/genai": false
+  protobufjs: false
 
 # Version table for the whole workspace. Groups run web runtime -> web build
 # -> server -> testing -> language & types; inside a group the core framework
@@ -36,8 +45,14 @@ allowBuilds:
 # 语言与类型;组内核心框架在前,外围包在后。
 
 catalog:
-  # Web runtime — bundled into the two SPA apps.
-  # 前端运行时 —— 打包进双 SPA 应用。
+  # Web runtime — bundled into the two SPA apps. The shadcn stack
+  # (cva / radix-slot / lucide / sonner) is pre-provisioned for upcoming
+  # UI components (variants, asChild, icons, toasts); declare them in the
+  # app package.jsons with "catalog:" when first imported.
+  # 前端运行时 —— 打包进双 SPA 应用。shadcn 四件套
+  # (cva / radix-slot / lucide / sonner)为即将到来的 UI 组件预置
+  # (变体 / asChild / 图标 / toast);首次 import 时在各应用
+  # package.json 里以 "catalog:" 声明即可。
   react: ^19.0.0
   react-dom: ^19.0.0
   react-router: ^8.3.1
@@ -64,6 +79,15 @@ catalog:
   better-sqlite3: ^13.0.3
   mysql2: ^3.24.6
   pino: ^10.1.0
+
+  # AI runtime (pi ecosystem) — pinned exact: pi-agent-core depends on exact
+  # pi-ai 1.3.0 / typebox 1.3.27; a caret here would install a second copy of
+  # pi-ai and split the Message/Context types across versions.
+  # AI 运行时（pi 生态）—— 精确钉版:pi-agent-core 精确依赖 pi-ai 1.3.0 /
+  # typebox 1.3.27;这里若用 ^ 会装出第二份 pi-ai,类型跨版本分叉。
+  "@earendil-works/pi-ai": 1.3.0
+  "@earendil-works/pi-agent-core": 1.3.0
+  typebox: 1.3.27
 
   # Testing — vitest everywhere, DOM stack for the web apps.
   # 测试 —— vitest 全局使用,DOM 栈归前端应用。
