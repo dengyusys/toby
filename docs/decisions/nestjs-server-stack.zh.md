@@ -14,7 +14,7 @@ Fastify/自装配的框架表述) · 日期:2026-10-23
 - **用成熟框架的约定取代私有约定。** 限流、校验、OpenAPI、生命周期
   钩子交给生态;结构则是每个模型与协作者都已熟悉的
   module/controller/provider/guard。
-- **Spring Boot 迁移性。** 模块≈配置扫描、provider≈Bean、
+- **所学可迁移到 Spring Boot。** 模块≈配置扫描、provider≈Bean、
   guard/interceptor/pipe≈filter/interceptor/validator——学 Nest 就是学
   Spring 的骨架。
 - **有意取舍:** 放弃零构建、.ts 直跑。`nest build`(tsc)产出

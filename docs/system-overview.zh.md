@@ -25,14 +25,14 @@ flowchart LR
     U(("用户")) --> W["Web 双应用(React SPA:<br/>PC 端 / 与移动端 /m/)"]
     W -->|"只读 API / 提案(HTTP)"| S["Toby server 单进程(NestJS / Fastify)<br/>垂直域 · 提案生命周期(actions 内核)"]
     S --> DB[("数据库，经适配 port 访问<br/>SQLite（默认）·MySQL（可选）<br/>只有 server 写")]
-    S -->|"分级门卫的工具调用;写入只经提案"| AI(("AI 经 pi-ai / pi-agent-core 接入"))
+    S -->|"按安全分级门控的工具调用;写入只经提案"| AI(("AI 经 pi-ai / pi-agent-core 接入"))
 ```
 
 - Web 只能通过 server API 访问数据,不能读取文件系统。
-- server 是唯一日常读写入口:查询走只读 API;新增、修改和删除必须经**提案确认**(记账域已在使用;确认门内核位于 infrastructure/actions/,供各域共用)。
-- AI 工具携带安全分级(read-only / write-intent)并在策略门卫下运行;真实效果仍需提案确认(docs/decisions/ai-pi-runtime.zh.md)。
+- server 是唯一日常读写入口:查询走只读 API;新增、修改和删除必须经**提案确认** —— 由 `infrastructure/actions/` 中的共享**提案确认内核**(actions kernel,一条状态机:创建/确认/过期)执行;记账域已在使用。
+- AI 工具携带安全分级(read-only / write-intent)并在策略门控下运行;真实效果仍需提案确认(docs/decisions/ai-pi-runtime.zh.md)。
 - 根 `scripts/` 只做开发与多进程启动编排,不接触数据。
-- 九个业务域中,提案管线已下沉为共享内核而非域;其余(对话、问候、日程、手账、告示板、记忆、书库)逐个独立落地,每个域落地时在 `docs/features/` 立契约文档。
+- 九个业务域中,提案确认已下沉为共享内核(见上)而非域;其余(对话 chat、问候 greeting、日程 schedule、手账 notes、待办 todo、记忆 memory、书库 library)逐个独立落地,每个域落地时在 `docs/features/` 立契约文档。
 
 ## 仓库结构
 
@@ -72,7 +72,7 @@ test/             # 根 HTTP 集成测试
 sequenceDiagram
     autonumber
     participant W as Web(对话页)
-    participant S as Toby server(提案域)
+    participant S as Toby server
     participant A as AI provider
     participant D as 数据库（适配 port）
 
@@ -114,7 +114,7 @@ sequenceDiagram
 ```mermaid
 flowchart TB
     BOOT["main.ts(组合根)<br/>每域一行装配,跨域接线只在这里"]
-    INFRA["infrastructure/<br/>config(TOBY_*)·http(Nest 应用工厂/错误包络/双 SPA 静态)<br/>logging(pino)·db(适配 port:sqlite / mysql)"]
+    INFRA["infrastructure/<br/>config(TOBY_*)·http(Nest 应用工厂/错误包络(统一错误响应结构)/双 SPA 静态)<br/>logging(pino)·db(适配 port:sqlite / mysql)"]
     DOM["domains/*<br/>业务域,逐个落地"]
     BOOT --> INFRA
     BOOT --> DOM
@@ -129,8 +129,8 @@ flowchart TB
 
 安全边界:
 
-- HTTP 写路径必须经提案管线;任何绕过提案的写端点都是缺陷。记账域已在使用;后续域复用同一内核(infrastructure/actions/)。
-- AI 不获得文件路径、数据内容与 shell;其工具经 kind 分级门卫,write-intent 工具只产出提案(docs/decisions/ai-pi-runtime.zh.md)。密钥只存在于本地环境配置,Web 包内不得包含密钥。
+- HTTP 写路径必须经提案确认;任何绕过提案的写端点都是缺陷。记账域已在使用;后续域复用同一提案确认内核(infrastructure/actions/)。
+- AI 不获得文件路径、数据内容与 shell;其工具经安全分级门控,write-intent(写意图)工具只产出提案(docs/decisions/ai-pi-runtime.zh.md)。密钥只存在于本地环境配置,Web 包内不得包含密钥。
 - 引入 Python 等新运行时需先立 ADR。
 - 上述纪律由 ESLint 文件级规则机器强制(见 `eslint.config.js`)。
 
@@ -140,3 +140,24 @@ flowchart TB
 - 配置由 `infrastructure/config` 的 `resolveConfig({ env })` 启动时统一解析(`TOBY_*` 环境变量);不在导入时解析全局配置,入口显式传入,测试可注入独立 `env`。
 - 前端/packages 的 `.ts` 由 Node 22 直跑、无构建;服务端经 `nest build` 构建。各包风格规则见 AGENTS.md(`erasableSyntaxOnly` 仍对前端/packages 生效)。
 - 执行目录调整时,同步更新本文与受影响文档的路径引用;长期取舍新增 ADR 到 `docs/decisions/`。完整的维护规则见[文档维护决策](decisions/living-docs.zh.md)。
+
+## 术语表
+
+本仓库中带特定含义的术语,每词一行——权威定义见该术语首次出现处。
+
+| 术语                                    | 含义                                                                                               |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 提案 / 提案卡(proposal / proposal card) | 短期的、需用户确认的写入建议;确认之前不写入任何数据                                                |
+| 提案确认内核(actions kernel)            | `infrastructure/actions/` 中的共享提案确认状态机(30 秒默许窗口、TTL 兜底、单飞 commit)             |
+| 安全分级(safety kind)                   | 工具注册时的类别:`read-only`(无状态改变)或 `write-intent`(只能经提案产生效果);`costly` 为将来预留  |
+| 门控(policy / shape / health gate)      | 三类强制点:policy = agent 可调用的工具分级;shape = TypeBox schema 校验;health = 开发期启动就绪检查 |
+| 信任边界(trust boundary)                | 服务端确定性校验——AI 输出(以及一切外来输入)通过校验之前都是非受信的                                |
+| 适配 port(adapter port)                 | ports-and-adapters 意义上的 port:SQLite / MySQL 在其后替换的接口                                   |
+| 组合根(composition root)                | `apps/server/src/main.ts` —— 跨域接线唯一发生的地方                                                |
+| 垂直域切片(vertical domain slice)       | 一个业务 = 一个目录,自含 controller、service、store 与规则                                         |
+| 模块化单体(modular monolith)            | 模块在代码层隔离,由单进程装配运行                                                                  |
+| 单飞(single-flight)                     | 并发确认与清扫任务合并为同一次执行                                                                 |
+| 错误包络(error envelope)                | 统一的 `{ error: { code, message } }` 响应结构                                                     |
+| 清扫任务(sweeper)                       | 周期任务:自动写入到期的提案并清理已过期的记录                                                      |
+
+中文域名对照:记账=ledger、对话=chat、问候=greeting、日程=schedule、手账=notes、待办=todo、记忆=memory、书库=library。

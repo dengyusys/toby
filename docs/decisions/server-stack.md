@@ -31,7 +31,7 @@ The database is SQLite — the best bargain in this whole stack — reached thro
 
 **Synchronous API — a transaction is a function call.**
 
-better-sqlite3 calls synchronously: no connection pool, no reconnect logic, no async races. A transaction is just a stretch of ordinary code wrapped in begin / commit. This fits the "confirm the proposal, then one transactional write" model perfectly: re-read targets, check conflicts, execute — atomic and reason-able as a whole. The database port puts an async-first face in front of this driver while keeping the same guarantee by serializing every operation.
+better-sqlite3 calls synchronously: no connection pool, no reconnect logic, no async races. A transaction is just a stretch of ordinary code wrapped in begin / commit. This fits the "confirm the proposal, then one transactional write" model perfectly: re-read targets, check conflicts, execute — atomic and easy to reason about as a whole. The database port puts an async-first face in front of this driver while keeping the same guarantee by serializing every operation.
 
 **The well-known weakness does not exist here.**
 

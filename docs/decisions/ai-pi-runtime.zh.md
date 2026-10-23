@@ -27,7 +27,7 @@
 1. **信任边界是服务端确定性校验。** 工具 schema(TypeBox)只约束*形状*;
    语义校验(金额换算为整数分、真实日历日期、条目上限)保留在各域手写。
    AI 输出——包括工具参数——永远是非受信输入。
-2. **一切真实效果走 proposal → 用户确认 → 事务执行。** 共享的确认门
+2. **一切真实效果走 proposal → 用户确认 → 事务执行。** 共享的提案确认
    状态机在 `infrastructure/actions/`;agent 永不直写、永不替用户确认。
 3. **禁区能力是缺位,不是被拦。** 没有 shell 工具、没有文件系统工具、
    没有直连数据库工具——它们作为工具定义根本不存在。
@@ -35,15 +35,15 @@
 ## 工具分级(kind)
 
 经 `defineTool` 注册的每个工具必须携带一种 kind,agent 的 policy 声明
-它允许执行哪些 kind;`beforeToolCall` 门卫对每次调用强制 kind 政策。
-模型幻觉出的未知工具名由 pi-agent-core 在门卫之前拒绝;门卫对"在册"
+它允许执行哪些 kind;`beforeToolCall` 门控对每次调用强制 kind 政策。
+模型幻觉出的未知工具名由 pi-agent-core 在门控之前拒绝;门控对"在册"
 的复查是一道廉价的不变量(纵深防御):
 
 - **`read-only`** —— 不产生任何状态改变:查询、计算、向用户追问都归此档。
 - **`write-intent`** —— 产生效果,但只能以 proposal 形式;效果仅在用户
   确认后发生。将来发通知等外部动作与数据库写入同归此档。
 
-今天唯一的生产 agent(ledger 提取)允许两种 kind;门卫的真正用武之地
+今天唯一的生产 agent(ledger 提取)允许两种 kind;门控的真正用武之地
 在下一个 agent——聊天伴生 agent,它将只允许 read-only。`costly`
 kind(联网搜索、生图)已有预案,待有域需要时再引入。
 
@@ -52,10 +52,10 @@ kind(联网搜索、生图)已有预案,待有域需要时再引入。
 - `infrastructure/ai/` 与 `infrastructure/actions/` 承载运行时(各文件
   角色见文件头注释)。两个非显然决策:单发 `AiClient` 保留"宽容解析+
   一次重试"的 JSON 协议,且当前没有生产调用方(chat 域的意图分类是其
-  预期的首个消费者);确认门内核采用单飞——并发确认与清扫共享同一次
-  执行——各域在 commit 时传入自己的执行器。
+  预期的首个消费者);提案确认内核采用单飞(single-flight:并发确认与
+  过期清扫任务合并为同一次执行),各域在 commit 时传入自己的执行器。
 - 提示词、工具与 schema 归各域:ledger 的草稿 schema 以 TypeBox 只定义
-  一次,同时是面向模型的工具合同与服务端的形状闸门;validation.ts 仍是
+  一次,同时是面向模型的工具契约与服务端的形状门控;validation.ts 仍是
   语义信任边界。
 - 版本:pi-ai / pi-agent-core / typebox 在 pnpm catalog
   (pnpm-workspace.yaml)中精确锁定版本——pi-agent-core 精确依赖它们,

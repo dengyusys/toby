@@ -34,7 +34,8 @@ calling** — deliberately, and with the guardrails below.
    in each domain. AI output — including tool arguments — is untrusted
    input, always.
 2. **Every real effect goes through proposal → user confirmation →
-   transactional execution.** The shared confirm-gate state machine lives
+   transactional execution.** The shared actions kernel (the
+   proposal-confirmation state machine) lives
    in `infrastructure/actions/`; agents never write directly and never
    confirm on the user's behalf.
 3. **Prohibited capabilities are absent, not blocked.** There is no shell
@@ -66,7 +67,7 @@ is anticipated but not introduced until a domain needs it.
   roles are documented in the files themselves). Two non-obvious decisions:
   the single-shot `AiClient` keeps the tolerant-parse + one-retry JSON
   protocol and currently has no production caller (chat's intent
-  classification is its expected first consumer); the confirm-gate kernel
+  classification is its expected first consumer); the actions kernel
   uses single-flight — concurrent confirms and the sweeper share one
   execution — with domains passing their executors at commit time.
 - Domains own prompts, tools, and schemas: ledger's draft schema is

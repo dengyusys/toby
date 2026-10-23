@@ -29,10 +29,10 @@ flowchart LR
 ```
 
 - The web apps reach data only through server APIs; they never touch the file system.
-- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** (ledger is live on it; the confirm-gate kernel is shared in `infrastructure/actions/`).
+- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** — run by the shared **actions kernel** in `infrastructure/actions/` (one state machine: create / confirm / expire; ledger is live on it).
 - AI tools carry a safety kind (read-only / write-intent) and run behind a policy gate; real effects still require proposal confirmation (docs/decisions/ai-pi-runtime.md).
 - Root `scripts/` only orchestrates dev and multi-process startup; it never touches data.
-- The remaining business domains (chat, greeting, schedule, notes, todo, memory, library) land one at a time; each establishes its contract doc in `docs/features/` on arrival. The proposal pipeline is already a shared kernel, not a domain.
+- The remaining business domains (chat, greeting, schedule, notes, todo, memory, library) land one at a time; each establishes its contract doc in `docs/features/` on arrival. Proposal confirmation is already a shared kernel (see above), not a domain.
 
 ## Repository layout
 
@@ -72,7 +72,7 @@ One write, end to end (endpoint contracts are finalized in each domain's `featur
 sequenceDiagram
     autonumber
     participant W as Web (chat page)
-    participant S as Toby server (proposal domain)
+    participant S as Toby server
     participant A as AI provider
     participant D as Database (adapter port)
 
@@ -129,7 +129,7 @@ Domain organization discipline:
 
 Security boundaries:
 
-- HTTP write paths must go through the proposal pipeline; any write endpoint bypassing it is a defect. Ledger is live on it; later domains reuse the same kernel (`infrastructure/actions/`).
+- HTTP write paths must go through proposal confirmation; any write endpoint bypassing it is a defect. Ledger is live on it; later domains reuse the same actions kernel (`infrastructure/actions/`).
 - The AI gets no file paths, no data contents, and no shell; its tools are kind-gated, and write-intent tools only produce proposals (docs/decisions/ai-pi-runtime.md). Secrets live only in local environment config, never inside web bundles.
 - Introducing new runtimes (Python etc.) requires an ADR first.
 - These disciplines are machine-enforced by file-level ESLint rules (see `eslint.config.js`).
@@ -140,3 +140,22 @@ Security boundaries:
 - Configuration is resolved once at startup by `infrastructure/config`'s `resolveConfig({ env })` (`TOBY_*` environment variables); no global config at import time — the entry passes it explicitly, tests inject their own `env`.
 - Web/packages `.ts` runs on Node 22 with no build step; the server is built with `nest build`. Style rules per package: see AGENTS.md (`erasableSyntaxOnly` still enforces web/packages).
 - When adjusting layout, update this document and path references in affected docs in the same change; long-lived trade-offs get an ADR in `docs/decisions/`. The full maintenance rules live in the [living docs decision](decisions/living-docs.md).
+
+## Glossary
+
+Terms this repository uses with a specific meaning; one line each — the authoritative definition lives where the term is introduced.
+
+| Term                           | Meaning                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| proposal / proposal card       | A short-lived, user-confirmable write suggestion; nothing is written until confirmed                                                              |
+| actions kernel                 | The shared proposal-confirmation state machine in `infrastructure/actions/` (30 s tacit-approval window, TTL backstop, single-flight commit)      |
+| safety kind                    | A tool's registered class: `read-only` (no state change) or `write-intent` (effect only via proposal); a `costly` kind is reserved for the future |
+| gate (policy / shape / health) | Enforcement points: policy = tool kinds an agent may call; shape = TypeBox schema check; health = dev startup readiness                           |
+| trust boundary                 | Deterministic server-side validation — the AI's output (and every other foreign input) is untrusted until it passes                               |
+| adapter port                   | "Port" as in ports-and-adapters: the interface behind which SQLite / MySQL swap                                                                   |
+| composition root               | `apps/server/src/main.ts` — the only place cross-domain wiring happens                                                                            |
+| vertical domain slice          | One business = one directory owning its controller, service, store, and rules                                                                     |
+| modular monolith               | Modules isolated in code, assembled and run by one process                                                                                        |
+| single-flight                  | Concurrent confirms and the sweeper share one execution                                                                                           |
+| error envelope                 | The unified `{ error: { code, message } }` response structure                                                                                     |
+| sweeper                        | The periodic task that auto-writes due proposals and prunes expired ones                                                                          |

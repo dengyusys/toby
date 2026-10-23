@@ -50,9 +50,9 @@ SQLite 的短板是单写者、不适合高并发。而 Toby 本来就只有一�
 一并选定,见 [ai-pi-runtime.zh.md](ai-pi-runtime.zh.md)。)
 
 - 外来的数据(AI 输出、HTTP 请求体、环境变量)过完校验才可信;schema 只
-  定义一次、两处共用——ledger 的草稿 schema 既是面向模型的工具合同,
+  定义一次、两处共用——ledger 的草稿 schema 既是面向模型的工具契约,
   也是服务端的形状闸门,两处永不漂移
-- TypeBox schema 本身就是 JSON Schema:面向模型的合同与运行时校验出自
+- TypeBox schema 本身就是 JSON Schema:面向模型的契约与运行时校验出自
   同一份定义,校验侧用 `typebox/value` 的 `Check`/`Errors`
 - 校验失败的信息足够定位到字段,不用猜哪里错了;同一份错误信息还能作为
   工具错误回喂给模型自行修正
