@@ -154,6 +154,22 @@ describe("auth enabled", () => {
     expect(setCookie).toContain("toby_session=");
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("SameSite=Strict");
+    // Secure is opt-in via TOBY_AUTH_SECURE_COOKIE (covered below).
+    expect(setCookie).not.toContain("Secure");
+  });
+
+  it("TOBY_AUTH_SECURE_COOKIE=true adds the Secure flag to the session cookie", async () => {
+    // One assertion through three layers: config parse → module assembly →
+    // controller cookie flags. Release the beforeEach assembly first —
+    // an open sqlite file cannot be unlinked on Windows.
+    await app.close();
+    await buildApp({
+      TOBY_AUTH_PASSWORD_HASH: PASSWORD_HASH,
+      TOBY_AUTH_SECURE_COOKIE: "true",
+    });
+    const response = await login(PASSWORD);
+    expect(response.statusCode).toBe(200);
+    expect(String(response.headers["set-cookie"])).toContain("; Secure");
   });
 
   it("a valid session opens the API and reports itself", async () => {
