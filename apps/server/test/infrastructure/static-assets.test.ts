@@ -1,15 +1,20 @@
 /**
  * Static dual mount with real build roots: PC at /, mobile at /m/, both
  * no-store; /m redirects to /m/; missing files fall through to the JSON
- * PAGE_NOT_FOUND envelope.
+ * PAGE_NOT_FOUND envelope (the not-found reply the Nest app installs).
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { FastifyInstance } from "fastify";
-import { createServer } from "../../src/infrastructure/http/app.ts";
+import Fastify, { type FastifyInstance } from "fastify";
+import { staticAssetsPlugin } from "../../src/infrastructure/http/static-assets.ts";
+import {
+  HTTP_STATUS,
+  createErrorResponse,
+} from "../../src/infrastructure/http/contract.ts";
+import { sendJsonReply } from "../../src/infrastructure/http/response.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-static-"));
 const webRoot = path.join(baseDir, "web-dist");
@@ -26,8 +31,21 @@ afterAll(() => {
 
 let app: FastifyInstance;
 
-beforeEach(() => {
-  app = createServer({ webRoot, mobileWebRoot: mobileRoot });
+beforeEach(async () => {
+  app = Fastify({ logger: false });
+  app.setNotFoundHandler((_request, reply) => {
+    sendJsonReply(
+      reply,
+      HTTP_STATUS.notFound,
+      createErrorResponse("PAGE_NOT_FOUND", "page not found"),
+    );
+  });
+  await app.register(staticAssetsPlugin, {
+    webRoot,
+    mobileWebRoot: mobileRoot,
+    warn: () => {},
+  });
+  await app.ready();
 });
 
 afterEach(async () => {

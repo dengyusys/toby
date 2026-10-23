@@ -14,6 +14,8 @@ All ports are fixed (`strictPort`): if one is occupied, that process fails fast 
 
 ## `pnpm run dev`
 
+The server runs via `nest start --watch` (through `scripts/nest-dev.js`): it compiles to `dist/` and restarts on change.
+
 Starts three processes from one command, orchestrated by `scripts/dev.js`:
 
 1. **Server first** — the server starts on 8629 and must answer `/api/system/health` before anything else launches (20 s deadline).

@@ -16,16 +16,16 @@
 
 都在仓库根目录跑:
 
-| 命令                               | 干什么                                              |
-| ---------------------------------- | --------------------------------------------------- |
-| `pnpm run dev`                     | 起开发环境:server 8629 → web 8630 / web-mobile 8631 |
-| `pnpm run start`                   | 生产模式:构建前端,单进程服务端提供页面与 API        |
-| `pnpm run check`                   | 全量检查:typecheck / lint / format / test           |
-| `pnpm run typecheck`               | 仅类型检查                                          |
-| `pnpm run lint`                    | 仅 ESLint(含域边界纪律)                             |
-| `pnpm run format` / `format:check` | Prettier 格式化 / 校验                              |
-| `pnpm run test`                    | 全部测试(各包 + 根 HTTP 集成测试)                   |
-| `pnpm run build`                   | 构建两个 web                                        |
+| 命令                               | 干什么                                                              |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| `pnpm run dev`                     | 起开发环境:server 8629 → web 8630 / web-mobile 8631                 |
+| `pnpm run start`                   | 生产模式:构建前端与服务端,运行 `dist/main.js`(单进程提供页面与 API) |
+| `pnpm run check`                   | 全量检查:typecheck / lint / format / test                           |
+| `pnpm run typecheck`               | 仅类型检查                                                          |
+| `pnpm run lint`                    | 仅 ESLint(含域边界纪律)                                             |
+| `pnpm run format` / `format:check` | Prettier 格式化 / 校验                                              |
+| `pnpm run test`                    | 全部测试(先构建服务端;各包 + 根 HTTP 集成测试)                      |
+| `pnpm run build`                   | 构建两个 web 与服务端(`nest build` → `dist/`)                       |
 
 端口、进程、部署细节看 `docs/operations/`,这里不重复。
 
@@ -58,7 +58,8 @@
 
 ## 代码风格
 
-- `.ts` 源码由 Node 22 直接跑,没有构建步骤。禁 `enum` / `namespace` / 类参数属性;类型导入用 `import type`(`erasableSyntaxOnly` 自动拦违规)。
+- `apps/web`、`apps/web-mobile`、`packages`:`.ts` 由 Node 22 直跑、无构建 —— 禁 `enum` / `namespace` / 类参数属性;类型导入用 `import type`(`erasableSyntaxOnly` 自动拦违规)。
+- `apps/server`:经 `nest build` 构建;允许装饰器、`emitDecoratorMetadata`、类参数属性与 Nest 惯用法 —— 但测试走 vitest 转换、无装饰器元数据,注入优先用 `@Inject(token)` 属性注入(见 `docs/decisions/nestjs-server-stack.zh.md`)。
 - 禁 Python;引入前必须先有 ADR。
 - 格式与 lint 闸门:Prettier + ESLint,经 `pnpm run check` 执行。
 

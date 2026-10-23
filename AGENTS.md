@@ -16,16 +16,16 @@ Before implementing: find the currently authoritative doc (feature docs + ADRs) 
 
 All from the repo root:
 
-| Command                            | What it does                                                       |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `pnpm run dev`                     | Start dev: server 8629 → web 8630 / web-mobile 8631                |
-| `pnpm run start`                   | Production: build webs, single server process serves pages and API |
-| `pnpm run check`                   | Full check: typecheck / lint / format / test                       |
-| `pnpm run typecheck`               | Type checks only                                                   |
-| `pnpm run lint`                    | ESLint only (including boundary rules)                             |
-| `pnpm run format` / `format:check` | Prettier format / check                                            |
-| `pnpm run test`                    | All tests (per-package + root HTTP integration tests)              |
-| `pnpm run build`                   | Build both web apps                                                |
+| Command                            | What it does                                                                              |
+| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `pnpm run dev`                     | Start dev: server 8629 → web 8630 / web-mobile 8631                                       |
+| `pnpm run start`                   | Production: build webs + server, run `dist/main.js` (single process serves pages and API) |
+| `pnpm run check`                   | Full check: typecheck / lint / format / test                                              |
+| `pnpm run typecheck`               | Type checks only                                                                          |
+| `pnpm run lint`                    | ESLint only (including boundary rules)                                                    |
+| `pnpm run format` / `format:check` | Prettier format / check                                                                   |
+| `pnpm run test`                    | All tests (builds the server first; per-package + root HTTP integration tests)            |
+| `pnpm run build`                   | Build both web apps and the server (`nest build` → `dist/`)                               |
 
 Ports, processes, and deployment details live in `docs/operations/` — not repeated here.
 
@@ -58,7 +58,8 @@ If one change touches several rows, run all the checks those rows list.
 
 ## Code style
 
-- `.ts` sources run directly on Node 22 with no build step. No `enum` / `namespace` / constructor parameter properties; use `import type` (`erasableSyntaxOnly` catches violations automatically).
+- `apps/web`, `apps/web-mobile`, `packages`: `.ts` runs on Node 22 with no build step — no `enum` / `namespace` / constructor parameter properties; use `import type` (`erasableSyntaxOnly` enforces this).
+- `apps/server`: built with `nest build`; decorators, `emitDecoratorMetadata`, constructor parameter properties and Nest idioms are allowed there — but tests run through vitest's transform, which emits no decorator metadata, so prefer `@Inject(token)` property injection (see `docs/decisions/nestjs-server-stack.md`).
 - No Python; introducing it requires an ADR first.
 - Formatting and lint gates: Prettier + ESLint, run via `pnpm run check`.
 

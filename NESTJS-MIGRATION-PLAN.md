@@ -1,6 +1,6 @@
 # Toby 第二阶段：NestJS 迁移计划（定稿）
 
-> 状态：**待实施** · 目标分支：`feat/nestjs-migration` · 定稿日期：2026-10-22
+> 状态：**已实施（2026-10-23，分支 `feat/nestjs-migration`）** —— 三域 Nest 化、组合根切换、旧装配删除、全量测试与集成测试全绿；设计定稿见 [docs/decisions/nestjs-server-stack.md](docs/decisions/nestjs-server-stack.md)，本文档可随之归档 · 定稿日期：2026-10-22
 > 审计修订：2026-10-22 —— 补 ESLint 审计结论（语法禁令全在 tsconfig）、fastify 插件盘点步骤、根 scripts 细化、双 SPA 静态根风险、Nest 版本核实项。
 > **前置条件：阶段一（pi 迁移——设计定稿见 [docs/decisions/ai-pi-runtime.md](docs/decisions/ai-pi-runtime.md)，实施记录见 git 历史）已合入 main 后方可启动。两阶段绝不叠加在同一分支。**
 

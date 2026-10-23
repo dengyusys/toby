@@ -14,6 +14,8 @@
 
 ## `pnpm run dev`
 
+服务端经 `nest start --watch`(由 `scripts/nest-dev.js` 拉起)运行:编译到 `dist/` 并在改动后自动重启。
+
 一条命令拉起三个进程,由 `scripts/dev.js` 编排:
 
 1. **服务端先行** —— 先在 8629 启动服务端,必须应答 `/api/system/health` 后才继续(20 秒截止)。

@@ -1,5 +1,7 @@
 # 为什么服务端选这套技术栈
 
+> **本文已被 [nestjs-server-stack.zh.md](nestjs-server-stack.zh.md) 取代**(2026-10-23):服务端现运行于同一 Fastify 引擎之上的 NestJS 12。下文各节(Fastify、SQLite、pino)仍然成立;"不选 NestJS"与零构建的表述已成历史。
+
 [English](server-stack.md) | 简体中文
 
 ## 核心思路
@@ -15,7 +17,7 @@ HTTP 框架选 Fastify:**小、快,插件模型直观。**
 - 日常要用的东西内置了:JSON 解析、schema 校验、错误处理、路由组织,不用自己一块块拼
 - 静态文件、cookie 这类能力以插件按需挂载,核心保持干净
 - 不选 Express——太裸,错误处理和校验都要自己组装
-- 不选 NestJS——个人项目不需要 IoC 容器和装饰器那套仪式感(2026-10 复议:已规划后续阶段迁移 NestJS;届时以新 ADR 取代本条)
+- 不选 NestJS——已于 2026-10-23 被取代:服务端现运行于 Fastify 适配器之上的 NestJS(见 [nestjs-server-stack.zh.md](nestjs-server-stack.zh.md))
 
 ## 数据库:SQLite + better-sqlite3,外加一个 MySQL 适配器
 

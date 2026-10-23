@@ -9,10 +9,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { FastifyInstance } from "fastify";
-import { createServer } from "../../src/infrastructure/http/app.ts";
+import {
+  createNestServer,
+  type NestServer,
+} from "../../src/infrastructure/http/nest-app.ts";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { assembleLedger } from "../../src/domains/ledger/module.ts";
+import { createLedgerModule } from "../../src/domains/ledger/ledger.module.ts";
 import type {
   LedgerDraft,
   LedgerExtractor,
@@ -29,7 +31,7 @@ const AUTO_WRITE_MS = 30_000;
 const TTL_MS = 600_000;
 const BASE_MS = Date.parse("2026-10-20T08:00:00.000Z");
 
-let app: FastifyInstance;
+let app: NestServer;
 let nowMs: number;
 let caseCounter = 0;
 
@@ -39,16 +41,16 @@ async function buildApp(extractor?: LedgerExtractor): Promise<void> {
   const config = resolveConfig({
     env: { TOBY_DATA_ROOT: path.join(baseDir, `case-${caseCounter}`) },
   });
-  const ledger = await assembleLedger(config, {
+  const ledgerModule = await createLedgerModule(config, {
     now: () => nowMs,
     autoWriteDelayMs: AUTO_WRITE_MS,
     ttlMs: TTL_MS,
     ...(extractor ? { extractor } : {}),
   });
-  app = createServer({
+  app = await createNestServer({
     webRoot: path.join(staticRoot, "web"),
     mobileWebRoot: path.join(staticRoot, "mobile"),
-    domains: [ledger],
+    domainModules: [ledgerModule],
   });
 }
 

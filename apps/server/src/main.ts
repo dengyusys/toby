@@ -1,36 +1,36 @@
 /**
- * Toby server entry point: resolve config, assemble domains, build the app,
- * listen. Each domain is one assembly line; cross-domain wiring happens only
- * here in the composition root.
+ * Toby server entry point (Nest over the Fastify adapter): resolve config,
+ * assemble the domain modules, build the app, listen. Each domain is one
+ * assembly line; cross-domain wiring happens only here in the composition
+ * root. Runs from the nest build output (dist/main.js).
  */
 
 import { resolveConfig } from "./infrastructure/config/config.ts";
 import { getLogger } from "./infrastructure/logging/logger.ts";
-import { createServer } from "./infrastructure/http/app.ts";
-import { assembleSystem } from "./domains/system/module.ts";
-import { assembleLedger } from "./domains/ledger/module.ts";
-import { assembleAuth } from "./domains/auth/module.ts";
+import { createNestServer } from "./infrastructure/http/nest-app.ts";
+import { SystemModule } from "./domains/system/system.module.ts";
+import { createLedgerModule } from "./domains/ledger/ledger.module.ts";
+import { createAuthModule } from "./domains/auth/auth.module.ts";
 
 async function main(): Promise<void> {
   const config = resolveConfig();
   const logger = getLogger(config);
 
   // One line per domain; later domains only add lines here.
-  const system = assembleSystem();
-  const ledger = await assembleLedger(config, { logger });
-  const auth = await assembleAuth(config);
+  const ledger = await createLedgerModule(config, { logger });
+  const auth = createAuthModule(config);
 
-  const app = createServer({
+  const server = await createNestServer({
     webRoot: config.paths.webRoot,
     mobileWebRoot: config.paths.mobileWebRoot,
-    logger,
-    domains: [system, ledger, auth.mounted],
+    domainModules: [SystemModule, ledger, auth.module],
     requestGuard: auth.requestGuard,
     trustProxy: config.trustProxy,
+    logger,
   });
 
   try {
-    await app.listen({ port: config.server.port, host: config.server.host });
+    await server.listen(config.server.host, config.server.port);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
       logger.error(
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
       logger.error({ err: error }, "listen failed");
     }
     process.exitCode = 1;
-    await app.close();
+    await server.close();
     return;
   }
 

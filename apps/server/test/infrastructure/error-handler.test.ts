@@ -1,16 +1,19 @@
 /**
- * Error boundary: all four handler branches (invalid JSON, empty JSON body,
- * oversized body, domain-shaped errors) plus the sanitized 500 fallback,
- * exercised through test-local POST routes and app.inject.
+ * Error boundary as the global Nest exception filter: all four branches
+ * (invalid JSON, empty JSON body, oversized body, domain-shaped errors)
+ * plus the sanitized 500 fallback, exercised through a probe controller
+ * and app.inject.
  */
 
 import path from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { FastifyInstance } from "fastify";
-import { createServer } from "../../src/infrastructure/http/app.ts";
-import type { MountedDomain } from "../../src/infrastructure/http/domain-mount.ts";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Controller, Get, Post } from "@nestjs/common";
+import {
+  createNestServer,
+  type NestServer,
+} from "../../src/infrastructure/http/nest-app.ts";
 
 const missingRoot = path.join(
   mkdtempSync(path.join(tmpdir(), "toby-eh-")),
@@ -19,38 +22,45 @@ const missingRoot = path.join(
 
 // Test-local routes: a JSON body route (to trigger parse errors) and two
 // routes that throw — one domain-shaped (Error + code + status), one not.
-const probeDomain: MountedDomain = {
-  name: "probe",
-  plugin: async (app) => {
-    app.post("/api/probe/json", async () => ({ ok: true }));
-    app.get("/api/probe/domain-error", async () => {
-      throw Object.assign(new Error("domain says no"), {
-        code: "DOMAIN_ERROR",
-        status: 418,
-      });
+@Controller("api/probe")
+class ProbeController {
+  @Post("json")
+  json(): { ok: boolean } {
+    return { ok: true };
+  }
+
+  @Get("domain-error")
+  domainError(): never {
+    throw Object.assign(new Error("domain says no"), {
+      code: "DOMAIN_ERROR",
+      status: 418,
     });
-    app.get("/api/probe/crash", async () => {
-      throw new Error("unexpected kaboom");
-    });
-  },
+  }
+
+  @Get("crash")
+  crash(): never {
+    throw new Error("unexpected kaboom");
+  }
+}
+
+class ProbeModule {}
+const probeModule = {
+  module: ProbeModule,
+  controllers: [ProbeController],
 };
 
-let app: FastifyInstance;
+let app: NestServer;
 
-beforeEach(() => {
-  app = createServer({
+beforeEach(async () => {
+  app = await createNestServer({
     webRoot: path.join(missingRoot, "web"),
     mobileWebRoot: path.join(missingRoot, "mobile"),
-    domains: [probeDomain],
+    domainModules: [probeModule],
   });
 });
 
 afterEach(async () => {
   await app.close();
-});
-
-afterAll(() => {
-  // Nothing extra: temp dirs under the OS tmpdir are reclaimed by the system.
 });
 
 describe("error boundary", () => {

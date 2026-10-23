@@ -10,13 +10,13 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 
 ## Stack
 
-| Layer    | Choice                                                                                                        |
-| -------- | ------------------------------------------------------------------------------------------------------------- |
-| Runtime  | Node 22.23.2, runs `.ts` directly, no build step                                                              |
-| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                             |
-| Server   | Fastify 5 + own db adapter port (SQLite default, MySQL optional) + pino + typebox (AI: pi-ai + pi-agent-core) |
-| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                     |
-| Tests    | vitest + happy-dom + @testing-library                                                                         |
+| Layer    | Choice                                                                                                                       |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Runtime  | Node 22.23.2; server built with `nest build`, webs with Vite                                                                 |
+| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                            |
+| Server   | NestJS 12 over Fastify 5 + own db adapter port (SQLite default, MySQL optional) + pino + typebox (AI: pi-ai + pi-agent-core) |
+| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                    |
+| Tests    | vitest + happy-dom + @testing-library                                                                                        |
 
 ## System context
 

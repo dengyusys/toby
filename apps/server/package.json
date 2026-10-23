@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --env-file-if-exists=../../.env src/main.ts",
+    "build": "nest build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -12,13 +13,22 @@
     "@earendil-works/pi-agent-core": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
     "@fastify/static": "catalog:",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-fastify": "catalog:",
     "better-sqlite3": "catalog:",
+    "class-transformer": "catalog:",
+    "class-validator": "catalog:",
     "fastify": "catalog:",
     "mysql2": "catalog:",
     "pino": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
     "typebox": "catalog:"
   },
   "devDependencies": {
+    "@nestjs/cli": "catalog:",
+    "@nestjs/testing": "catalog:",
     "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",

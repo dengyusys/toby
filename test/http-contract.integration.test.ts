@@ -19,7 +19,7 @@ const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 );
-const serverEntry = path.join(repositoryRoot, "apps/server/src/main.ts");
+const serverEntry = path.join(repositoryRoot, "apps/server/dist/main.js");
 const webIndex = path.join(repositoryRoot, "apps/web/dist/index.html");
 const mobileIndex = path.join(
   repositoryRoot,

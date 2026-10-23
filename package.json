@@ -9,14 +9,14 @@
   },
   "scripts": {
     "dev": "node scripts/dev.js",
-    "start": "pnpm run build && node --env-file-if-exists=.env apps/server/src/main.ts",
-    "build": "pnpm --filter @toby/web build && pnpm --filter @toby/web-mobile build",
+    "start": "pnpm run build && node --env-file-if-exists=.env apps/server/dist/main.js",
+    "build": "pnpm --filter @toby/web build && pnpm --filter @toby/web-mobile build && pnpm --filter @toby/server build",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run test",
     "typecheck": "tsc -p tsconfig.json && pnpm -r --if-present run typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "pnpm -r --if-present run test && vitest run --passWithNoTests",
+    "test": "pnpm -r --if-present run test && pnpm --filter @toby/server run build && vitest run --passWithNoTests",
     "prepare": "simple-git-hooks"
   },
   "simple-git-hooks": {

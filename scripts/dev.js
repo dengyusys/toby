@@ -158,7 +158,7 @@ async function main() {
   const server = spawnNode(
     [
       `--env-file-if-exists=${path.join(repositoryRoot, ".env")}`,
-      path.join(repositoryRoot, "apps/server/src/main.ts"),
+      path.join(repositoryRoot, "scripts/nest-dev.js"),
     ],
     repositoryRoot,
   );

@@ -74,7 +74,11 @@ catalog:
 
   # Server runtime — @toby/server only.
   # 服务端运行时 —— 仅 @toby/server 使用。
-  fastify: ^5.12.3
+  # Exact-pinned to the copy @nestjs/platform-fastify resolves (5.12.7);
+  # any other resolution splits Fastify types/instances in two.
+  # 精确钉到 @nestjs/platform-fastify 解析的同一版本(5.12.7);
+  # 任何其他解析都会让 Fastify 的类型与实例分裂成两份。
+  fastify: 5.12.7
   "@fastify/static": ^10.1.3
   better-sqlite3: ^13.0.3
   mysql2: ^3.24.6
@@ -88,6 +92,18 @@ catalog:
   "@earendil-works/pi-ai": 1.3.0
   "@earendil-works/pi-agent-core": 1.3.0
   typebox: 1.3.27
+
+  # Nest runtime (phase-two migration) — over the same Fastify 5 engine.
+  # runtime 运行时(阶段二迁移)—— 仍跑在 Fastify 5 引擎上。
+  "@nestjs/common": ^12.2.0
+  "@nestjs/core": ^12.2.0
+  "@nestjs/platform-fastify": ^12.2.0
+  reflect-metadata: ^0.2.2
+  rxjs: ^7.8.0
+  class-validator: ^0.15.1
+  class-transformer: ^0.5.1
+  "@nestjs/testing": ^12.2.0
+  "@nestjs/cli": ^12.0.10
 
   # Testing — vitest everywhere, DOM stack for the web apps.
   # 测试 —— vitest 全局使用,DOM 栈归前端应用。

@@ -9,12 +9,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { FastifyInstance } from "fastify";
-import { createServer } from "../../src/infrastructure/http/app.ts";
+import {
+  createNestServer,
+  type NestServer,
+} from "../../src/infrastructure/http/nest-app.ts";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { assembleSystem } from "../../src/domains/system/module.ts";
-import { assembleLedger } from "../../src/domains/ledger/module.ts";
-import { assembleAuth } from "../../src/domains/auth/module.ts";
+import { SystemModule } from "../../src/domains/system/system.module.ts";
+import { createLedgerModule } from "../../src/domains/ledger/ledger.module.ts";
+import { createAuthModule } from "../../src/domains/auth/auth.module.ts";
 import { hashPassword } from "../../src/domains/auth/password.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-auth-api-"));
@@ -26,7 +28,7 @@ afterAll(() => {
   rmSync(baseDir, { recursive: true, force: true });
 });
 
-let app: FastifyInstance;
+let app: NestServer;
 let nowMs: number;
 let caseCounter = 0;
 const BASE_MS = Date.parse("2026-10-20T08:00:00.000Z");
@@ -40,12 +42,12 @@ async function buildApp(env: Record<string, string>): Promise<void> {
       ...env,
     },
   });
-  const ledger = await assembleLedger(config, { now: () => nowMs });
-  const auth = await assembleAuth(config, { now: () => nowMs });
-  app = createServer({
+  const ledger = await createLedgerModule(config, { now: () => nowMs });
+  const auth = createAuthModule(config, { now: () => nowMs });
+  app = await createNestServer({
     webRoot: path.join(staticRoot, "web"),
     mobileWebRoot: path.join(staticRoot, "mobile"),
-    domains: [assembleSystem(), ledger, auth.mounted],
+    domainModules: [SystemModule, ledger, auth.module],
     requestGuard: auth.requestGuard,
     trustProxy: config.trustProxy,
   });

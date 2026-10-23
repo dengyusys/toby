@@ -1,33 +1,40 @@
 /**
- * Ledger domain self-assembly: open the domain database, apply migrations,
- * build the service, and run the proposal sweeper until the app closes.
- * The composition root registers one line per domain — this is that line
- * for ledger.
+ * Ledger domain Nest module: opens the domain database, applies migrations,
+ * assembles the service (including the AI extraction agent when
+ * configured) and runs the proposal sweeper until the application shuts
+ * down. AI disabled (no TOBY_AI_MODEL) keeps the extractor absent: the
+ * service then answers the one-sentence path with 501.
  */
 
-import type { MountedDomain } from "../../infrastructure/http/domain-mount.ts";
+import { type DynamicModule } from "@nestjs/common";
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
+import type { Logger } from "../../infrastructure/logging/logger.ts";
 import { createDomainDb } from "../../infrastructure/db/create-db.ts";
 import { applyMigrations } from "../../infrastructure/db/migrate.ts";
 import { createTobyAgentFactory } from "../../infrastructure/ai/agent.ts";
-import { ledgerRouter } from "./router.ts";
 import { LEDGER_MIGRATIONS, createLedgerStore } from "./store.ts";
 import { assembleLedgerService, type LedgerServiceDeps } from "./service.ts";
 import { createLedgerExtractor, type LedgerExtractor } from "./extraction.ts";
+import { LedgerController } from "./ledger.controller.ts";
+import { LEDGER_SERVICE } from "./tokens.ts";
+
+const LEDGER_LIFECYCLE = Symbol("LEDGER_LIFECYCLE");
 
 // A 1 s tick bounds the auto-write moment's timing error to about a second.
 const SWEEP_INTERVAL_MS = 1_000;
 
-export async function assembleLedger(
+export interface LedgerNestDeps extends LedgerServiceDeps {
+  logger?: Logger;
+}
+
+export async function createLedgerModule(
   config: TobyConfig,
-  deps: LedgerServiceDeps = {},
-): Promise<MountedDomain> {
+  deps: LedgerNestDeps = {},
+): Promise<DynamicModule> {
   const db = await createDomainDb(config, "ledger");
   await applyMigrations(db, LEDGER_MIGRATIONS);
   const now = deps.now ?? Date.now;
   const store = createLedgerStore(db, { now: () => new Date(now()) });
-  // AI disabled (no TOBY_AI_MODEL) keeps the extractor absent: the service
-  // then answers the one-sentence path with 501.
   const extractor: LedgerExtractor | undefined =
     deps.extractor ??
     (config.ai
@@ -41,8 +48,6 @@ export async function assembleLedger(
     ...deps,
     now,
     extractor,
-    // One logger for both the agent factory (usage/gate audit) and the
-    // service (auto-write failures).
     logger: deps.logger,
   });
 
@@ -51,14 +56,22 @@ export async function assembleLedger(
   }, SWEEP_INTERVAL_MS);
   sweeper.unref();
 
-  return {
-    name: "ledger",
-    plugin: async (app) => {
-      app.addHook("onClose", async () => {
-        clearInterval(sweeper);
-        await db.close();
-      });
-      await app.register(ledgerRouter, { service });
-    },
+  class LedgerDomainModule {}
+  const module: DynamicModule = {
+    module: LedgerDomainModule,
+    controllers: [LedgerController],
+    providers: [
+      { provide: LEDGER_SERVICE, useValue: service },
+      {
+        provide: LEDGER_LIFECYCLE,
+        useValue: {
+          onApplicationShutdown: async () => {
+            clearInterval(sweeper);
+            await db.close();
+          },
+        },
+      },
+    ],
   };
+  return module;
 }

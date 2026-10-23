@@ -1,5 +1,7 @@
 # Why the Server Runs This Stack
 
+> **Superseded by [nestjs-server-stack.md](nestjs-server-stack.md)** (2026-10-23): the server now runs NestJS 12 over the same Fastify engine. The sections below still hold (Fastify, SQLite, pino); the "Not NestJS" line and the zero-build framing are historical.
+
 English | [简体中文](server-stack.zh.md)
 
 ## The core idea
@@ -15,7 +17,7 @@ The HTTP framework is Fastify: **small, fast, with a straightforward plugin mode
 - The everyday necessities are built in: JSON parsing, schema validation, error handling, route organization — no assembling piece by piece
 - Static files, cookies, and the like mount as plugins on demand; the core stays clean
 - Not Express — too bare; error handling and validation would be DIY
-- Not NestJS — a personal project doesn't need the IoC-container and decorator ceremony (revisited 2026-10: a NestJS migration is planned as a later phase; this section will be superseded when that ADR lands)
+- Not NestJS — superseded 2026-10-23: the server now runs NestJS over the Fastify adapter (see [nestjs-server-stack.md](nestjs-server-stack.md))
 
 ## The database: SQLite + better-sqlite3, plus a MySQL adapter
 
