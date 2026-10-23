@@ -10,6 +10,7 @@ import { AiError } from "../../infrastructure/ai/errors.ts";
 import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
 import type { Logger } from "../../infrastructure/logging/logger.ts";
 import { type LedgerStore } from "./store.ts";
+import { LedgerRequestError } from "./errors.ts";
 import { createProposalRegistry, type ProposalRegistry } from "./proposals.ts";
 import {
   type LedgerDraft,
@@ -25,19 +26,6 @@ import type {
   LedgerProposalView,
   LedgerTransactionRow,
 } from "./types.ts";
-
-/** Domain-shaped error recognized by the unified HTTP error boundary. */
-export class LedgerRequestError extends Error {
-  readonly code: string;
-  readonly status: number;
-
-  constructor(code: string, status: number, message: string) {
-    super(message);
-    this.name = "LedgerRequestError";
-    this.code = code;
-    this.status = status;
-  }
-}
 
 const MONTH_PATTERN = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
 
@@ -135,6 +123,41 @@ export function assembleLedgerService(
     retentionMs: deps.retentionMs,
   });
 
+  // The one-sentence branch: extract → (question | entries) → proposal.
+  // A named step so createProposal stays a thin dispatcher.
+  const createFromText = async (
+    rawText: string,
+  ): Promise<LedgerProposalResult> => {
+    const text = rawText.trim();
+    if (!text) {
+      throw new LedgerRequestError(
+        "INVALID_ENTRY",
+        HTTP_STATUS.badRequest,
+        "text must not be empty",
+      );
+    }
+    if (!deps.extractor) {
+      throw new LedgerRequestError(
+        "AI_UNAVAILABLE",
+        HTTP_STATUS.notImplemented,
+        AI_UNCONFIGURED_MESSAGE,
+      );
+    }
+    let draft: LedgerDraft;
+    try {
+      draft = await deps.extractor.extract(text, new Date(now()));
+    } catch (error) {
+      if (error instanceof AiError) {
+        throw aiHttpError(error);
+      }
+      throw error;
+    }
+    if ("question" in draft) {
+      return draft;
+    }
+    return registry.add(randomUUID(), draft.entries);
+  };
+
   return {
     async createProposal(body) {
       if (!isRecord(body)) {
@@ -145,34 +168,7 @@ export function assembleLedgerService(
         );
       }
       if (typeof body.text === "string") {
-        const text = body.text.trim();
-        if (!text) {
-          throw new LedgerRequestError(
-            "INVALID_ENTRY",
-            HTTP_STATUS.badRequest,
-            "text must not be empty",
-          );
-        }
-        if (!deps.extractor) {
-          throw new LedgerRequestError(
-            "AI_UNAVAILABLE",
-            HTTP_STATUS.notImplemented,
-            AI_UNCONFIGURED_MESSAGE,
-          );
-        }
-        let draft: LedgerDraft;
-        try {
-          draft = await deps.extractor.extract(text, new Date(now()));
-        } catch (error) {
-          if (error instanceof AiError) {
-            throw aiHttpError(error);
-          }
-          throw error;
-        }
-        if ("question" in draft) {
-          return draft;
-        }
-        return registry.add(randomUUID(), draft.entries);
+        return createFromText(body.text);
       }
       const entry = normalizeEntry(body.entry);
       return registry.add(randomUUID(), [entry]);

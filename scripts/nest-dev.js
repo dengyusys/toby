@@ -1,7 +1,7 @@
 /**
  * Dev-mode Nest runner: spawns `nest start --watch` for the server with the
- * parent's environment (already loaded from .env by the --env-file flag in
- * dev.js), forwarding signals so Ctrl+C tears the watch loop down too.
+ * parent's environment (already loaded from .env by the --env-file-if-exists
+ * flag in dev.js), forwarding signals so Ctrl+C tears the watch loop down too.
  */
 
 import { spawn } from "node:child_process";

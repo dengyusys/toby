@@ -21,6 +21,7 @@ import type {
   TobyTool,
 } from "../../src/infrastructure/ai/agent.ts";
 import { AiError } from "../../src/infrastructure/ai/errors.ts";
+import { caught } from "../helpers.ts";
 
 /** One scripted model action in the fake loop. */
 type Step =
@@ -78,6 +79,8 @@ function makeFakeFactory(steps: readonly Step[]) {
             // become model-visible tool failures and the loop continues.
           }
         }
+        // Script exhausted without settling: report as turn-capped (the
+        // fake has no real policy loop; only the max-turns test asserts it).
         turnCapped = true;
         return {
           text: "",
@@ -113,10 +116,6 @@ function makeExtractor(steps: readonly Step[]) {
 }
 
 const NOW = new Date("2026-10-20T08:00:00");
-
-async function caught(promise: Promise<unknown>): Promise<AiError> {
-  return (await promise.catch((thrown: unknown) => thrown)) as AiError;
-}
 
 describe("createLedgerExtractor", () => {
   it("captures a submitted draft through the validation gate", async () => {

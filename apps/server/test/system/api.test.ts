@@ -45,6 +45,7 @@ describe("system api", () => {
     expect(response.json()).toEqual({ status: "ok" });
     expect(response.headers["content-type"]).toContain("application/json");
     expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.headers["x-request-id"]).toBeDefined();
   });
 
   it("info exposes name, version, node, started_at, uptime", async () => {

@@ -3,6 +3,12 @@
  * comparison, no plaintext ever retained. The stored format is
  * `scrypt$N$r$p$saltB64$hashB64`; scripts/hash-password.js generates it —
  * keep the two in sync when the format changes.
+ *
+ * Parameter upgrade path (N/r/p): current N=16384 sits below the OWASP
+ * suggestion of 2^17. Raising it means: generate fresh hashes with
+ * scripts/hash-password.js, let SCRYPT_* and the config hash regex accept
+ * both old and new during one migration window, and re-hash on the next
+ * successful login — not a breaking change.
  */
 
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";

@@ -6,36 +6,19 @@
 
 import type { AuthConfig } from "../../infrastructure/config/config.ts";
 import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
+import { AuthError } from "./errors.ts";
+
+export { AuthError } from "./errors.ts";
 import { verifyPassword } from "./password.ts";
 import { createLoginRateLimiter } from "./rate-limit.ts";
 import { createSessionRegistry, type SessionHandle } from "./sessions.ts";
 import type { AuthLoginSuccess, AuthSessionInfo } from "./types.ts";
 
-/** Domain-shaped error recognized by the unified HTTP error boundary. */
-export class AuthError extends Error {
-  readonly code: string;
-  readonly status: number;
-  readonly retryAfterSeconds?: number;
-
-  constructor(
-    code: string,
-    status: number,
-    message: string,
-    retryAfterSeconds?: number,
-  ) {
-    super(message);
-    this.name = "AuthError";
-    this.code = code;
-    this.status = status;
-    this.retryAfterSeconds = retryAfterSeconds;
-  }
-}
-
 export interface AuthServiceDeps {
   now?: () => number;
 }
 
-/** A freshly created session: the token travels in the cookie only. */
+/** A freshly created session handle. */
 export type SessionGrant = SessionHandle;
 
 export interface AuthService {
@@ -44,7 +27,7 @@ export interface AuthService {
   /** Idempotent: unknown or missing tokens revoke as no-ops. */
   logout(token: string | undefined): Promise<void>;
   session(token: string | undefined): AuthSessionInfo;
-  /** The preHandler guard used by the app factory. */
+  /** Root request guard; createNestServer adapts it into a Nest global guard. */
   requireSession(pathname: string, token: string | undefined): void;
   /** Prune expired sessions; called by the module's sweeper. */
   sweepSessions(): void;

@@ -57,13 +57,6 @@ Fastify/自装配的框架表述) · 日期:2026-10-23
 
 ## 命令
 
-- 开发:`pnpm run dev` —— 编排器拉起 `scripts/nest-dev.js`,后者运行
-  `nest start --watch`(server 8629,随后两个 Vite dev)。
-- 构建:`pnpm run build` 构建两个 web 与 server(`dist/`)。
-- 启动:`pnpm run start` 先构建,再
-  `node --env-file-if-exists=.env apps/server/dist/main.js`。
-- 测试:`pnpm run test` 先构建 server(根集成测试 spawn
-  `dist/main.js`)。
-
-Docker(落地时):镜像必须用 Node ≥ 22.19(pi-ai 的 engines 要求 +
+命令语义见 `AGENTS.md` 与 `docs/operations/`;一条无法推理出的约束:
+Docker 落地时,镜像必须用 Node ≥ 22.19(pi-ai 的 engines 要求 +
 `engine-strict=true`)。

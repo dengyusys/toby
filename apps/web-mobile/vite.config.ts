@@ -4,9 +4,9 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
 // Mobile web app: base /m/ (the server serves its build at /m/), dev server
-// on 8631, /api proxied to the Toby server on 8629.
+// on 8631, /api proxied to the Toby server (TOBY_PORT, default 8629).
 // 移动端 Web 应用:base /m/(服务端在 /m/ 提供构建产物),开发服务器 8631,
-// /api 代理到 8629 的 Toby 服务端。
+// /api 代理到 Toby 服务端(TOBY_PORT,默认 8629)。
 export default defineConfig({
   base: "/m/",
   plugins: [react(), tailwindcss()],
@@ -23,7 +23,7 @@ export default defineConfig({
     port: 8631,
     strictPort: true,
     proxy: {
-      "/api": "http://127.0.0.1:8629",
+      "/api": `http://127.0.0.1:${process.env.TOBY_PORT ?? "8629"}`,
     },
   },
   test: {

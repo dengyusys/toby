@@ -19,6 +19,7 @@ import {
   defineTool,
 } from "../../src/infrastructure/ai/agent.ts";
 import { AiError } from "../../src/infrastructure/ai/errors.ts";
+import { caught } from "../helpers.ts";
 
 const CONFIG = { model: "faux/faux-1", timeoutMs: 5_000 };
 
@@ -203,10 +204,38 @@ describe("createTobyAgentFactory", () => {
       tools: [],
       policy: { allowedKinds: ["read-only"], maxTurns: 2 },
     });
-    const error = (await agent
-      .run("go")
-      .catch((thrown: unknown) => thrown)) as AiError;
+    const error = await caught(agent.run("go"));
     expect(error).toBeInstanceOf(AiError);
     expect(error.code).toBe("timeout");
+  });
+
+  it("maps a provider-error stop reason onto request-failed", async () => {
+    const { factory, faux } = makeHarness();
+    faux.appendResponses([
+      fauxAssistantMessage("", {
+        stopReason: "error",
+        errorMessage: "provider exploded",
+      }),
+    ]);
+    const agent = factory({
+      systemPrompt: "sys",
+      tools: [],
+      policy: { allowedKinds: ["read-only"], maxTurns: 2 },
+    });
+    const error = await caught(agent.run("go"));
+    // The faux provider's auth resolves, so the 502-shaped code applies.
+    expect(error.code).toBe("request-failed");
+    expect(error.message).toContain("provider exploded");
+  });
+
+  it("rejects duplicate tool names at spec time", () => {
+    const { factory } = makeHarness();
+    expect(() =>
+      factory({
+        systemPrompt: "sys",
+        tools: [ECHO_TOOL, ECHO_TOOL],
+        policy: { allowedKinds: ["read-only"], maxTurns: 2 },
+      }),
+    ).toThrow(/duplicate tool name/);
   });
 });

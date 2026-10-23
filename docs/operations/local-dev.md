@@ -51,7 +51,7 @@ Loaded from the repository-root `.env` when present (copy `.env.example` to star
 | `TOBY_TRUST_PROXY`               | `false`       | Trust X-Forwarded-For behind a reverse proxy you control (per-client login rate limiting)                 |
 | `TOBY_LOG_LEVEL`                 | `info`        | pino level (`warn` quiets dev output)                                                                     |
 
-The MySQL adapter is optional (see the [db adapter decision](../decisions/db-adapter.md)); SQLite is the recommended default and `pnpm run test` never needs a MySQL daemon — MySQL adapter tests run only when `TOBY_TEST_MYSQL_URL` is set. Likewise, no automated test ever calls a real model: the AI transport is stubbed, and provider credentials stay out of the repository. Relative dates in one-sentence bookkeeping ("昨天" and the like) resolve against the server's own local time — run the server in the user's timezone.
+The MySQL adapter is optional (see the [db adapter decision](../decisions/db-adapter.md)); SQLite is the recommended default and `pnpm run test` never needs a MySQL daemon — MySQL adapter tests run only when `TOBY_TEST_MYSQL_URL` is set. Provider credentials stay out of the repository. Relative dates in one-sentence bookkeeping ("昨天" and the like) resolve against the server's own local time — run the server in the user's timezone.
 
 ## Windows notes
 

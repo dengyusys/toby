@@ -11,8 +11,13 @@ import type { TobyConfig } from "../config/config.ts";
 
 export type Logger = pino.Logger;
 
-// Redact paths aligned with the Fastify access-log req serializer shape.
-const REDACT_PATHS = ["req.headers.authorization", "req.headers.cookie"];
+// Redact paths aligned with the Fastify access-log req serializer shape;
+// *.password catches any future object that logs a password field.
+const REDACT_PATHS = [
+  "req.headers.authorization",
+  "req.headers.cookie",
+  "*.password",
+];
 
 export function createLogger(options: {
   level: string;

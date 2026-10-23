@@ -61,7 +61,6 @@ If one change touches several rows, run all the checks those rows list.
 - `apps/web`, `apps/web-mobile`, `packages`: `.ts` runs on Node 22 with no build step — no `enum` / `namespace` / constructor parameter properties; use `import type` (`erasableSyntaxOnly` enforces this).
 - `apps/server`: built with `nest build`; decorators, `emitDecoratorMetadata`, constructor parameter properties and Nest idioms are allowed there — but tests run through vitest's transform, which emits no decorator metadata, so prefer `@Inject(token)` property injection (see `docs/decisions/nestjs-server-stack.md`).
 - No Python; introducing it requires an ADR first.
-- Formatting and lint gates: Prettier + ESLint, run via `pnpm run check`.
 
 ## Git workflow
 

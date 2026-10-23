@@ -12,58 +12,29 @@ The tech stack is stable; future development revolves around business features l
 
 ## How is this different from technical layering?
 
-Traditional layering organizes directories by technical responsibility:
-
-```text
-src/
-├── controllers/
-├── services/
-├── repositories/
-└── models/
-```
-
-This is clean and works well for managing HTTP entry points, business services, and data access uniformly. But as business domains grow, the code of one business scatters across multiple directories.
-
-Organizing by business domain keeps related code together:
+Traditional layering organizes directories by technical responsibility (`controllers/`, `services/`, `repositories/`, `models/`): clean for managing each technical role uniformly, but the code of one business scatters across directories as domains grow. Domain slices group the different technical roles of the same business:
 
 ```text
 src/
 ├── domains/
 │   ├── schedule/
-│   │   ├── router.ts
+│   │   ├── controller.ts
 │   │   ├── service.ts
 │   │   ├── store.ts
 │   │   └── types.ts
 │   └── ledger/
-│       ├── router.ts
-│       ├── service.ts
-│       ├── store.ts
-│       └── types.ts
+│       └── …same shape…
 ├── infrastructure/
 └── main.ts
 ```
-
-Both approaches can keep a clear division of responsibilities. The difference: traditional layering groups code with the same technical role; domain slices group the different technical roles of the same business.
 
 For example, when modifying the ledger feature, the routes, business logic, and storage all sit in `domains/ledger/` — no hunting through multiple technical directories.
 
 ## Why domain slices?
 
-**First, the code structure tracks business change.**
+**The code structure tracks business change.** Adding a new domain means adding a module and wiring it in `main.ts`, leaving existing modules untouched; each domain owns its rules, logic, and data access and does not import other domains — cross-domain collaboration is wired in `main.ts` through explicit interfaces, and ESLint enforces these constraints so they are not left to discipline.
 
-When a feature is added, its code stays inside the matching domain. Adding a new domain means adding a module and wiring it in `main.ts`, leaving existing modules untouched.
-
-**Second, business boundaries become explicit.**
-
-Each domain owns its rules, logic, and data access, and does not import other domains. Cross-domain collaboration is wired in `main.ts` through explicit interfaces.
-
-With static checks like ESLint, these constraints are enforced by tooling — not left to developer discipline.
-
-**Third, business logic is easier to understand and test.**
-
-A domain's implementation lives in one directory; you don't need to understand the whole project's layering to read it.
-
-Business rules that avoid framework and infrastructure dependencies can be plain functions — unit-testable directly, without an HTTP server or a database.
+**Business logic is easier to understand and test.** A domain's implementation lives in one directory; you don't need to understand the whole project's layering to read it. Business rules that avoid framework and infrastructure dependencies can be plain functions — unit-testable directly, without an HTTP server or a database.
 
 ## Why not microservices?
 
@@ -73,12 +44,8 @@ Slicing into modules gives good isolation and independent evolution while keepin
 
 So this repository is a modular monolith: modules stay isolated in code, assembled and run by one process.
 
-## Implementation constraints in this repository
+## In this repository
 
-- Each domain owns its routes, business logic, storage, and rules.
-- Domains never import each other; `main.ts` does module assembly and cross-domain wiring.
-- `infrastructure/` provides generic technical capabilities and never depends on a business domain.
-- ESLint checks module dependencies so the boundaries cannot be broken by accident.
-- Pure business rules avoid framework dependencies, so they stay independently testable.
+The concrete boundaries (never import across domains, infrastructure never depends on domains, machine-enforced by ESLint) are owned by the [system overview](../system-overview.md) and `AGENTS.md` — see those instead of a second list here.
 
 The goal of this design is not a fancier architecture — it is keeping the code organized the way the business evolves.

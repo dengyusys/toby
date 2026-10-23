@@ -82,11 +82,9 @@ function resolveBoolean(
   throw new Error(`${name} must be "true" or "false"`);
 }
 
-/**
- * Validate the listen host: loopback for normal runs, plus 0.0.0.0 for
- * containers (Docker maps the published port back to 127.0.0.1 on the host,
- * so the container must be allowed to bind all interfaces).
- */
+// Validate the listen host: loopback for normal runs, plus 0.0.0.0 for
+// containers (Docker maps the published port back to 127.0.0.1 on the host,
+// so the container must be allowed to bind all interfaces).
 function resolveHost(value: string | undefined): string {
   const host = value || "127.0.0.1";
   if (
@@ -146,6 +144,30 @@ function resolveDatabaseConfig(env: Env): DatabaseConfig {
 
 function resolveRelative(value: string | undefined, fallback: string): string {
   return value ? path.resolve(repositoryRoot, value) : fallback;
+}
+
+/**
+ * pino rejects unknown levels with a library-internal error; validate here
+ * so a typo in TOBY_LOG_LEVEL fails with a config-shaped message instead.
+ */
+const LOG_LEVELS = new Set([
+  "trace",
+  "debug",
+  "info",
+  "warn",
+  "error",
+  "fatal",
+  "silent",
+]);
+
+function resolveLogLevel(value: string | undefined): string {
+  const level = value || "info";
+  if (!LOG_LEVELS.has(level)) {
+    throw new Error(
+      `TOBY_LOG_LEVEL must be one of: ${[...LOG_LEVELS].join(", ")}`,
+    );
+  }
+  return level;
 }
 
 function resolveTimeout(
@@ -265,6 +287,6 @@ export function resolveConfig(options: { env?: Env } = {}): TobyConfig {
     ai: resolveAiConfig(env),
     auth: resolveAuthConfig(env),
     trustProxy: resolveBoolean(env.TOBY_TRUST_PROXY, "TOBY_TRUST_PROXY", false),
-    logLevel: env.TOBY_LOG_LEVEL || "info",
+    logLevel: resolveLogLevel(env.TOBY_LOG_LEVEL),
   };
 }

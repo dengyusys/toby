@@ -60,8 +60,8 @@ export interface NestServer {
   close(): Promise<void>;
 }
 
-// Common shape of domain business errors: Error plus code and status.
-// Recognized structurally so this layer never imports any domain class.
+// Recognized structurally (Error + code + status) so this layer never
+// imports any domain class.
 type DomainHttpError = Error & { code: string; status: number };
 
 function isDomainHttpError(error: unknown): error is DomainHttpError {
@@ -71,11 +71,11 @@ function isDomainHttpError(error: unknown): error is DomainHttpError {
 }
 
 /**
- * Unified error boundary as a Nest filter. Mapping order mirrors the
- * previous error handler exactly:
+ * Unified error boundary as a Nest filter. Mapping order:
  *   1. Fastify body-parse errors: oversized 413, invalid/empty JSON 400;
- *   2. Domain-shaped errors (Error + code + status): their own envelope;
- *   3. Fallback: full stack stays in server logs, sanitized 500 out.
+ *   2. Not-found: 405 when the path exists under another method, else 404;
+ *   3. Domain-shaped errors (Error + code + status): their own envelope;
+ *   4. Fallback: full stack stays in server logs, sanitized 500 out.
  */
 @Catch()
 export class EnvelopeExceptionFilter implements ExceptionFilter {
@@ -88,66 +88,90 @@ export class EnvelopeExceptionFilter implements ExceptionFilter {
     const error = exception as Error & { code?: string };
 
     if (error?.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
-      sendJsonReply(
-        reply,
-        HTTP_STATUS.payloadTooLarge,
-        createErrorResponse(
-          "PAYLOAD_TOO_LARGE",
-          "request body exceeds the limit",
-        ),
-      );
-      return;
-    }
-    if (
+      this.replyBodyTooLarge(reply);
+    } else if (
       error?.code === "FST_ERR_CTP_INVALID_JSON_BODY" ||
       error?.code === "FST_ERR_CTP_EMPTY_JSON_BODY"
     ) {
+      this.replyInvalidJson(
+        reply,
+        error.code === "FST_ERR_CTP_EMPTY_JSON_BODY",
+      );
+    } else if (exception instanceof NotFoundException) {
+      this.replyRouteMismatch(reply, request);
+    } else if (isDomainHttpError(error)) {
+      this.replyDomainError(reply, error);
+    } else {
+      this.replyUnexpected(reply, request, error);
+    }
+  }
+
+  private replyBodyTooLarge(reply: FastifyReply): void {
+    sendJsonReply(
+      reply,
+      HTTP_STATUS.payloadTooLarge,
+      createErrorResponse(
+        "PAYLOAD_TOO_LARGE",
+        "request body exceeds the limit",
+      ),
+    );
+  }
+
+  private replyInvalidJson(reply: FastifyReply, emptyBody: boolean): void {
+    sendJsonReply(
+      reply,
+      HTTP_STATUS.badRequest,
+      createErrorResponse(
+        "INVALID_JSON",
+        emptyBody
+          ? "request body must be a JSON object"
+          : "request body is not valid JSON",
+      ),
+    );
+  }
+
+  // Nest's default not-found handler throws NotFoundException; a path
+  // that exists under another method is a 405, everything else is the
+  // 404 envelope.
+  private replyRouteMismatch(
+    reply: FastifyReply,
+    request: FastifyRequest,
+  ): void {
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    const mismatched = (this.instance.supportedMethods ?? []).some(
+      (candidate) =>
+        candidate !== request.method &&
+        this.instance.hasRoute({ method: candidate, url: pathname }),
+    );
+    if (mismatched) {
       sendJsonReply(
         reply,
-        HTTP_STATUS.badRequest,
-        createErrorResponse(
-          "INVALID_JSON",
-          error.code === "FST_ERR_CTP_EMPTY_JSON_BODY"
-            ? "request body must be a JSON object"
-            : "request body is not valid JSON",
-        ),
+        HTTP_STATUS.methodNotAllowed,
+        createErrorResponse("METHOD_NOT_ALLOWED", "method not allowed"),
       );
       return;
     }
-    // Nest's default not-found handler throws NotFoundException; this is
-    // where the old 404/405 discrimination lives: a path that exists under
-    // another method is a 405, everything else is the 404 envelope.
-    if (exception instanceof NotFoundException) {
-      const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-      const mismatched = (this.instance.supportedMethods ?? []).some(
-        (candidate) =>
-          candidate !== request.method &&
-          this.instance.hasRoute({ method: candidate, url: pathname }),
-      );
-      if (mismatched) {
-        sendJsonReply(
-          reply,
-          HTTP_STATUS.methodNotAllowed,
-          createErrorResponse("METHOD_NOT_ALLOWED", "method not allowed"),
-        );
-        return;
-      }
-      sendJsonReply(
-        reply,
-        HTTP_STATUS.notFound,
-        createErrorResponse("PAGE_NOT_FOUND", "page not found"),
-      );
-      return;
-    }
-    if (isDomainHttpError(error)) {
-      sendJsonReply(
-        reply,
-        error.status,
-        createErrorResponse(error.code, error.message),
-      );
-      return;
-    }
-    // Unexpected exception: sanitized 500 out, full stack in the server log.
+    sendJsonReply(
+      reply,
+      HTTP_STATUS.notFound,
+      createErrorResponse("PAGE_NOT_FOUND", "page not found"),
+    );
+  }
+
+  private replyDomainError(reply: FastifyReply, error: DomainHttpError): void {
+    sendJsonReply(
+      reply,
+      error.status,
+      createErrorResponse(error.code, error.message),
+    );
+  }
+
+  // Unexpected exception: sanitized 500 out, full stack in the server log.
+  private replyUnexpected(
+    reply: FastifyReply,
+    request: FastifyRequest,
+    error: unknown,
+  ): void {
     request.log?.error?.({ err: error, url: request.url }, "unexpected error");
     sendJsonReply(
       reply,
@@ -185,16 +209,33 @@ class RawErrorFastifyAdapter extends FastifyAdapter {
   }
 }
 
+/**
+ * The runtime root module. It must be a decorated class: a plain
+ * DynamicModule object scans providers but skips route registration. The
+ * decorator is applied imperatively so the module list assembles at
+ * runtime — the equivalent of the old mount list.
+ */
+function createRootModule(
+  domainModules: NestServerOptions["domainModules"],
+): Type<unknown> {
+  class RootModule {}
+  Module({ imports: domainModules })(RootModule);
+  return RootModule;
+}
+
+// Fallback parser for non-JSON content types: read as string; route
+// families decide their own semantics.
+function readBodyAsString(
+  _request: FastifyRequest,
+  body: string,
+  done: (error: Error | null, result?: unknown) => void,
+): void {
+  done(null, body);
+}
+
 export async function createNestServer(
   options: NestServerOptions,
 ): Promise<NestServer> {
-  // The root must be a decorated class: a plain DynamicModule object
-  // scans providers but skips route registration. The decorator is
-  // applied imperatively so the module list assembles at runtime — the
-  // equivalent of the old mount list.
-  class RootModule {}
-  Module({ imports: options.domainModules })(RootModule);
-
   const adapter = new RawErrorFastifyAdapter({
     bodyLimit: 16 * 1024,
     ...(options.trustProxy ? { trustProxy: true } : {}),
@@ -205,7 +246,7 @@ export async function createNestServer(
       : { logger: false }),
   });
   const app = await NestFactory.create<NestFastifyApplication>(
-    RootModule,
+    createRootModule(options.domainModules),
     adapter,
     // Nest's own bootstrap logging off; Fastify carries the access log.
     // abortOnError off: a DI failure surfaces as a normal error instead
@@ -219,19 +260,13 @@ export async function createNestServer(
   }
   app.enableShutdownHooks();
 
-  // Fallback parser for non-JSON content types: read as string; route
-  // families decide their own semantics.
-  instance.addContentTypeParser(
-    "*",
-    { parseAs: "string" },
-    (
-      _request: FastifyRequest,
-      body: string,
-      done: (error: Error | null, result?: unknown) => void,
-    ) => {
-      done(null, body);
-    },
-  );
+  // Echo the request id back so a log line and the response that triggered
+  // it can be correlated across client and server.
+  instance.addHook("onRequest", async (request, reply) => {
+    reply.header("x-request-id", request.id);
+  });
+
+  instance.addContentTypeParser("*", { parseAs: "string" }, readBodyAsString);
 
   const warn = options.logger
     ? options.logger.warn.bind(options.logger)

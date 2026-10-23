@@ -62,15 +62,13 @@ is anticipated but not introduced until a domain needs it.
 
 ## Structure
 
-- `infrastructure/ai/` — `pi-ai-client.ts` (the single-shot `AiClient`
-  port for loop-free paths such as intent classification; it keeps the
-  tolerant-parse + one-retry JSON protocol and currently has no production
-  caller — chat's intent classification is its expected first consumer),
-  `agent.ts` (the `createTobyAgentFactory` runtime with kinds, gate, turn
-  cap, timeout, and usage logging). No business logic.
-- `infrastructure/actions/` — the confirm-gate kernel (30 s auto-write
-  window, TTL backstop, single-flight idempotent commit, sweeper hooks).
-  Domains pass their executors at commit time and drive the sweeper.
+- `infrastructure/ai/` and `infrastructure/actions/` hold the runtime (file
+  roles are documented in the files themselves). Two non-obvious decisions:
+  the single-shot `AiClient` keeps the tolerant-parse + one-retry JSON
+  protocol and currently has no production caller (chat's intent
+  classification is its expected first consumer); the confirm-gate kernel
+  uses single-flight — concurrent confirms and the sweeper share one
+  execution — with domains passing their executors at commit time.
 - Domains own prompts, tools, and schemas: ledger's draft schema is
   defined once in TypeBox and is simultaneously the model-facing tool
   contract and the server's shape gate; validation.ts remains the

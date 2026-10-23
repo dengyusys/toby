@@ -64,7 +64,7 @@ export interface ActionRegistry<P, R> {
   get(id: string): ActionRecord<P, R> | undefined;
   commit(id: string, execute: (payload: P) => Promise<R>): Promise<R>;
   cancel(id: string): Promise<{ id: string; status: "cancelled" }>;
-  /** Pending actions past their auto-write moment, not yet expired. */
+  /** Pending actions past their auto-write moment: not in flight, not yet expired. */
   dueForAutoWrite(): readonly string[];
   /** Mark expired; prune records past their retention horizon. */
   sweep(): void;

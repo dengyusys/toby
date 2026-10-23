@@ -11,12 +11,8 @@ import { Body, Controller, Get, Inject, Post, Req, Res } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
 import { sendJsonReply } from "../../infrastructure/http/response.ts";
-import {
-  AuthError,
-  LOGIN_SUCCESS,
-  SESSION_COOKIE,
-  type AuthService,
-} from "./service.ts";
+import { AuthError } from "./errors.ts";
+import { LOGIN_SUCCESS, SESSION_COOKIE, type AuthService } from "./service.ts";
 import { AUTH_COOKIE, AUTH_SERVICE } from "./tokens.ts";
 
 export function readSessionCookie(

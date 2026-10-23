@@ -48,10 +48,8 @@ export interface LedgerExtractor {
   extract(text: string, now: Date): Promise<LedgerDraft>;
 }
 
-/**
- * Bounded on purpose: 3 turns = first submit + one failed submit + one
- * corrected resubmit. Extraction should settle in a single correction round.
- */
+// Bounded on purpose: 3 turns = first submit + one failed submit + one
+// corrected resubmit — extraction settles in a single correction round.
 const EXTRACTION_MAX_TURNS = 3;
 // Sized for a 10-entry tool call with Chinese notes (~90 tokens each) plus
 // structure overhead — 800 would truncate real multi-entry replies.

@@ -17,7 +17,11 @@
  */
 
 import { Agent } from "@earendil-works/pi-agent-core";
-import type { AgentTool, StreamFn } from "@earendil-works/pi-agent-core";
+import type {
+  AgentOptions,
+  AgentTool,
+  StreamFn,
+} from "@earendil-works/pi-agent-core";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type {
   AssistantMessage,
@@ -43,7 +47,7 @@ export interface TobyTool {
   readonly tool: AgentTool;
 }
 
-/** Register a tool — the kind is not optional, by construction. */
+/** Wrap a tool with its mandatory safety kind. */
 export function defineTool<T extends TSchema>(
   kind: ToolKind,
   tool: AgentTool<T>,
@@ -83,6 +87,66 @@ export interface TobyAgentRunResult {
 /** A prepared agent: one prompt in, a settled outcome out. */
 export interface TobyAgent {
   run(prompt: string): Promise<TobyAgentRunResult>;
+}
+
+type ToolGateHook = NonNullable<AgentOptions["beforeToolCall"]>;
+
+/**
+ * The kind gate: registered tools only, and only kinds the policy allows.
+ * Unknown names are rejected by pi-agent-core before this hook runs, so
+ * the registration branch is an invariant, not the real defense.
+ */
+function createToolGate(
+  spec: TobyAgentSpec,
+  logger: Logger | undefined,
+): ToolGateHook {
+  const toolByName = new Map(
+    spec.tools.map((entry) => [entry.tool.name, entry] as const),
+  );
+  return async (context) => {
+    const name = context.toolCall.name;
+    const entry = toolByName.get(name);
+    if (!entry) {
+      logger?.warn({ tool: name }, "ai tool call blocked: not registered");
+      return { block: true, reason: `unknown tool: ${name}` };
+    }
+    if (!spec.policy.allowedKinds.includes(entry.kind)) {
+      logger?.warn(
+        { tool: name, kind: entry.kind },
+        "ai tool call blocked: kind not allowed by policy",
+      );
+      return {
+        block: true,
+        reason: `tool ${name} is not allowed in this agent`,
+      };
+    }
+    logger?.info({ tool: name, kind: entry.kind }, "ai tool call allowed");
+    return undefined;
+  };
+}
+
+/**
+ * Map a provider-failure stop reason onto the AiError union. Auth failures
+ * surface as plain errors, so the provider's auth state is consulted to
+ * keep `unconfigured` (501) deterministic.
+ */
+async function throwForProviderFailure(
+  catalog: Models,
+  model: Model<string>,
+  assistant: AssistantMessage | undefined,
+): Promise<never> {
+  const configured = await catalog
+    .checkAuth(model.provider)
+    .catch(() => undefined);
+  throw configured
+    ? new AiError(
+        "request-failed",
+        assistant?.errorMessage ?? "AI provider error",
+      )
+    : new AiError(
+        "unconfigured",
+        `AI provider "${model.provider}" is not configured: set its API key environment variable (see .env.example)`,
+      );
 }
 
 export type TobyAgentFactory = (spec: TobyAgentSpec) => TobyAgent;
@@ -125,7 +189,7 @@ function createTobyAgent(
           tools: spec.tools.map((entry) => entry.tool),
         },
         // The default stream fn forwards the shared catalog's simple stream
-        // with this spec's token budget; tests inject their own.
+        // with this spec's token budget.
         streamFn:
           injected.streamFn ??
           ((streamedModel, context, options?: SimpleStreamOptions) =>
@@ -135,35 +199,7 @@ function createTobyAgent(
                 ? { maxTokens: spec.maxTokens }
                 : {}),
             })),
-        beforeToolCall: async (context) => {
-          const name = context.toolCall.name;
-          const entry = toolByName.get(name);
-          // pi-agent-core rejects unknown tool names before this hook runs;
-          // re-checking registration is a cheap invariant, the kind check
-          // below is the gate's real job.
-          if (!entry) {
-            logger?.warn(
-              { tool: name },
-              "ai tool call blocked: not registered (invariant)",
-            );
-            return { block: true, reason: `unknown tool: ${name}` };
-          }
-          if (!spec.policy.allowedKinds.includes(entry.kind)) {
-            logger?.warn(
-              { tool: name, kind: entry.kind },
-              "ai tool call blocked: kind not allowed by policy",
-            );
-            return {
-              block: true,
-              reason: `tool ${name} is not allowed in this agent`,
-            };
-          }
-          logger?.info(
-            { tool: name, kind: entry.kind },
-            "ai tool call allowed",
-          );
-          return undefined;
-        },
+        beforeToolCall: createToolGate(spec, logger),
         finishTurn: () => {
           turns += 1;
           if (turns >= spec.policy.maxTurns) {
@@ -193,18 +229,7 @@ function createTobyAgent(
       const stopReason = assistant?.stopReason ?? "none";
 
       if (stopReason === "error") {
-        const configured = await catalog
-          .checkAuth(model.provider)
-          .catch(() => undefined);
-        throw configured
-          ? new AiError(
-              "request-failed",
-              assistant?.errorMessage ?? "AI provider error",
-            )
-          : new AiError(
-              "unconfigured",
-              `AI provider "${model.provider}" is not configured: set its API key environment variable (see .env.example)`,
-            );
+        await throwForProviderFailure(catalog, model, assistant);
       }
       if (stopReason === "aborted") {
         throw new AiError("timeout", "AI agent run timed out");
@@ -243,8 +268,7 @@ export function createTobyAgentFactory(
   config: AiRuntimeConfig,
   options: TobyAgentFactoryOptions = {},
 ): TobyAgentFactory {
-  // One shared catalog per factory. Injected test models bypass the
-  // builtin catalog; they serve the default stream fn and auth checks.
+  // Injected test models serve the default stream fn and auth checks.
   const catalog = options.models ?? builtinModels();
   const resolved = resolveCatalogModel(catalog, config.model);
   return (spec) =>

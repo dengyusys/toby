@@ -23,19 +23,11 @@ import {
   type LedgerEntryDraft,
 } from "./schema.ts";
 import type { LedgerEntry } from "./types.ts";
+import { LedgerInputError } from "./errors.ts";
+
+export { LedgerInputError } from "./errors.ts";
 
 export { MAX_ENTRIES_PER_PROPOSAL } from "./schema.ts";
-
-/** Domain-shaped error picked up by the unified HTTP error boundary. */
-export class LedgerInputError extends Error {
-  readonly code = "INVALID_ENTRY";
-  readonly status = 400;
-
-  constructor(message: string) {
-    super(message);
-    this.name = "LedgerInputError";
-  }
-}
 
 /**
  * One-sentence logging rarely names an account; an omitted or blank account
@@ -54,7 +46,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Shape gate: the shared draft schema, with the first violation reported. */
+// Shape gate: the shared draft schema, with the first violation reported.
 function requireDraftShape(raw: unknown, label: string): LedgerEntryDraft {
   if (!Check(LEDGER_ENTRY_DRAFT_SCHEMA, raw)) {
     const [first] = Errors(LEDGER_ENTRY_DRAFT_SCHEMA, raw);

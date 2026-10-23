@@ -7,7 +7,9 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "catalog:",
@@ -28,6 +30,7 @@
   },
   "devDependencies": {
     "@nestjs/cli": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "@nestjs/testing": "catalog:",
     "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",

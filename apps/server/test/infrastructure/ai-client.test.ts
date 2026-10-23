@@ -14,6 +14,7 @@ import {
 } from "@earendil-works/pi-ai/providers/faux";
 import { zaiProvider } from "@earendil-works/pi-ai/providers/zai";
 import { AiError } from "../../src/infrastructure/ai/errors.ts";
+import { caught } from "../helpers.ts";
 import { createPiAiClient } from "../../src/infrastructure/ai/pi-ai-client.ts";
 
 const TIMEOUT_MS = 5_000;
@@ -27,10 +28,6 @@ function makeHarness() {
     { models },
   );
   return { client, faux };
-}
-
-async function caught(promise: Promise<unknown>): Promise<AiError> {
-  return (await promise.catch((thrown: unknown) => thrown)) as AiError;
 }
 
 describe("createPiAiClient", () => {
@@ -57,6 +54,24 @@ describe("createPiAiClient", () => {
     );
     expect(JSON.stringify(system)).toContain("be brief");
     expect(context.messages.filter((m) => m.role === "user")).toHaveLength(1);
+  });
+
+  it("recovers JSON buried in prose via the braces slice, without a retry", async () => {
+    const { client, faux } = makeHarness();
+    faux.appendResponses([
+      fauxAssistantMessage('Sure! Here you go: {"ok": true} hope that helps'),
+    ]);
+    expect(await client.json([{ role: "user", content: "x" }])).toEqual({
+      ok: true,
+    });
+    expect(faux.state.callCount).toBe(1);
+  });
+
+  it("maps an empty reply to request-failed", async () => {
+    const { client, faux } = makeHarness();
+    faux.appendResponses([fauxAssistantMessage(fauxText("").text)]);
+    const error = await caught(client.text([{ role: "user", content: "x" }]));
+    expect(error.code).toBe("request-failed");
   });
 
   it("recovers JSON wrapped in code fences without a retry", async () => {

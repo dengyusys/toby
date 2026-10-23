@@ -70,14 +70,6 @@ These are load-bearing; changing them breaks tests in confusing ways:
 
 ## Commands
 
-- Dev: `pnpm run dev` — the orchestrator spawns `scripts/nest-dev.js`,
-  which runs `nest start --watch` (server 8629, then both Vite dev
-  servers).
-- Build: `pnpm run build` builds both webs and the server (`dist/`).
-- Start: `pnpm run start` builds, then runs
-  `node --env-file-if-exists=.env apps/server/dist/main.js`.
-- Test: `pnpm run test` builds the server first (the root integration
-  tests spawn `dist/main.js`).
-
-Docker (when it lands): the image must use Node ≥ 22.19 (pi-ai's engines
-requirement + `engine-strict=true`).
+Command semantics live in `AGENTS.md` and `docs/operations/`; one
+non-inferable constraint: when Docker lands, the image must use
+Node ≥ 22.19 (pi-ai's engines requirement + `engine-strict=true`).

@@ -10,20 +10,20 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 
 ## Stack
 
-| Layer    | Choice                                                                                                                       |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Runtime  | Node 22.23.2; server built with `nest build`, webs with Vite                                                                 |
-| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                            |
-| Server   | NestJS 12 over Fastify 5 + own db adapter port (SQLite default, MySQL optional) + pino + typebox (AI: pi-ai + pi-agent-core) |
-| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                    |
-| Tests    | vitest + happy-dom + @testing-library                                                                                        |
+| Layer    | Choice                                                                                                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runtime  | Node 22.23.2; server built with `nest build`, webs with Vite                                                                                                                         |
+| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                                                                                    |
+| Server   | NestJS 12 over Fastify 5 + own db adapter port — "port" as in ports-and-adapters, not a network port — (SQLite default, MySQL optional) + pino + typebox (AI: pi-ai + pi-agent-core) |
+| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                                                                            |
+| Tests    | vitest + happy-dom + @testing-library                                                                                                                                                |
 
 ## System context
 
 ```mermaid
 flowchart LR
     U(("User")) --> W["Two web apps (React SPAs:<br/>PC at / and mobile at /m/)"]
-    W -->|"read-only APIs / proposals (HTTP)"| S["Toby server · single process (Fastify)<br/>vertical domains · proposal lifecycle (actions kernel)"]
+    W -->|"read-only APIs / proposals (HTTP)"| S["Toby server · single process (NestJS over Fastify)<br/>vertical domains · proposal lifecycle (actions kernel)"]
     S --> DB[("Databases via the adapter port<br/>SQLite (default) · MySQL (optional)<br/>only the server writes")]
     S -->|"kind-gated tools; writes only via proposals"| AI(("AI via pi-ai / pi-agent-core"))
 ```
@@ -32,13 +32,13 @@ flowchart LR
 - The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** (ledger is live on it; the confirm-gate kernel is shared in `infrastructure/actions/`).
 - AI tools carry a safety kind (read-only / write-intent) and run behind a policy gate; real effects still require proposal confirmation (docs/decisions/ai-pi-runtime.md).
 - Root `scripts/` only orchestrates dev and multi-process startup; it never touches data.
-- The nine business domains (chat, greeting, schedule, ledger, notes, todo, memory, library, proposals) land one at a time; each establishes its contract doc in `docs/features/` on arrival.
+- The remaining business domains (chat, greeting, schedule, notes, todo, memory, library) land one at a time; each establishes its contract doc in `docs/features/` on arrival. The proposal pipeline is already a shared kernel, not a domain.
 
 ## Repository layout
 
 ```text
 apps/
-├─ server/        # @toby/server: Fastify single process — pages, APIs, proposals, safe writes
+├─ server/        # @toby/server: NestJS single process — pages, APIs, proposals, safe writes
 ├─ web/           # @toby/web: PC app (entry /)
 ├─ web-mobile/    # @toby/web-mobile: mobile app (entry /m/)
 packages/
@@ -57,15 +57,7 @@ test/             # root HTTP integration tests
 
 ### Development
 
-`pnpm run dev` is orchestrated by `scripts/dev.js`: the server starts first; once ready it launches the two Vite dev servers. Vite exists only in dev — pages, hot reload, and the `/api` proxy; production has no Vite process.
-
-| App        | Dev process | Address          | Role                                                        |
-| ---------- | ----------- | ---------------- | ----------------------------------------------------------- |
-| Web (PC)   | Vite        | `127.0.0.1:8630` | Pages and hot reload; proxies `/api` to the server          |
-| Mobile web | Vite        | `127.0.0.1:8631` | Mobile pages and hot reload (entry `/m/`)                   |
-| server     | itself      | `127.0.0.1:8629` | APIs and business domains (same port in dev and production) |
-
-The ports form the 8629 block — 8629 spells TOBY on a T9 keypad.
+`pnpm run dev` is orchestrated by `scripts/dev.js`: the server starts first; once ready it launches the two Vite dev servers. Vite exists only in dev — pages, hot reload, and the `/api` proxy; production has no Vite process. Dev ports (server 8629, webs 8630/8631) live in [docs/operations/local-dev.md](operations/local-dev.md); 8629 spells TOBY on a T9 keypad.
 
 ### Production or local preview
 
@@ -74,14 +66,7 @@ The ports form the 8629 block — 8629 spells TOBY on a T9 keypad.
 
 ## APIs and the proposal data flow (target shape)
 
-The full path of one write (endpoint contracts are finalized in each domain's `features/` doc):
-
-1. The web chat page sends the user's sentence to the server.
-2. The server routes by intent and dispatches to the matching domain's proposal pipeline.
-3. The extraction agent hands the server a schema-validated draft through its submit tool; the server then applies shape, domain, and semantic validation (validation.ts is the trust boundary).
-4. The server reads current fields and produces a short-lived proposal carrying `proposal_id`, before and after values.
-5. The client's only actions are confirm or cancel with that `proposal_id`; empty request bodies.
-6. On commit the server re-reads target fields inside a database transaction, checks conflicts, executes serially, and commits — or rolls back entirely.
+One write, end to end (endpoint contracts are finalized in each domain's `features/` doc):
 
 ```mermaid
 sequenceDiagram
@@ -113,6 +98,8 @@ sequenceDiagram
     end
 ```
 
+Two non-inferable details: the AI's draft passes shape, domain, and semantic validation before any proposal exists — `validation.ts` is the trust boundary; and client requests carry no state beyond the `proposal_id` (empty bodies on commit/cancel).
+
 ## Data boundaries
 
 - `data/` is production data: nobody touches it by default; maintenance requires explicit user instruction, with SHA-256 compared before and after any move or restore.
@@ -127,15 +114,15 @@ sequenceDiagram
 ```mermaid
 flowchart TB
     BOOT["main.ts (composition root)<br/>one line per domain; all cross-domain wiring lives here"]
-    INFRA["infrastructure/<br/>config (TOBY_*) · http (Fastify factory / error envelope / dual-SPA static)<br/>logging (pino) · db (adapter port: sqlite / mysql)"]
-    DOM["domains/*<br/>nine business domains, landing one by one"]
+    INFRA["infrastructure/<br/>config (TOBY_*) · http (Nest app factory / error envelope / dual-SPA static)<br/>logging (pino) · db (adapter port: sqlite / mysql)"]
+    DOM["domains/*<br/>business domains, landing one by one"]
     BOOT --> INFRA
     BOOT --> DOM
 ```
 
 Domain organization discipline:
 
-- Every domain under `domains/` contains its own `module.ts` (self-assembly), `router.ts`, services, stores, and pure business files; **domains never import each other** — cross-domain wiring happens only in the composition root `apps/server/src/main.ts`.
+- Every domain under `domains/` contains its own module (Nest module factory), controller, services, stores, and pure business files; **domains never import each other** — cross-domain wiring happens only in the composition root `apps/server/src/main.ts`.
 - A domain's `types.ts` stays pure: no fastify, no infrastructure, no `node:` imports.
 - `infrastructure/` never imports business domains; database opening is provided by `infrastructure/db` and consumed by domain stores.
 - Adding a business domain means adding one row to ESLint's `DOMAIN_ALLOWED` table; the boundary rules generate themselves.
@@ -152,8 +139,4 @@ Security boundaries:
 - Re-evaluate in-domain layering or splitting when a domain exceeds 15 files; split single files past 400 lines by concern.
 - Configuration is resolved once at startup by `infrastructure/config`'s `resolveConfig({ env })` (`TOBY_*` environment variables); no global config at import time — the entry passes it explicitly, tests inject their own `env`.
 - Web/packages `.ts` runs on Node 22 with no build step; the server is built with `nest build`. Style rules per package: see AGENTS.md (`erasableSyntaxOnly` still enforces web/packages).
-- When adjusting layout, update this document and path references in affected docs in the same change.
-
-## Architecture change rules
-
-Before changing data sources, write boundaries, module responsibilities, inter-process communication, or exposure, update this document first; long-lived trade-offs get an ADR in `docs/decisions/`. Changes to user behavior, APIs, or data formats must also update the matching `features/` doc's contracts and acceptance criteria.
+- When adjusting layout, update this document and path references in affected docs in the same change; long-lived trade-offs get an ADR in `docs/decisions/`. The full maintenance rules live in the [living docs decision](decisions/living-docs.md).

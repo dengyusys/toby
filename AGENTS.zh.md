@@ -61,7 +61,6 @@
 - `apps/web`、`apps/web-mobile`、`packages`:`.ts` 由 Node 22 直跑、无构建 —— 禁 `enum` / `namespace` / 类参数属性;类型导入用 `import type`(`erasableSyntaxOnly` 自动拦违规)。
 - `apps/server`:经 `nest build` 构建;允许装饰器、`emitDecoratorMetadata`、类参数属性与 Nest 惯用法 —— 但测试走 vitest 转换、无装饰器元数据,注入优先用 `@Inject(token)` 属性注入(见 `docs/decisions/nestjs-server-stack.zh.md`)。
 - 禁 Python;引入前必须先有 ADR。
-- 格式与 lint 闸门:Prettier + ESLint,经 `pnpm run check` 执行。
 
 ## Git 工作流
 

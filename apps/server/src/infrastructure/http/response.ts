@@ -1,6 +1,6 @@
 /**
  * Response writer: unified JSON headers with a no-store policy so refreshes
- * always read the latest data. Takes a pre-serialized string and owns the
+ * always read the latest data. Serializes the body itself and owns the
  * Content-Type, keeping response bytes identical to the contract.
  */
 

@@ -20,7 +20,7 @@ export const AMOUNT_PATTERN = "^[0-9]+(\\.[0-9]{1,2})?$";
 /**
  * Digit shape of a date; real-calendar checks live in validation.ts. The
  * capture groups feed validation's year/month/day parsing (JSON Schema
- * treats the pattern as a plain match, groups included are harmless).
+ * matching ignores capture groups; they exist only for validation.ts.
  */
 export const DATE_PATTERN = "^(\\d{4})-(\\d{2})-(\\d{2})$";
 

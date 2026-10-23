@@ -49,14 +49,11 @@ kind(联网搜索、生图)已有预案,待有域需要时再引入。
 
 ## 结构
 
-- `infrastructure/ai/` —— `pi-ai-client.ts`(面向意图分类等无循环路径的
-  单发 `AiClient` 端口;保留"宽容解析+一次重试"的 JSON 协议,当前没有
-  生产调用方——chat 域的意图分类是其预期的首个消费者)、`agent.ts`
-  (`createTobyAgentFactory` 运行时:kind、门卫、限轮、超时、用量日志)。
-  不含业务逻辑。
-- `infrastructure/actions/` —— 确认门内核(30 秒自动写窗口、存活时间
-  (TTL)兜底、单飞(并发确认合并为一次执行)幂等 commit、清扫接口)。
-  各域在 commit 时传入自己的执行器并驱动清扫。
+- `infrastructure/ai/` 与 `infrastructure/actions/` 承载运行时(各文件
+  角色见文件头注释)。两个非显然决策:单发 `AiClient` 保留"宽容解析+
+  一次重试"的 JSON 协议,且当前没有生产调用方(chat 域的意图分类是其
+  预期的首个消费者);确认门内核采用单飞——并发确认与清扫共享同一次
+  执行——各域在 commit 时传入自己的执行器。
 - 提示词、工具与 schema 归各域:ledger 的草稿 schema 以 TypeBox 只定义
   一次,同时是面向模型的工具合同与服务端的形状闸门;validation.ts 仍是
   语义信任边界。

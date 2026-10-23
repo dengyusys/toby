@@ -18,14 +18,6 @@ Open the page and say one plain sentence:
 
 Toby never touches your data directly. Instead it hands you a **proposal card**: what to record, where, and with which values — in plain sight.
 
-```mermaid
-flowchart LR
-    A["You say one sentence"] --> B["Toby hands you a proposal card"]
-    B --> C{"You take a look"}
-    C -->|Confirm| D["Written"]
-    C -->|Cancel| E["Nothing happened"]
-```
-
 Worried the AI might act on its own? It cannot: drafting is all it can do. The pen stays in your hand.
 
 ## Where you use it
