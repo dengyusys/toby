@@ -27,15 +27,13 @@ import {
 } from "@nestjs/platform-fastify";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Logger } from "pino";
-import { HTTP_STATUS, createErrorResponse } from "./contract.ts";
+import {
+  HTTP_STATUS,
+  createErrorResponse,
+  type RequestGuardFn,
+} from "./contract.ts";
 import { sendJsonReply } from "./response.ts";
 import { staticAssetsPlugin } from "./static-assets.ts";
-
-/** Same shape the old app factory took: async, error-throwing. */
-export type RequestGuardFn = (
-  request: FastifyRequest,
-  reply: FastifyReply,
-) => Promise<void>;
 
 export interface NestServerOptions {
   webRoot: string;
@@ -159,8 +157,11 @@ export class EnvelopeExceptionFilter implements ExceptionFilter {
   }
 }
 
-/** Wraps the domain-provided request guard as a global Nest guard. */
-export class RequestGuardGuard implements CanActivate {
+/**
+ * Adapts the domain-provided request guard function into a global Nest
+ * guard: rejection is signalled by throwing from the guard function.
+ */
+export class RequestGuardAdapter implements CanActivate {
   constructor(private readonly guard: RequestGuardFn) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -187,9 +188,6 @@ class RawErrorFastifyAdapter extends FastifyAdapter {
 export async function createNestServer(
   options: NestServerOptions,
 ): Promise<NestServer> {
-  // A fresh root class per server: the Module decorator is applied
-  // imperatively so the domain module list assembles at runtime — the
-  // equivalent of the old mount list.
   // The root must be a decorated class: a plain DynamicModule object
   // scans providers but skips route registration. The decorator is
   // applied imperatively so the module list assembles at runtime — the
@@ -217,7 +215,7 @@ export async function createNestServer(
   const instance = app.getHttpAdapter().getInstance();
   app.useGlobalFilters(new EnvelopeExceptionFilter(instance));
   if (options.requestGuard) {
-    app.useGlobalGuards(new RequestGuardGuard(options.requestGuard));
+    app.useGlobalGuards(new RequestGuardAdapter(options.requestGuard));
   }
   app.enableShutdownHooks();
 

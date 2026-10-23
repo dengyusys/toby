@@ -30,6 +30,7 @@ import type {
 import type { TSchema } from "typebox";
 import type { AiRuntimeConfig } from "./types.ts";
 import { AiError } from "./errors.ts";
+import { resolveCatalogModel } from "./model-catalog.ts";
 import { textOf } from "./pi-ai-client.ts";
 import type { Logger } from "../logging/logger.ts";
 
@@ -245,15 +246,7 @@ export function createTobyAgentFactory(
   // One shared catalog per factory. Injected test models bypass the
   // builtin catalog; they serve the default stream fn and auth checks.
   const catalog = options.models ?? builtinModels();
-  const [providerId, ...rest] = config.model.split("/");
-  const modelId = rest.join("/");
-  const resolved =
-    providerId && modelId ? catalog.getModel(providerId, modelId) : undefined;
-  if (!resolved) {
-    throw new Error(
-      `TOBY_AI_MODEL "${config.model}" is not a known provider/model pair in the pi-ai catalog`,
-    );
-  }
+  const resolved = resolveCatalogModel(catalog, config.model);
   return (spec) =>
     createTobyAgent(catalog, resolved, config.timeoutMs, options, spec);
 }

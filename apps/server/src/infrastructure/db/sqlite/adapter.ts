@@ -84,6 +84,9 @@ export function createSqliteDomainDb(
   const database = new Database(databasePath);
   database.pragma("journal_mode = WAL");
   database.pragma("foreign_keys = ON");
+  // Explicit over the driver's implicit default: busy-handling is a
+  // deliberate choice, not an accident of the dependency.
+  database.pragma("busy_timeout = 5000");
 
   let tail: Promise<unknown> = Promise.resolve();
 

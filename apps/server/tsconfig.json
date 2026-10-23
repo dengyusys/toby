@@ -2,8 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
+    // Nest 必需；emitDecoratorMetadata 服务将来可能的构造注入与 Nest 自身装饰器。
+    // 注意：vitest 走 esbuild、不产出装饰器元数据，因此 controller 注入一律用
+    // @Inject(token) 属性注入（见 docs/decisions/nestjs-server-stack.md）。
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+    // server 允许非可擦除语法（装饰器/类参数属性）；web 与 packages 维持原有规则
     "erasableSyntaxOnly": false
   },
   "include": ["src", "test"]

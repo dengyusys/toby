@@ -151,7 +151,7 @@ Security boundaries:
 
 - Re-evaluate in-domain layering or splitting when a domain exceeds 15 files; split single files past 400 lines by concern.
 - Configuration is resolved once at startup by `infrastructure/config`'s `resolveConfig({ env })` (`TOBY_*` environment variables); no global config at import time — the entry passes it explicitly, tests inject their own `env`.
-- `.ts` sources run directly on Node 22, no build step; no `enum` / `namespace` / constructor parameter properties; `import type` is enforced automatically by `erasableSyntaxOnly`.
+- Web/packages `.ts` runs on Node 22 with no build step; the server is built with `nest build`. Style rules per package: see AGENTS.md (`erasableSyntaxOnly` still enforces web/packages).
 - When adjusting layout, update this document and path references in affected docs in the same change.
 
 ## Architecture change rules

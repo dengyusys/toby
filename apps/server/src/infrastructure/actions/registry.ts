@@ -132,9 +132,11 @@ export function createActionRegistry<P, R>(
           "proposal was cancelled and cannot be committed",
         );
       }
-      // Idempotent forever: the stored result is the answer.
-      if (record.result !== undefined) {
-        return record.result;
+      // Idempotent forever: the stored result is the answer. Judged by
+      // status, not result presence — an executor legally returning
+      // undefined must not lose its echo.
+      if (record.status === "committed") {
+        return record.result as R;
       }
       // Single-flight: the sweeper and a manual confirm share one write.
       if (record.inFlight) {
@@ -182,6 +184,8 @@ export function createActionRegistry<P, R>(
           "proposal is already committed",
         );
       }
+      // Same 409 code as the committed case on purpose: both mean "too
+      // late to cancel"; the message distinguishes them for humans.
       if (record.inFlight) {
         throw new ActionStateError(
           "PROPOSAL_COMMITTED",

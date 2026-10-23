@@ -29,13 +29,13 @@ const PURE_TYPES = {
     "domain types.ts must stay pure: no fastify, infrastructure or node: imports",
 };
 
-// Domains never reach into HTTP assembly internals (app factory, error
-// handler, static assets). The shared contract, response writer and mount
-// type stay importable — domains build routes against them.
-// 域内不得导入 HTTP 装配内部模块(app 工厂、错误处理器、静态资源);
-// 共享契约、响应写出与挂载类型可导入——域路由依据它们构建。
+// Domains never reach into HTTP assembly internals (the Nest app
+// factory, static assets). The shared contract, response writer and
+// guard-fn type stay importable — domains build routes against them.
+// 域内不得导入 HTTP 装配内部模块(Nest 应用工厂、静态资源);
+// 共享契约、响应写出与守卫函数类型可导入——域路由依据它们构建。
 const ASSEMBLY = {
-  regex: "infrastructure/http/(app|error-handler|static-assets)",
+  regex: "infrastructure/http/(nest-app|static-assets)",
   message:
     "domains must not import HTTP assembly internals (assembly lives in main.ts and domain module.ts files)",
 };

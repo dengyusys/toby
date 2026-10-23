@@ -6,7 +6,7 @@ English | [简体中文](README.zh.md)
 
 Toby is a self-hosted, single-user personal assistant — a diligent study companion that keeps your schedule, notes, and project files in order. You talk to it in natural language; the AI turns your words into a constrained proposal; you review and confirm; only then does the server perform a deterministic write. Not a single byte lands in storage before your confirmation.
 
-> **Current phase: framework.** Skeleton and server first; features arrive step by step. See [PLAN.md](PLAN.md).
+> **Current phase: domains are landing.** System, auth, and ledger are live; the rest arrive step by step (see [AGENTS.md](AGENTS.md) and [PLAN.md](PLAN.md)).
 
 > **Learning project.** Toby is a personal project built for learning — a hands-on practice in building a self-hosted AI application end to end. Feel free to read the code and docs for reference.
 

@@ -52,7 +52,12 @@ export async function createLedgerModule(
   });
 
   const sweeper = setInterval(() => {
-    void service.sweep();
+    // sweep swallows commit failures internally; this catch only guards
+    // future edits that let something else throw — Node 22 kills the
+    // process on an unhandled rejection.
+    service.sweep().catch((error: unknown) => {
+      deps.logger?.error({ err: error }, "ledger sweep failed");
+    });
   }, SWEEP_INTERVAL_MS);
   sweeper.unref();
 

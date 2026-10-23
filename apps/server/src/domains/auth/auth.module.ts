@@ -10,7 +10,7 @@
 import { type DynamicModule } from "@nestjs/common";
 import type { FastifyRequest } from "fastify";
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
-import type { RequestGuardFn } from "../../infrastructure/http/nest-app.ts";
+import type { RequestGuardFn } from "../../infrastructure/http/contract.ts";
 import {
   assembleAuthService,
   type AuthService,

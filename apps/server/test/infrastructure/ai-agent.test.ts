@@ -114,8 +114,8 @@ describe("createTobyAgentFactory", () => {
     });
     faux.appendResponses([
       // Missing the required `value` — pi-agent-core validates arguments
-      // against the tool schema before beforeToolCall/execute, so the bad
-      // call becomes an error tool result the model can correct against.
+      // against the tool schema before the gate hook and execute run, so the
+      // bad call becomes an error tool result the model can correct against.
       fauxAssistantMessage([fauxToolCall("strict_probe", {})]),
       fauxAssistantMessage([fauxToolCall("strict_probe", { value: "fixed" })]),
       fauxAssistantMessage("done"),

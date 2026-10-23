@@ -77,6 +77,8 @@ export function createLedgerExtractor(deps: {
           "提交从用户语句中提取的记账条目草稿。草稿进入待确认提案,不会直接写入账本。",
         parameters: LEDGER_ENTRIES_TOOL_SCHEMA,
         execute: async (_toolCallId, params) => {
+          // Last write wins: a corrected resubmit replaces the earlier
+          // draft; bounded by the turn cap so it cannot loop silently.
           draft = { entries: normalizeEntries(params.entries) };
           return {
             content: [

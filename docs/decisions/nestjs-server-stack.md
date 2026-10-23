@@ -75,7 +75,7 @@ These are load-bearing; changing them breaks tests in confusing ways:
   servers).
 - Build: `pnpm run build` builds both webs and the server (`dist/`).
 - Start: `pnpm run start` builds, then runs
-  `node --env-file-if-exexists=.env apps/server/dist/main.js`.
+  `node --env-file-if-exists=.env apps/server/dist/main.js`.
 - Test: `pnpm run test` builds the server first (the root integration
   tests spawn `dist/main.js`).
 

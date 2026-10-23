@@ -1,7 +1,7 @@
 /**
  * Server version: read once from the server package.json. Kept out of the
- * router so router.ts stays a pure HTTP shell — the house layout for every
- * domain (router / service / pure files).
+ * controller so it stays a pure HTTP shell — the house layout for every
+ * domain (controller / service / pure files).
  */
 
 import { readFileSync } from "node:fs";

@@ -23,6 +23,16 @@ export interface ErrorEnvelope {
   error: { code: string; message: string };
 }
 
+/**
+ * Root-level request gating signature shared by the auth domain (which
+ * builds the guard) and the HTTP assembly (which installs it). Lives in
+ * the neutral contract file so neither side imports assembly internals.
+ */
+export type RequestGuardFn = (
+  request: import("fastify").FastifyRequest,
+  reply: import("fastify").FastifyReply,
+) => Promise<void>;
+
 export function createErrorResponse(
   code: string,
   message: string,

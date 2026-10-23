@@ -12,7 +12,7 @@
 
 | 层     | 选型                                                                                                                         |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| 运行   | Node 22.23.2,`.ts` 直跑,无构建步骤                                                                                           |
+| 运行   | Node 22.23.2;服务端经 `nest build` 构建,前端经 Vite 构建                                                                     |
 | 包管理 | pnpm 11.18.0 workspaces(`apps/*` + `packages/*`)                                                                             |
 | 服务端 | NestJS 12（跑于 Fastify 5 之上）+ 自建数据库适配 port（默认 SQLite，可选 MySQL）+ pino + typebox（AI:pi-ai + pi-agent-core） |
 | 前端   | React 19 + Vite 6 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`)                                                        |
@@ -151,7 +151,7 @@ flowchart TB
 
 - 单个域超过 15 个文件时,重新评估域内分层或拆子域;域内单文件超过 400 行时,按关注点拆分。
 - 配置由 `infrastructure/config` 的 `resolveConfig({ env })` 启动时统一解析(`TOBY_*` 环境变量);不在导入时解析全局配置,入口显式传入,测试可注入独立 `env`。
-- `.ts` 源码由 Node 22 直跑,无构建步骤;禁 `enum` / `namespace` / 构造器参数属性,`import type` 由 `erasableSyntaxOnly` 自动把关。
+- 前端/packages 的 `.ts` 由 Node 22 直跑、无构建;服务端经 `nest build` 构建。各包风格规则见 AGENTS.md(`erasableSyntaxOnly` 仍对前端/packages 生效)。
 - 执行目录调整时,同步更新本文与受影响文档的路径引用。
 
 ## 架构变更规则

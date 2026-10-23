@@ -27,6 +27,7 @@ import type {
   AiRuntimeConfig,
 } from "./types.ts";
 import { AiError } from "./errors.ts";
+import { resolveCatalogModel } from "./model-catalog.ts";
 
 /** The catalog-resolved model this client talks to. */
 type ResolvedModel = Model<string>;
@@ -136,16 +137,7 @@ export function createPiAiClient(
   options: { models?: Models } = {},
 ): AiClient {
   const models = options.models ?? builtinModels();
-  const [provider, ...rest] = config.model.split("/");
-  const modelId = rest.join("/");
-  const resolved: ResolvedModel | undefined =
-    provider && modelId ? models.getModel(provider, modelId) : undefined;
-  if (!resolved) {
-    throw new Error(
-      `TOBY_AI_MODEL "${config.model}" is not a known provider/model pair in the pi-ai catalog`,
-    );
-  }
-  const model: ResolvedModel = resolved;
+  const model: ResolvedModel = resolveCatalogModel(models, config.model);
 
   async function requestOnce(
     messages: readonly AiChatMessage[],

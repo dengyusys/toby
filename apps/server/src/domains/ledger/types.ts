@@ -1,6 +1,6 @@
 /**
  * Ledger domain types: the pure vocabulary shared by validation, the
- * proposal registry, the store and the router. Amounts are integer cents
+ * proposal registry, the store and the controller. Amounts are integer cents
  * end to end; dates are local "YYYY-MM-DD" strings; timestamps are UTC ISO
  * strings.
  */
