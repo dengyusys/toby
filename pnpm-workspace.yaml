@@ -107,7 +107,7 @@ catalog:
 
   # Testing — vitest everywhere, DOM stack for the web apps.
   # 测试 —— vitest 全局使用,DOM 栈归前端应用。
-  vitest: ^5.0.1
+  vitest: ^5.0.5
   "@vitest/coverage-v8": ^5.0.1
   happy-dom: ^20.14.5
   "@testing-library/react": ^16.3.3
