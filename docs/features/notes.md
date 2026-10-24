@@ -38,6 +38,6 @@ All JSON; errors follow the server's standard envelope.
 - Add and append always keep the owner's original words; rewrite's replacement text is AI-generated per instruction and lands through a "before → after" review card.
 - Topic naming has no failure path: a list hit → append to that notebook; a miss → open a new one (the card says "new"); an illegal AI-proposed name → degrade to a monthly add with a trace.
 - Server-side validation of new topic names (length, path separators, leading dot, monthly-name squatting) doubles as the only path-traversal defense.
-- Intent boundaries: writing note content → this domain; viewing/summarizing/reviewing → the companion's read-only tools.
+- Intent boundaries: writing note content → this domain; viewing/summarizing/reviewing → the agent's read-only tools.
 - Proposal TTL 10 minutes; uncancelled after 30 seconds the server auto-writes, same path as manual confirmation.
 - Reads: an absent monthly file answers `exists: false`, never 404; an oversized notebook truncates with a marker.

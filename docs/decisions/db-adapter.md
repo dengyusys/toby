@@ -8,7 +8,7 @@ The server reaches its databases through one thin, async-first port of our own �
 
 Connecting, executing parameterized statements, and wrapping a transaction amount to roughly a hundred lines per driver. The hard part — dialect differences — stays anyway: each domain owns its storage, so queries are hand-written regardless. Type safety is maintained by the domains themselves, through typed row interfaces and mappers in `store.ts`.
 
-With [server-stack](server-stack.md): SQLite is the recommended database; the MySQL adapter exists for learning — to feel another dialect behind one interface.
+With the [server stack decision](nestjs-server-stack.md): SQLite is the recommended database; the MySQL adapter exists for learning — to feel another dialect behind one interface.
 
 ## The port
 

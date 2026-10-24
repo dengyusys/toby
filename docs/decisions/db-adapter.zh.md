@@ -8,7 +8,7 @@
 
 连接、执行参数化语句、包一个事务,每个驱动大约百来行代码。难的部分——方言差异——无论如何都在:每个 domain 拥有自己的存储,查询本来就要手写。类型安全由 domain 自己维护:`store.ts` 里的 typed row interface 和 mapper。
 
-与 [server-stack](server-stack.zh.md) 一致:推荐使用的数据库是 SQLite;MySQL 适配器出于作者的学习目的而存在——想亲身感受另一种方言接在同一个接口后面的样子。
+与[服务端技术栈决策](nestjs-server-stack.zh.md)一致:推荐使用的数据库是 SQLite;MySQL 适配器出于作者的学习目的而存在——想亲身感受另一种方言接在同一个接口后面的样子。
 
 ## Port 接口
 

@@ -4,7 +4,7 @@ English | [简体中文](product-overview.zh.md)
 
 ## What it is
 
-Toby is your personal study companion: it keeps your schedule, your todos, your money, and your notes in order — the things worth remembering in your life.
+Toby is your personal agent: it remembers your schedule, todos, money, and notes — and it proposes, you confirm, before anything is written.
 
 It runs on your own machine, for you alone. No accounts, no cloud, no data leaving your computer.
 

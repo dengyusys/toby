@@ -11,7 +11,7 @@
 - **React 19**:生态最大,要什么有什么
 - **Vite 6**:开发快、配置少,两个应用两份几乎一样的配置
 
-不引入 Next 一类全栈框架:server 已经是 Fastify,前端只需要纯静态产物。
+不引入 Next 一类全栈框架:单进程服务端(NestJS / Fastify)已经同时提供 API 与静态页面,前端只需要纯静态产物。
 
 ## Tailwind v4 + shadcn
 

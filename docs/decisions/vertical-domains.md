@@ -36,14 +36,6 @@ For example, when modifying the ledger feature, the routes, business logic, and 
 
 **Business logic is easier to understand and test.** A domain's implementation lives in one directory; you don't need to understand the whole project's layering to read it. Business rules that avoid framework and infrastructure dependencies can be plain functions — unit-testable directly, without an HTTP server or a database.
 
-## Why not microservices?
-
-This project needs business boundaries, not independent deployment.
-
-Slicing into modules gives good isolation and independent evolution while keeping single-process deployment simple. There is no reason to pay microservice costs in communication, deployment, and debugging just to get boundaries.
-
-So this repository is a modular monolith: modules stay isolated in code, assembled and run by one process.
-
 ## In this repository
 
 The concrete boundaries (never import across domains, infrastructure never depends on domains, machine-enforced by ESLint) are owned by the [system overview](../system-overview.md) and `AGENTS.md` — see those instead of a second list here.

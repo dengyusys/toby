@@ -14,8 +14,8 @@ Implementation detail belongs to the code; development progress belongs to the G
 ## Maintenance rules
 
 - When a behavior contract changes, update the matching `features/` doc.
-- New design decisions get their own record; existing decision history is never overwritten.
-- Superseded decisions are marked `Superseded`.
+- Every document is iterated in place — a retired document is deleted, not marked. Git history is the archive.
+- When a decision replaces an older one, the new record ends with a brief note on what changed — scaled to the significance of the change.
 - Once a design discussion is finalized, fold the conclusions into the matching doc and delete the scratch draft.
 
 The goal of documentation is to make trustworthy information quick to find — not to record the development process in full.

@@ -6,7 +6,7 @@ English | [简体中文](chat.zh.md)
 
 ## Responsibilities and boundaries
 
-The app's single chat box: one sentence in, intent classification routes it — business intents (schedule/ledger/memory/notes/todo) go to the matching domain's proposal pipeline, everything else goes to the companion agent.
+The app's single chat box: one sentence in, intent classification routes it — business intents (schedule/ledger/memory/notes/todo) go to the matching domain's proposal pipeline, everything else goes to the agent.
 
 - **Owns**: message and session persistence (`data/chat.db`), intent routing, attachments, card-outcome recording, contextual entry into the preview panels.
 - **Does not own**: the domain proposal pipelines themselves (called, never changed), external-world queries (new tools may be registered later), chat-history TTL policy.
@@ -37,7 +37,7 @@ All JSON except attachment upload (multipart, the sole exception to "JSON only")
 
 - Intent classification outputs an intent plus a self-contained sentence: follow-up fragments are folded before dispatch; corrections about the previous turn re-classify to the corrected domain.
 - All AI structured output goes through schema-validated channels (TypeBox tool arguments, or the single-shot `json()` entry for loop-free calls): invalid output is fed back to the model for correction; final failure returns an honest "say that again" reply — never 5xx, never silently dropped.
-- The `none` intent goes to the companion agent: read-only tools, bounded rounds, real data only, honest truncation notices; on failure it falls back to fixed copy.
+- The `none` intent goes to the agent: read-only tools, bounded rounds, real data only, honest truncation notices; on failure it falls back to fixed copy.
 - Three write triggers: the explicit confirm button, tacit approval by the next message (pending proposals committed oldest-first), and the server's 30-second auto-write; cancel is the only refusal path.
 - The user message persists before the AI is called; on AI failure no reply or proposal is produced and the client keeps the input for retry.
 - Restored history renders cards in their recorded final states — past proposals carry no confirm buttons.

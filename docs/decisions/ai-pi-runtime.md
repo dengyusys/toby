@@ -2,14 +2,10 @@
 
 English | [简体中文](ai-pi-runtime.zh.md)
 
-Status: accepted (supersedes [ai-integration.md](ai-integration.md)) · Date: 2026-10-22
-
 All AI transport and agent execution in this repository runs on the pi
 ecosystem: [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai)
 as the unified LLM API and [`@earendil-works/pi-agent-core`](https://www.npmjs.com/package/@earendil-works/pi-agent-core)
-as the agent loop. This replaces the previous hand-written OpenAI-compatible
-fetch adapter and **reverses the earlier ban on endpoint-native tool
-calling** — deliberately, and with the guardrails below.
+as the agent loop. The guardrails below are part of the deal.
 
 ## Why
 
@@ -57,7 +53,7 @@ the gate re-checks registration as a cheap invariant:
   external actions (notifications) as much as database writes.
 
 Today the only production agent (ledger extraction) allows both kinds;
-the gate earns its keep with the next agent — the chat companion, which
+the gate earns its keep with the next agent — the chat agent, which
 will allow read-only only. A `costly` kind (web search, image generation)
 is anticipated but not introduced until a domain needs it.
 
@@ -103,3 +99,12 @@ Automated tests never call a real model: pi-ai's `fauxProvider` scripts
 responses (including error stop reasons and slow streams), and the agent
 factory accepts an injected model collection / stream function. Real-model
 regression runs separately with explicit authorization.
+
+---
+
+## Reference
+
+This decision supersedes the former ai-integration.md — the restricted
+JSON protocol that banned endpoint-native tool calling and prescribed a
+hand-written OpenAI-compatible fetch adapter. That ADR was retired on
+2026-10-24 and remains retrievable from git history.

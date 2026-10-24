@@ -8,8 +8,8 @@ English | [简体中文](memory.zh.md)
 
 Say "remember I don't eat cilantro" in the chat, get a memory proposal card (save/remove actions), confirm, and it writes into `data/memory.db`.
 
-- Stores only **long-term information** that shapes the companion's service: preferences, constraints, personal facts, important decisions, ongoing matters. One-shot items belong to the todo board, daily check-ins to schedule, diary musings to notes.
-- Consumed in two directions: **hybrid retrieval** injected before each domain's proposal generation, and the companion's read-only memory tool.
+- Stores only **long-term information** that shapes the agent's service: preferences, constraints, personal facts, important decisions, ongoing matters. One-shot items belong to the todo board, daily check-ins to schedule, diary musings to notes.
+- Consumed in two directions: **hybrid retrieval** injected before each domain's proposal generation, and the agent's read-only memory tool.
 - **Episodic distillation** on the day's first interaction: distills recent chat into memory proposals and merges near-duplicates.
 - **Does not own**: decay cleanup, batch-delete proposals, the memory-page search box.
 

@@ -2,9 +2,6 @@
 
 [English](nestjs-server-stack.md) | 简体中文
 
-状态:已接受(取代 [server-stack.md](server-stack.zh.md) 中
-Fastify/自装配的框架表述) · 日期:2026-10-23
-
 服务端以 NestJS 12 + Fastify 适配器装配。引擎没换——仍是 Fastify
 5——换的是组织方式:域是带 controller 的 Nest 模块,服务经 token 注入,
 横切行为收进全局异常过滤器与全局守卫。
@@ -19,6 +16,22 @@ Fastify/自装配的框架表述) · 日期:2026-10-23
   Spring 的骨架。
 - **有意取舍:** 放弃零构建、.ts 直跑。`nest build`(tsc)产出
   `dist/`;`start` 与开发 watch 都从构建产物运行。
+
+## 其余技术栈
+
+框架期选型的准则仍然统治一切:**自托管、单用户、单进程 —— 一切让位于
+简单可控。**
+
+- **SQLite,经 db 适配 port 访问**(见 [db-adapter.zh.md](db-adapter.zh.md)):
+  一个文件就是一个数据库 —— 无守护进程、无凭据,备份即复制 `data/`;
+  同步驱动让事务就是一个普通函数调用,天然契合"确认后写入"模型。
+  单写者的弱点在这里不存在:唯一写者、低频事务写入。MySQL 作为学习用
+  适配器挂在同一 port 后;域代码看不到差别。
+- **typebox** —— 一个 schema 库、一份定义:ledger 草稿 schema 既是面向
+  模型的工具契约,也是服务端的形状门控;`typebox/value` 的
+  `Check`/`Errors` 负责校验并定位出错字段,同一份错误文本还能作为
+  工具错误回喂给模型。
+- **pino** —— 结构化 JSON 日志,低开销;不引入更重的可观测性套件。
 
 ## 迁移摸清的机制(非显然,动它们会让测试以迷惑的方式坏掉)
 
@@ -60,3 +73,10 @@ Fastify/自装配的框架表述) · 日期:2026-10-23
 命令语义见 `AGENTS.md` 与 `docs/operations/`;一条无法推理出的约束:
 Docker 落地时,镜像必须用 Node ≥ 22.19(pi-ai 的 engines 要求 +
 `engine-strict=true`)。
+
+---
+
+## 参考
+
+本决策吸收了原 server-stack.zh.md(已于 2026-10-24 退役,可从 git
+历史取回);"其余技术栈"一节的原有选型原样延续。

@@ -10,7 +10,7 @@ Natural language in the chat becomes a constrained, verifiable schedule-modifica
 
 - Schedule content rides on **trackers**: nothing preinstalled, no built-in categories — what to track is created by the user through conversation (proposal-based); definitions are data, so adding or adjusting fields needs no code change.
 - **Owns**: tracker create/archive/amend (proposal-based), read queries, proposal generation and confirmation, AI parsing and validation, conflict detection and transactions.
-- **Does not own**: frequency/deadline rule engines, cross-tracker statistics (the companion agent's job), renaming slugs, retyping or deleting fields or history, offline queues and undo.
+- **Does not own**: frequency/deadline rule engines, cross-tracker statistics (the agent's job), renaming slugs, retyping or deleting fields or history, offline queues and undo.
 
 ## Core concepts
 

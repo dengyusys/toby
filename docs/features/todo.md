@@ -15,7 +15,7 @@ A one-shot todo board: one sentence in the chat, a proposal card confirmed, then
 
 - A todo = title (≤20-character action phrase) + note (the user's original words) + due date/time (optional — undated) + status `open`/`done`.
 - A sentence naming several things splits into several todos on one proposal card; never merged into one title.
-- Only the server writes the database; the companion agent can read the board through a read-only tool.
+- Only the server writes the database; the agent can read the board through a read-only tool.
 
 ## Interface
 

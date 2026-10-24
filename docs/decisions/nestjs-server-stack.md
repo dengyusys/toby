@@ -2,9 +2,6 @@
 
 English | [简体中文](nestjs-server-stack.zh.md)
 
-Status: accepted (supersedes the Fastify/self-assembly framing in
-[server-stack.md](server-stack.md)) · Date: 2026-10-23
-
 The server is assembled with NestJS 12 on the Fastify adapter. The engine
 did not change — Fastify 5 stays — what changed is the organization:
 domains are Nest modules with controllers, services are injected through
@@ -23,6 +20,27 @@ global guard.
 - **Deliberate trade-off:** the zero-build, run-the-.ts-directly property
   is given up. `nest build` (tsc) produces `dist/`; `start` and the dev
   watch run from the build output.
+
+## The rest of the stack
+
+The framework-era criterion still governs every choice: **self-hosted,
+single-user, single process — everything yields to simple and
+controllable.**
+
+- **SQLite via the db adapter port** (see [db-adapter.md](db-adapter.md)):
+  one file is one database — no daemon, no credentials, backup is copying
+  `data/`; the synchronous driver makes a transaction a plain function
+  call, fitting the confirm-then-write model. The single-writer weakness
+  does not exist here: one writer, low-frequency transactional writes.
+  MySQL exists as a learning adapter behind the same port; domain code
+  never sees the difference.
+- **typebox** — one schema library, one definition: the ledger draft
+  schema is simultaneously the model-facing tool contract and the
+  server's shape gate; `typebox/value`'s `Check`/`Errors` validate and
+  point at the offending path, and the same error text feeds back to the
+  model as a tool error.
+- **pino** — structured JSON logging, low overhead; no heavier
+  observability suite.
 
 ## What the migration taught (non-obvious mechanics)
 
@@ -73,3 +91,11 @@ These are load-bearing; changing them breaks tests in confusing ways:
 Command semantics live in `AGENTS.md` and `docs/operations/`; one
 non-inferable constraint: when Docker lands, the image must use
 Node ≥ 22.19 (pi-ai's engines requirement + `engine-strict=true`).
+
+---
+
+## Reference
+
+This decision absorbs the former server-stack.md (retired 2026-10-24,
+retrievable from git history); the stack choices above carry over
+unchanged.

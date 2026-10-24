@@ -2,14 +2,11 @@
 
 [English](ai-pi-runtime.md) | 简体中文
 
-状态:已接受(取代 [ai-integration.md](ai-integration.zh.md)) · 日期:2026-10-22
-
 本仓库的全部 AI 传输与 agent 执行运行在 pi 生态之上:以
 [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai)
 作为统一 LLM API,以
 [`@earendil-works/pi-agent-core`](https://www.npmjs.com/package/@earendil-works/pi-agent-core)
-作为 agent 循环。这取代了此前手写的 OpenAI 兼容 fetch 适配器,并**推翻了
-早先"不使用端点原生工具调用"的禁令**——是有意为之,且带以下护栏。
+作为 agent 循环。以下护栏是这套决定的一部分。
 
 ## 为什么
 
@@ -44,7 +41,7 @@
   确认后发生。将来发通知等外部动作与数据库写入同归此档。
 
 今天唯一的生产 agent(ledger 提取)允许两种 kind;门控的真正用武之地
-在下一个 agent——聊天伴生 agent,它将只允许 read-only。`costly`
+在下一个 agent——聊天 agent,它将只允许 read-only。`costly`
 kind(联网搜索、生图)已有预案,待有域需要时再引入。
 
 ## 结构
@@ -80,3 +77,11 @@ kind(联网搜索、生图)已有预案,待有域需要时再引入。
 自动化测试永不调用真实模型:pi-ai 的 `fauxProvider` 可脚本化应答
 (含错误 stopReason 与慢速流),agent 工厂接受注入的模型集合/流函数。
 真实模型回归单独运行,需显式授权。
+
+---
+
+## 参考
+
+本决策取代原 ai-integration.md —— 它规定了"不使用端点原生工具调用"的
+受限 JSON 协议与手写 OpenAI 兼容 fetch 适配器,已于 2026-10-24 退役,
+可从 git 历史取回。

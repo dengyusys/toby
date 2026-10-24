@@ -6,7 +6,7 @@ English | [简体中文](greeting.zh.md)
 
 ## Responsibilities and boundaries
 
-Every time the user opens or refreshes the page, the companion offers a greeting (AI-generated, time-of-day fixed copy as fallback); the greeting is shown for that visit only and never written to any database.
+Every time the user opens or refreshes the page, the agent offers a greeting (AI-generated, time-of-day fixed copy as fallback); the greeting is shown for that visit only and never written to any database.
 
 - The same SSE connection also carries conversation-progress broadcasts: while waiting for a reply, the waiting line shows the real stage ("understanding your words", "checking the schedule", …).
 - **Does not own**: opening briefings, todo reminders, or other pushes (long-term candidates), two-way communication, greeting persistence and history, multi-user presence.
