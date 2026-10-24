@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "backup": "node --env-file-if-exists=../../.env src/infrastructure/db/backup-cli.ts"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "catalog:",

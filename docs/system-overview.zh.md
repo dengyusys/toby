@@ -29,7 +29,7 @@ flowchart LR
 ```
 
 - Web 只能通过 server API 访问数据,不能读取文件系统。
-- server 是唯一日常读写入口:查询走只读 API;新增、修改和删除必须经**提案确认** —— 由 `infrastructure/actions/` 中的共享**提案确认内核**(actions kernel,一条状态机:创建/确认/过期)执行;记账域已在使用。
+- server 是唯一日常读写入口:查询走只读 API;新增、修改和删除必须经**提案确认** —— 由 `infrastructure/actions/` 中的共享**提案确认内核**(actions kernel,一条状态机:创建/确认/过期)执行;记账域已在使用;语义详见 [actions-kernel.zh.md](decisions/actions-kernel.zh.md)。
 - AI 工具携带安全分级(read-only / write-intent)并在策略门控下运行;真实效果仍需提案确认(docs/decisions/ai-pi-runtime.zh.md)。
 - 根 `scripts/` 只做开发与多进程启动编排,不接触数据。
 - 九个业务域中,提案确认已下沉为共享内核(见上)而非域;其余(对话 chat、问候 greeting、日程 schedule、手账 notes、待办 todo、记忆 memory、书库 library)逐个独立落地,每个域落地时在 `docs/features/` 立契约文档。

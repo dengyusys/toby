@@ -1,6 +1,7 @@
 /**
  * The actions kernel: the shared confirm-gate state machine behind every
- * write-intent AI action (docs/decisions/ai-pi-runtime.md). A proposal is
+ * write-intent AI action (docs/decisions/actions-kernel.md — the
+ * authoritative record of the tacit-approval semantics below). A proposal is
  * pending for a 30-second confirmation window — silence within the window
  * counts as approval, so the server auto-executes it (tacit approval fits
  * the chat flow: not pressing cancel means go) — with a 10-minute TTL as

@@ -29,7 +29,7 @@ flowchart LR
 ```
 
 - The web apps reach data only through server APIs; they never touch the file system.
-- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** — run by the shared **actions kernel** in `infrastructure/actions/` (one state machine: create / confirm / expire; ledger is live on it).
+- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** — run by the shared **actions kernel** in `infrastructure/actions/` (one state machine: create / confirm / expire; ledger is live on it; semantics: [actions-kernel.md](decisions/actions-kernel.md)).
 - AI tools carry a safety kind (read-only / write-intent) and run behind a policy gate; real effects still require proposal confirmation (docs/decisions/ai-pi-runtime.md).
 - Root `scripts/` only orchestrates dev and multi-process startup; it never touches data.
 - The remaining business domains (chat, greeting, schedule, notes, todo, memory, library) land one at a time; each establishes its contract doc in `docs/features/` on arrival. Proposal confirmation is already a shared kernel (see above), not a domain.
