@@ -6,13 +6,17 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { createModels } from "@earendil-works/pi-ai";
+import {
+  createModels,
+  createProvider,
+  envApiKeyAuth,
+} from "@earendil-works/pi-ai";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import {
   fauxAssistantMessage,
   fauxProvider,
   fauxText,
 } from "@earendil-works/pi-ai/providers/faux";
-import { zaiProvider } from "@earendil-works/pi-ai/providers/zai";
 import { AiError } from "../../src/infrastructure/ai/errors.ts";
 import { caught } from "../helpers.ts";
 import { createPiAiClient } from "../../src/infrastructure/ai/pi-ai-client.ts";
@@ -137,13 +141,45 @@ describe("createPiAiClient", () => {
   });
 
   it("maps an error on a provider with no credentials to unconfigured", async () => {
-    // The real zai provider with no ZAI_API_KEY in the environment: the
-    // request fails before any network I/O and the auth check maps the
-    // failure onto the 501-flavored code.
+    // A purpose-built provider whose declared key variable nobody will
+    // ever set: it exercises pi-ai's genuine env-key auth resolution
+    // (the same mechanism zai/deepseek use) without depending on the
+    // host environment — a GLM or DeepSeek user may legitimately have
+    // their real key exported, and stripping variables would couple the
+    // test to provider-specific names. The request fails before any
+    // network I/O and the auth check maps the failure onto the
+    // 501-flavored code.
     const models = createModels();
-    models.setProvider(zaiProvider());
+    models.setProvider(
+      createProvider({
+        id: "test-unconfigured",
+        name: "Test Unconfigured",
+        baseUrl: "http://127.0.0.1:9",
+        // Wrapped in { apiKey } like every built-in provider does.
+        auth: {
+          apiKey: envApiKeyAuth("Test API key", ["TOBY_TEST_MISSING_API_KEY"]),
+        },
+        models: [
+          {
+            id: "test-model",
+            name: "Test Model",
+            api: "openai-completions",
+            provider: "test-unconfigured",
+            baseUrl: "http://127.0.0.1:9",
+            reasoning: false,
+            input: ["text"],
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+            compat: {},
+            contextWindow: 8192,
+            maxTokens: 1024,
+            type: "chat",
+          },
+        ],
+        api: openAICompletionsApi(),
+      }),
+    );
     const client = createPiAiClient(
-      { model: "zai/glm-4.7", timeoutMs: TIMEOUT_MS },
+      { model: "test-unconfigured/test-model", timeoutMs: TIMEOUT_MS },
       { models },
     );
     const error = await caught(client.text([{ role: "user", content: "x" }]));
