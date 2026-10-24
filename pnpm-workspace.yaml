@@ -68,7 +68,7 @@ catalog:
   # 前端构建工具链 —— Vite + Tailwind v4 + shadcn CLI。
   vite: ^6.0.0
   "@vitejs/plugin-react": ^4.3.4
-  shadcn: ^4.19.0
+  shadcn: ^4.22.1
   tailwindcss: ^4.3.3
   "@tailwindcss/vite": ^4.3.3
 
