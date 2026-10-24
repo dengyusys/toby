@@ -94,7 +94,7 @@ to `request-failed`/`timeout`.
   resolved against pi-ai's builtin model list at assembly — unknown pairs
   fail startup.
 - Provider credentials live in pi-ai's per-provider environment variables
-  (e.g. `ZAI_API_KEY`) or its credential store — never in Toby's own
+  (e.g. `DEEPSEEK_API_KEY`) or its credential store — never in Toby's own
   variables, never in the repository.
 
 ## Testing

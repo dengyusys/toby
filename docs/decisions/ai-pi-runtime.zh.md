@@ -72,7 +72,7 @@ kind(联网搜索、生图)已有预案,待有域需要时再引入。
 - `TOBY_AI_MODEL` 是 pi-ai 的 "provider/model" 组合(如 `zai/glm-4.7`);
   留空则 AI 路径整体不可用(501)。组合在装配时对照 pi-ai 内置模型列表
   解析,未知组合启动即报错。
-- 供应商密钥放在 pi-ai 的 per-provider 环境变量(如 `ZAI_API_KEY`)或其
+- 供应商密钥放在 pi-ai 的 per-provider 环境变量(如 `DEEPSEEK_API_KEY`)或其
   凭据库——不进 Toby 自己的变量,更不进仓库。
 
 ## 测试

@@ -192,7 +192,7 @@ function resolveTimeout(
 /**
  * AI runtime: TOBY_AI_MODEL is pi-ai's "provider/model" pair (e.g.
  * "zai/glm-4.7"). Provider credentials live in pi-ai's per-provider
- * environment variables (e.g. ZAI_API_KEY) or its credential store — not
+ * environment variables (e.g. DEEPSEEK_API_KEY) or its credential store — not
  * here. An unset model keeps the AI paths plainly unavailable.
  */
 const AI_MODEL_PATTERN = /^([a-z0-9][a-z0-9_-]*)\/(\S+)$/;
