@@ -1,0 +1,47 @@
+# Server-side compose for a single Aliyun ECS (or any single VPS) deployment.
+# Differences from the root compose.yaml:
+#   - image comes from `docker load` (no build section) — the image tarball is
+#     transferred with scp, see docs/operations/deploy-ecs.md
+#   - healthcheck probes "/" instead of /api/system/health so it stays green
+#     whether or not TOBY_AUTH_PASSWORD_HASH is set (auth returns 401 on /api/*)
+# 服务器端 compose(阿里云 ECS / 任意单台 VPS 通用)。与根 compose.yaml 的差异:
+#   - 镜像来自 docker load(无 build 段)—— 镜像包由 scp 直传,
+#     完整步骤见 docs/operations/deploy-ecs.zh.md
+#   - 健康检查探 "/" 而非 /api/system/health —— 无论是否开启
+#     TOBY_AUTH_PASSWORD_HASH 都是 200(开启认证后 /api/* 一律 401)
+services:
+  server:
+    image: toby:latest
+    container_name: toby
+    ports:
+      # Loopback only — the public internet cannot reach the port. Keep this
+      # line for reverse-proxy (Caddy/nginx) setups; switch to "8629:8629"
+      # for Tailscale/WireGuard access (still no security-group rule for 8629).
+      # 只绑回环,公网摸不到。反代方案保持本行不变;Tailscale 组网时改为
+      # "8629:8629"(安全组依然不放行 8629)。
+      - "127.0.0.1:8629:8629"
+    volumes:
+      # Database files live in this folder on the server — back it up.
+      # 数据库文件落在服务器本目录,备份就是备份这个文件夹。
+      - ./data:/app/data
+    environment:
+      # The container must bind all interfaces; the port mapping above keeps
+      # the exposure loopback-only.
+      # 容器内必须绑 0.0.0.0,由端口映射负责只暴露回环。
+      - TOBY_HOST=0.0.0.0
+    env_file:
+      - path: .env
+        required: false
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8629/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
