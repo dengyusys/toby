@@ -1,0 +1,18 @@
+# Never enter the build context: secrets, real data, local installs.
+node_modules
+**/node_modules
+**/dist
+data
+backups
+.env
+.env.*
+coverage
+.git
+.github
+.zcode
+docs
+test
+scripts
+*.log
+*.md
+!package.json

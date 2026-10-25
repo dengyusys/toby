@@ -1,0 +1,33 @@
+services:
+  server:
+    build: .
+    image: toby
+    container_name: toby
+    ports:
+      - "127.0.0.1:8629:8629"
+    volumes:
+      - ./data:/app/data
+    environment:
+      # The container must bind all interfaces; the port mapping keeps the
+      # exposure loopback-only. Chinese UI, Chinese AI prompts by design.
+      - TOBY_HOST=0.0.0.0
+    env_file:
+      - path: .env
+        required: false
+    healthcheck:
+      # NOTE: healthcheck assumes authentication is disabled (the default).
+      # With TOBY_AUTH_PASSWORD_HASH set, /api/system/health answers 401 —
+      # extend the auth exemption or swap the probe before enabling auth in
+      # a container.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8629/api/system/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
