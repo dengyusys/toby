@@ -7,11 +7,19 @@ English | [简体中文](README.zh.md)
 Say one sentence — your money, schedule, and notes fall into place. The AI turns your words into a structured **proposal card** (what to record, where, and with which values); you review it; only then does the server perform a deterministic write. Nothing lands in storage before your confirmation — and the AI has no write access of its own.
 
 ```text
-You:  昨天午饭花了 30
-Toby: 📋 proposal — expense · 餐饮 · ¥30.00 · 2026-10-22   [confirm] [cancel]
+      ┌─ You ──────────────────────────────────────────┐
+      │ 昨天午饭花了 30                                │
+      └────────────────────────────────────────────────┘
+
+      ┌─ Toby · proposal draft ────────────────────────┐
+      │ 支出 · 餐饮 · ¥30.00                           │
+      │ 日期 2026-10-22 · 账户 未关联                  │
+      │                                                │
+      │ [ 确 认 ]      [ 取 消 ]                       │
+      └────────────────────────────────────────────────┘
 ```
 
-## Features
+## 🤖 Features
 
 **Available today**
 
@@ -25,7 +33,7 @@ Toby: 📋 proposal — expense · 餐饮 · ¥30.00 · 2026-10-22   [confirm] [
 
 > **Current phase:** live domains are whatever sits in [`apps/server/src/domains/`](apps/server/src/domains/); `docs/features/` holds the target contracts. Details in [AGENTS.md](AGENTS.md).
 
-## Quick start
+## 🚀 Quick start
 
 Requirements: Node.js `22.23.2` (pinned exactly — other 22.x versions are rejected by `engine-strict`) and pnpm `11.18.0` (`corepack enable`). All commands run from the repo root.
 
@@ -35,14 +43,14 @@ pnpm install
 pnpm run dev      # dev mode: PC http://127.0.0.1:8630/ , mobile http://127.0.0.1:8631/m/ , API proxied to server
 pnpm run start    # production mode: build webs, single server process serves pages and API
 
-# docker compose (planned — see PLAN.md; no Dockerfile yet)
+docker compose up -d --build    # deploy with Docker — manual: docs/operations/docker.md
 ```
 
 No `.env` is needed for the default run. AI is optional: the one-sentence ledger path needs `TOBY_AI_MODEL` plus the matching provider key — copy `.env.example` and see [docs/operations/local-dev.md](docs/operations/local-dev.md) for ports, processes, and deployment notes.
 
 The name: **8629** — the server's port — spells TOBY on a T9 keypad.
 
-## Documentation
+## 📚 Documentation
 
 - [docs/product-overview.md](docs/product-overview.md) — the product, user-facing
 - [docs/system-overview.md](docs/system-overview.md) — architecture
@@ -53,10 +61,10 @@ The name: **8629** — the server's port — spells TOBY on a T9 keypad.
 - [AGENTS.md](AGENTS.md) — rules for AI coding agents ([中文](AGENTS.zh.md)). Using an AI agent to work on this repo? Point it at this file.
 - [PLAN.md](PLAN.md) — framework build plan
 
-## Learning project
+## 🎓 Learning project
 
 Toby is a personal project built for learning — a hands-on practice in building a self-hosted AI application end to end. Feel free to read the code and docs for reference.
 
-## License
+## 📄 License
 
 [MIT](LICENSE)
