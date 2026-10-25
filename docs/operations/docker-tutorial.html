@@ -1,556 +1,1318 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dockerfile 逐步构建教程 · Toby</title>
-<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-<script>
-(function(){
-  var KEY = 'dockerfile-tutorial-state';
-  var mem = { modelContent: null, privateContent: null };
-  try { var raw = localStorage.getItem(KEY); if (raw) mem = JSON.parse(raw); } catch (e) {}
-  window.zcode = {
-    widgetState: mem,
-    setWidgetState: function(next){
-      try { localStorage.setItem(KEY, JSON.stringify(next || {})); } catch (e) {}
-      return Promise.resolve();
-    }
-  };
-})();
-</script>
-</head>
-<body style="margin:0;padding:24px;background:#e8ecf2">
-<div id="dftut">
-  <style>
-    #dftut{
-      --df-bg:#f4f6fa; --df-card:#ffffff; --df-line:#e2e8f0; --df-text:#101a2b; --df-muted:#5b6a7d;
-      --df-blue:#1d63ed; --df-blue-soft:#e8effd; --df-violet:#6d3fd4; --df-violet-soft:#f0eafc;
-      --df-green:#177a41; --df-green-soft:#e3f4e9; --df-amber:#b45309; --df-amber-soft:#fdf0df;
-      --df-red:#c2372f; --df-red-soft:#fdeceb; --df-cyan:#0e7490; --df-cyan-soft:#e0f3f7;
-      --df-code-bg:#0f1a2e;
-      font-size:14px; color:var(--df-text); background:var(--df-bg);
-      border:1px solid var(--df-line); border-radius:14px; padding:16px;
-      line-height:1.55;
-      font-family:-apple-system,'Segoe UI',system-ui,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
-    }
-    #dftut *{box-sizing:border-box}
-    #dftut .dft-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-
-    #dftut .dft-head{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;margin-bottom:12px}
-    #dftut .dft-head h2{margin:0;font-size:16px;font-weight:500}
-    #dftut .dft-sub{color:var(--df-muted);font-size:12px}
-    #dftut .dft-legend{margin-left:auto;display:flex;gap:12px;font-size:11.5px;color:var(--df-muted);align-items:center;flex-wrap:wrap}
-    #dftut .dft-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
-
-    #dftut .dft-bar{display:flex;gap:8px;align-items:center}
-    #dftut .dft-chips{display:flex;gap:6px;overflow-x:auto;padding:2px;flex:1;scrollbar-width:none}
-    #dftut .dft-chips::-webkit-scrollbar{display:none}
-    #dftut .dft-chip{flex:none;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--df-line);background:var(--df-card);color:var(--df-text);border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;transition:background-color .2s,color .2s,border-color .2s;font-family:inherit}
-    #dftut .dft-chip .n{font-size:11px;color:var(--df-muted);font-variant-numeric:tabular-nums}
-    #dftut .dft-chip:hover{border-color:#c4d2e6}
-    #dftut .dft-chip.is-done.st-build{background:var(--df-blue-soft);border-color:transparent;color:var(--df-blue)}
-    #dftut .dft-chip.is-done.st-runtime{background:var(--df-violet-soft);border-color:transparent;color:var(--df-violet)}
-    #dftut .dft-chip.is-done .n{color:inherit;opacity:.75}
-    #dftut .dft-chip.is-active.st-build{background:var(--df-blue);border-color:var(--df-blue);color:#fff}
-    #dftut .dft-chip.is-active.st-runtime{background:var(--df-violet);border-color:var(--df-violet);color:#fff}
-    #dftut .dft-chip.is-active .n{color:#fff;opacity:.85}
-    #dftut .dft-chip:focus-visible{outline:2px solid var(--df-blue);outline-offset:1px}
-    #dftut .dft-divider{flex:none;font-size:11px;color:var(--df-muted);padding:0 3px;align-self:center}
-
-    #dftut .dft-progress{height:3px;border-radius:2px;background:#e4eaf1;margin:8px 0 12px;overflow:hidden}
-    #dftut #dft-fill{height:100%;width:0;background:var(--df-blue);transition:width .35s ease,background-color .35s ease}
-
-    #dftut .dft-main{display:grid;grid-template-columns:minmax(0,11fr) minmax(0,12fr);gap:12px;align-items:stretch}
-    @media (min-width:781px){ #dftut .dft-main{min-height:560px} }
-    @media (max-width:780px){ #dftut .dft-main{grid-template-columns:1fr} }
-
-    #dftut .dft-fs{background:var(--df-card);border:1px solid var(--df-line);border-radius:12px;padding:12px;min-width:0;display:flex;flex-direction:column}
-    #dftut .dft-fs-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
-    #dftut .dft-fs-title{font-size:13px;font-weight:500}
-    #dftut .dft-view-pill{font-size:11px;color:var(--df-muted);background:#eef2f7;border-radius:6px;padding:1px 7px}
-    #dftut .dft-img-chip{font-size:11px;color:var(--df-muted);background:#f0f3f8;border-radius:6px;padding:2px 8px;display:inline-flex;gap:5px;align-items:center}
-    #dftut .dft-img-chip svg{width:12px;height:12px}
-    #dftut .dft-sys-add{font-size:11px;color:var(--df-green);background:var(--df-green-soft);border-radius:6px;padding:2px 8px;display:none}
-    #dftut .dft-sys-add.on{display:inline-block}
-    #dftut .dft-note{font-size:12px;border:1px solid var(--df-line);border-left:3px solid var(--df-blue);border-radius:8px;padding:6px 10px;margin-bottom:8px;background:#f7f9fc}
-    #dftut .dft-note.st-runtime{border-left-color:var(--df-violet)}
-    #dftut .dft-tree{display:flex;flex-direction:column;gap:1px;max-height:440px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:#c4d0e0 transparent;padding-right:4px;flex:1 1 auto}
-    #dftut .dft-tree::-webkit-scrollbar{width:6px}
-    #dftut .dft-tree::-webkit-scrollbar-thumb{background:#c4d0e0;border-radius:3px}
-    #dftut .dft-tree::-webkit-scrollbar-track{background:transparent}
-    #dftut .dft-row{display:flex;align-items:center;gap:6px;padding:2.5px 8px;border-radius:6px;font-size:12.5px;min-height:22px}
-    #dftut .dft-row:hover{background:#f2f5f9}
-    #dftut .dft-name{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Courier New',monospace;white-space:nowrap}
-    #dftut .dft-name.dir{font-weight:500}
-    #dftut .dft-name.file{color:#33445c}
-    #dftut .dft-ic{display:inline-flex;flex:none}
-    #dftut .dft-ic svg{width:14px;height:14px}
-    #dftut .ic-dir{color:#2f6fde}
-    #dftut .ic-pkg{color:#0e8f9e}
-    #dftut .ic-box{color:#b45309}
-    #dftut .ic-file{color:#8494a8}
-    #dftut .ic-json{color:#8a63c9}
-    #dftut .ic-lock{color:#b45309}
-    #dftut .ic-yaml{color:var(--df-cyan)}
-    #dftut .dft-tag{flex:none;font-size:11px;border-radius:5px;padding:0 6px;line-height:1.6;white-space:nowrap}
-    #dftut .t-new{color:var(--df-green);background:var(--df-green-soft)}
-    #dftut .t-dep{color:var(--df-amber);background:var(--df-amber-soft)}
-    #dftut .t-out{color:var(--df-violet);background:var(--df-violet-soft)}
-    #dftut .t-src{color:var(--df-cyan);background:var(--df-cyan-soft)}
-    #dftut .t-empty{color:var(--df-muted);background:#eef2f7}
-    #dftut .dft-stage-mark{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;border-radius:8px;padding:6px 10px;margin-bottom:4px}
-    #dftut .dft-stage-mark svg{width:14px;height:14px;flex:none}
-    #dftut .dft-stage-mark.st-build{background:var(--df-blue-soft);color:var(--df-blue)}
-    #dftut .dft-stage-mark.st-runtime{background:var(--df-violet-soft);color:var(--df-violet)}
-    #dftut .dft-empty{font-size:12px;color:var(--df-muted);padding:10px 8px}
-    #dftut .dft-strip{display:flex;gap:7px;align-items:flex-start;border-radius:8px;padding:6px 10px;font-size:11.5px;line-height:1.5}
-    #dftut .dft-strip[hidden]{display:none}
-    #dftut .dft-strip svg{width:13px;height:13px;flex:none;margin-top:2px}
-    #dftut .dft-ignore{color:var(--df-red);background:var(--df-red-soft)}
-    #dftut .dft-ready{color:var(--df-green);background:var(--df-green-soft)}
-
-    #dftut .dft-rightcol{display:flex;flex-direction:column;gap:8px;min-width:0}
-    #dftut .dft-rightcol .dft-panel{flex:1 1 auto}
-    #dftut .dft-panel{background:var(--df-card);border:1px solid var(--df-line);border-radius:12px;padding:14px 16px;min-width:0}
-    #dftut .dft-phead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-    #dftut .dft-stagebadge{font-size:11px;border-radius:999px;padding:2px 9px;font-weight:500}
-    #dftut .dft-stagebadge.st-build{background:var(--df-blue-soft);color:var(--df-blue)}
-    #dftut .dft-stagebadge.st-runtime{background:var(--df-violet-soft);color:var(--df-violet)}
-    #dftut .dft-count{margin-left:auto;font-size:11.5px;color:var(--df-muted);font-variant-numeric:tabular-nums}
-    #dftut .dft-panel h3{margin:2px 0 8px;font-size:15px;font-weight:500}
-    #dftut .dft-code{background:var(--df-code-bg);border-radius:10px;padding:10px 12px;overflow-x:auto;margin:0 0 10px}
-    #dftut .dft-code code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Courier New',monospace;font-size:12px;color:#dbe4f2;line-height:1.65;white-space:pre;display:block}
-    #dftut .dft-code .k{color:#7cc0ff}
-    #dftut .dft-code .f{color:#ffc46b}
-    #dftut .dft-body{margin:0 0 9px;font-size:13px;color:#2a3a52}
-    #dftut .dft-bullets{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
-    #dftut .dft-bullets li{position:relative;padding-left:16px;font-size:12.5px;color:var(--df-muted)}
-    #dftut .dft-bullets li::before{content:'';position:absolute;left:2px;top:6.5px;width:6px;height:6px;border-radius:2px;background:#9db9e8}
-    #dftut .dft-panel.st-runtime .dft-bullets li::before{background:#c3a8f0}
-
-    @keyframes dft-enter{0%{opacity:0;transform:translateX(-10px);background:var(--df-green-soft)}55%{opacity:1;transform:translateX(0);background:var(--df-green-soft)}100%{opacity:1;background:transparent}}
-    #dftut .dft-enter{animation:dft-enter .95s ease both}
-    @keyframes dft-leave{to{opacity:0;transform:translateX(12px)}}
-    #dftut .dft-leave{animation:dft-leave .22s ease forwards}
-    @keyframes dft-panelin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-    #dftut .dft-panelin{animation:dft-panelin .28s ease both}
-    @media (prefers-reduced-motion: reduce){
-      #dftut *{animation:none!important;transition:none!important}
-    }
-  </style>
-
-  <p class="dft-sr">Dockerfile 分步交互教程:顶部为 14 个构建步骤,左侧展示每一步后容器文件系统(主要是 /app)的内容,右侧讲解该指令的作用与原理。</p>
-
-  <div class="dft-head">
-    <h2>Dockerfile 逐步构建教程</h2>
-    <span class="dft-sub">每一步如何改变容器里的文件系统 · 点击步骤条或用 ← → 浏览</span>
-    <div class="dft-legend" aria-hidden="true">
-      <span><span class="dft-dot" style="background:var(--df-blue)"></span>Stage 1 构建</span>
-      <span><span class="dft-dot" style="background:var(--df-violet)"></span>Stage 2 运行</span>
-      <span><span class="dft-dot" style="background:var(--df-green)"></span>新增</span>
-    </div>
-  </div>
-
-  <div class="dft-bar">
-    <div class="dft-chips" id="dft-chips" aria-label="Dockerfile 构建步骤"></div>
-  </div>
-  <div class="dft-progress" role="progressbar" aria-label="构建进度" aria-valuemin="1" aria-valuemax="14" aria-valuenow="1"><div id="dft-fill"></div></div>
-
-  <div class="dft-main">
-    <section class="dft-fs" aria-label="容器文件系统">
-      <div class="dft-fs-head">
-        <span class="dft-fs-title">容器文件系统</span>
-        <span class="dft-view-pill">简化视图</span>
-        <span class="dft-img-chip"><i data-lucide="layers"></i>node:22.23.2-bookworm-slim</span>
-        <span class="dft-sys-add" id="dft-sys"></span>
-      </div>
-      <div class="dft-note" id="dft-note"></div>
-      <div class="dft-tree" id="dft-tree" aria-label="/app 目录内容"></div>
-    </section>
-
-    <div class="dft-rightcol">
-      <article class="dft-panel" id="dft-panel" aria-live="polite"></article>
-      <div class="dft-strip dft-ignore" id="dft-ignore" hidden><i data-lucide="ban"></i><span>.dockerignore 拦截:<b>**/node_modules、**/dist、data、backups、.env*、coverage、.git、.github、.zcode</b> 与根级 docs/test/scripts/*.md/*.log —— 密钥与生产数据进不了镜像。注意裸模式(如 test、*.md)只匹配根级,子包的 test、README 仍会进入构建上下文</span></div>
-      <div class="dft-strip dft-ready" id="dft-ready" hidden><i data-lucide="check"></i><span>镜像组装完成 —— 可以执行 <b>docker build -t toby .</b>,然后 <b>docker compose up -d</b></span></div>
-    </div>
-  </div>
-
-  <script>
-  (function(){
-    var root = document.getElementById('dftut');
-    if(!root) return;
-    var RM = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    var PB = ['app/package.json','app/pnpm-lock.yaml','app/pnpm-workspace.yaml',
-      'app/apps/server/package.json','app/apps/web/package.json','app/apps/web-mobile/package.json',
-      'app/packages/contract/package.json'];
-    var P6 = PB.concat(['app/node_modules','app/apps/server/node_modules','app/apps/web/node_modules',
-      'app/apps/web-mobile/node_modules','app/packages/contract/node_modules']);
-    var P7 = P6.concat(['app/apps/server/src','app/apps/web/src','app/apps/web-mobile/src','app/packages/contract/src']);
-    var P8 = P7.concat(['app/apps/server/dist','app/apps/web/dist','app/apps/web-mobile/dist']);
-    var P10 = ['app/package.json','app/pnpm-workspace.yaml','app/apps/server/package.json'];
-    var P11 = P10.concat(['app/node_modules','app/apps/server/node_modules','app/apps/server/dist',
-      'app/apps/web/dist','app/apps/web-mobile/dist','app/packages/contract/package.json',
-      'app/packages/contract/node_modules','app/packages/contract/src']);
-
-    var S = [
-      { chip:'FROM', stage:'build',
-        paths:[],
-        mark:'Stage 1 · 构建阶段 —— 从全新基础镜像开始',
-        empty:'容器里还只有基础镜像,/app 尚未创建',
-        note:'基础镜像就位:Debian 12 + Node 22.23.2 工具链',
-        sys:null,
-        code:'<span class="k">FROM</span> node:22.23.2-bookworm-slim <span class="k">AS</span> build',
-        title:'第一阶段:构建镜像',
-        body:'多阶段构建的第一站。基础镜像把 Node 钉死在 22.23.2 —— 与根 package.json 的 engines 字段完全一致;镜像内的版本一致性由镜像 tag 直接保证。.npmrc 里的 engine-strict=true 只约束本地/CI 的安装:它在源码拷入时才进镜像,晚于 pnpm install,容器内并不生效。',
-        bullets:['bookworm-slim 即 Debian 12 精简版。不用 Alpine,因为 better-sqlite3 只发布 glibc 预编译包','AS build 给阶段命名,后面用 COPY --from=build 引用它','此刻容器里只有操作系统和 Node,还没有任何业务代码'] },
-      { chip:'WORKDIR', stage:'build',
-        paths:['app'],
-        note:'新建 /app(空目录)',
-        sys:null,
-        code:'<span class="k">WORKDIR</span> /app',
-        title:'创建工作目录 /app',
-        body:'WORKDIR 在容器内创建 /app(不存在时自动创建),并把后续所有指令的工作目录设在这里。整个 monorepo 结构接下来都会原样复刻在这个目录下。',
-        bullets:['目录不存在时 WORKDIR 会自动创建','相当于每个后续指令都先执行了 cd /app'] },
-      { chip:'corepack', stage:'build',
-        paths:['app'],
-        note:'变化发生在系统目录:/usr/local/bin 出现 pnpm 垫片',
-        sys:'/usr/local/bin/pnpm(+pnpx)垫片',
-        code:'<span class="k">RUN</span> corepack enable',
-        title:'启用 pnpm 包管理器',
-        body:'Node 镜像自带 corepack,但默认没有 pnpm 命令。corepack enable 只负责启用命令代理:在 /usr/local/bin 放入 pnpm/pnpx 垫片;首次调用 pnpm 时,Corepack 再按项目 packageManager 字段(本仓库 pnpm@11.18.0)选择并下载对应版本 —— 能否成功取决于 Corepack 自身版本与网络条件。',
-        bullets:['注意:目录变化在系统目录 /usr/local/bin,不在 /app','保证本地与容器使用完全相同的包管理器版本'] },
-      { chip:'COPY 清单', stage:'build',
-        paths:PB,
-        note:'7 份依赖清单进入 /app',
-        sys:null,
-        code:'<span class="k">COPY</span> pnpm-workspace.yaml pnpm-lock.yaml package.json ./\n<span class="k">COPY</span> apps/server/package.json apps/server/\n<span class="k">COPY</span> apps/web/package.json apps/web/\n<span class="k">COPY</span> apps/web-mobile/package.json apps/web-mobile/\n<span class="k">COPY</span> packages/contract/package.json packages/contract/',
-        title:'先拷清单,再装依赖',
-        body:'Docker 层缓存的经典手法:先只拷贝各 package.json 与 lockfile 用来安装依赖,源码最后才进镜像。这样只要依赖不变,无论改多少代码,pnpm install 那一层永远命中缓存。',
-        bullets:['每条 COPY 各占一层,精确控制缓存失效范围','只拷 package.json、不拷源码,是缓存命中的关键'] },
-      { chip:'npm pkg', stage:'build',
-        paths:PB,
-        note:'目录无变化 —— 修改的是刚拷入的 package.json(删一个字段)',
-        sys:null,
-        code:'<span class="k">RUN</span> npm pkg delete scripts.prepare',
-        title:'移除 prepare 脚本',
-        body:'根 package.json 里的 prepare 脚本运行 simple-git-hooks,在开发机上负责给 git 仓库安装 pre-commit / commit-msg 钩子。构建上下文里没有 .git 目录,钩子无从安装,所以要在 pnpm install 之前把它删掉 —— 此刻清单已拷入,删除有文件可改:它必须排在清单拷贝之后、install 之前。',
-        bullets:['npm pkg 直接修改 JSON,不用手写 sed 或 jq','对应 package.json 中 "prepare": "simple-git-hooks" 这一行','后面的 COPY . . 会用宿主机的原始 package.json 覆盖回来 —— 无害:prepare 只在 install 阶段执行,而 install 已经跑完'] },
-      { chip:'install', stage:'build',
-        paths:P6,
-        note:'依赖落盘:根 node_modules + 各 workspace 自己的 node_modules',
-        sys:null,
-        code:'<span class="k">RUN</span> pnpm install --frozen-lockfile',
-        title:'按 lockfile 精确安装依赖',
-        body:'pnpm 按 pnpm-lock.yaml 逐字安装。--frozen-lockfile 禁止改动 lockfile —— 依赖与 lockfile 不一致时直接报错,保证容器、CI、同事机器上的依赖完全一致。',
-        bullets:['pnpm 用符号链接 + 硬链接组织 node_modules,省磁盘也更快','版本一致性由基础镜像 tag 保证;engine-strict(.npmrc)只在本地/CI 安装时兜底,容器内不生效'] },
-      { chip:'COPY .', stage:'build',
-        paths:P7,
-        note:'其余内容进入 /app —— 全部 node_modules/dist、data、.env 与根级 docs/test/scripts 已被 .dockerignore 挡住;子包的 test、README 等小文件仍会进入',
-        sys:null,
-        code:'<span class="k">COPY</span> . .',
-        title:'拷入其余内容',
-        body:'把构建上下文中所有未被 .dockerignore 排除的内容拷进 /app —— 不只是源码:各包的 tsconfig、vite.config、README、test 等小文件也会进入(目录树为简化视图,未逐一画出)。已装好的 node_modules 不受影响,它们整个被挡在上下文之外。原始 package.json 会覆盖第 5 步删过字段的副本,但无害:prepare 只在 install 时执行。',
-        bullets:['密钥(.env)与生产数据(data/)根本进不了构建上下文','上下文更小:COPY 更快,缓存也更稳'] },
-      { chip:'build', stage:'build',
-        paths:P8,
-        note:'三个 dist/ 构建产物生成',
-        sys:null,
-        code:'<span class="k">RUN</span> pnpm run build',
-        title:'构建两 Web + 服务端',
-        body:'依次构建 @toby/web、@toby/web-mobile(产出静态文件)与 @toby/server(nest build 编译进 apps/server/dist)。到此 Stage 1 的使命完成。',
-        bullets:['产物全部位于 apps/*/dist 目录','只依赖源码层:改代码只重跑构建,依赖安装层继续命中缓存'] },
-      { chip:'FROM', stage:'runtime',
-        paths:[],
-        mark:'Stage 2 · 运行阶段 —— 全新基础镜像,Stage 1 的内容不带入',
-        empty:'全新镜像 —— /app 将重新组装',
-        note:'回到空白镜像:Stage 1 的工具链、源码、依赖全部留在过去',
-        sys:null,
-        code:'<span class="k">FROM</span> node:22.23.2-bookworm-slim <span class="k">AS</span> runtime',
-        title:'第二阶段:全新镜像',
-        body:'多阶段构建的核心:第二个 FROM 从干净的基础镜像重新开始 —— 没有被 COPY --from=build 显式搬运的内容(源码树、pnpm 下载缓存)一律不进最终镜像。但注意:本 Dockerfile 把 node_modules 整包拷入运行时,devDependencies 也随之进入;packages/contract 的源码同样会进入(见第 12 步)。',
-        bullets:['未被搬运的内容留在 build 阶段:两个 web 的 src、下载缓存等','注意:node_modules 是整包拷入,devDependencies 并未剥离 —— Dockerfile 注释 "production deps only" 与实际行为不符','体积更小、攻击面更小、拉取与部署更快'] },
-      { chip:'WORKDIR+ENV', stage:'runtime',
-        paths:['app'],
-        note:'重建 /app + 声明生产环境变量',
-        sys:null,
-        code:'<span class="k">WORKDIR</span> /app\n<span class="k">ENV</span> NODE_ENV=production',
-        title:'重建目录,切换生产模式',
-        body:'在全新镜像里重建 /app,并设置 NODE_ENV=production,让运行时框架走生产路径。',
-        bullets:[] },
-      { chip:'COPY 布局', stage:'runtime',
-        paths:P10,
-        note:'仅 3 份清单 —— 刻意保留 monorepo 相对布局',
-        sys:null,
-        code:'<span class="k">COPY</span> pnpm-workspace.yaml package.json ./\n<span class="k">COPY</span> apps/server/package.json apps/server/package.json',
-        title:'保留 monorepo 布局',
-        body:'这里只拷 3 份清单,不是为了装依赖,而是服务器启动要靠它们:config.ts 靠 pnpm-workspace.yaml 定位仓库根;server 读 apps/server/package.json 获取版本号。',
-        bullets:['注意:没有 pnpm-lock.yaml —— 运行阶段不再安装任何东西','每个路径都是 load-bearing:缺一个就会 Cannot find module 或配置失败'] },
-      { chip:'COPY 产物', stage:'runtime',
-        paths:P11,
-        note:'从 Stage 1 拷入依赖与产物 —— 整目录搬运的 contract 连 test/tsconfig 一并带入(树中省略)',
-        sys:null,
-        code:'<span class="k">COPY</span> <span class="f">--from=build</span> /app/node_modules ./node_modules\n<span class="k">COPY</span> <span class="f">--from=build</span> /app/apps/server/node_modules ./apps/server/node_modules\n<span class="k">COPY</span> <span class="f">--from=build</span> /app/apps/server/dist ./apps/server/dist\n<span class="k">COPY</span> <span class="f">--from=build</span> /app/apps/web/dist ./apps/web/dist\n<span class="k">COPY</span> <span class="f">--from=build</span> /app/apps/web-mobile/dist ./apps/web-mobile/dist\n<span class="k">COPY</span> <span class="f">--from=build</span> /app/packages/contract ./packages/contract',
-        title:'跨阶段搬运,组装镜像',
-        body:'--from=build 是多阶段构建的传送门:把根 node_modules、apps/server 的依赖、三个 dist 产物、packages/contract 整包从 Stage 1 搬进 Stage 2。',
-        bullets:['packages/contract 是纯逻辑包:无构建步骤、无构建产物,整目录搬运 —— src、node_modules 连同 test/tsconfig 一起进入运行时;它只被两个 web 应用以 workspace:* 依赖(构建时已打进 dist),服务端并不直接引用','apps/server/dist 里保留 infrastructure/db/backup-cli.js,容器内备份命令继续可用'] },
-      { chip:'EXPOSE', stage:'runtime',
-        paths:P11,
-        note:'目录无变化 —— 仅写入端口元数据',
-        sys:null,
-        code:'<span class="k">EXPOSE</span> 8629',
-        title:'声明监听端口',
-        body:'EXPOSE 只是元数据,声明容器内服务监听 8629,并不会对外发布端口。真正的映射由 compose.yaml 完成:127.0.0.1:8629:8629,仅本机回环可访问。',
-        bullets:['健康检查也归 compose 所有:探针请求 /api/system/health','数据不进镜像:compose 把宿主机 ./data 挂载到容器的 /app/data'] },
-      { chip:'CMD', stage:'runtime',
-        paths:P11,
-        note:'目录不再变化 —— 定义启动命令,镜像完成',
-        sys:null,
-        code:'<span class="k">CMD</span> ["node", "--env-file-if-exists=.env", "apps/server/dist/main.js"]',
-        title:'启动命令',
-        body:'容器启动即执行 node apps/server/dist/main.js。--env-file-if-exists=.env:容器内有 .env 就加载,没有也照常启动(compose 会注入环境变量)。数据库文件来自挂载卷,镜像保持无状态。',
-        bullets:['构建并运行:docker build -t toby . → docker compose up -d','验证:curl http://127.0.0.1:8629/api/system/health'] }
-    ];
-
-    var els = {
-      chips: document.getElementById('dft-chips'),
-      fill: document.getElementById('dft-fill'),
-      progress: root.querySelector('.dft-progress'),
-      tree: document.getElementById('dft-tree'),
-      note: document.getElementById('dft-note'),
-      sys: document.getElementById('dft-sys'),
-      ignore: document.getElementById('dft-ignore'),
-      ready: document.getElementById('dft-ready'),
-      panel: document.getElementById('dft-panel')
-    };
-    if(!els.chips || !els.tree || !els.panel) return;
-
-    var chipEls = [];
-    S.forEach(function(s, i){
-      if(i === 8){
-        var d = document.createElement('span');
-        d.className = 'dft-divider';
-        d.textContent = 'Stage 2';
-        els.chips.appendChild(d);
-      }
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'dft-chip st-' + s.stage;
-      b.innerHTML = '<span class="n">' + (i + 1) + '</span>' + s.chip;
-      b.addEventListener('click', function(){ go(i); });
-      els.chips.appendChild(b);
-      chipEls.push(b);
-    });
-
-    var DIR_RES = /(^|\/)(node_modules|src|dist)$/;
-    function buildRows(paths){
-      var root = { children: {} };
-      paths.forEach(function(p){
-        var segs = p.split('/');
-        var node = root;
-        for(var i = 0; i < segs.length; i++){
-          if(!node.children[segs[i]]) node.children[segs[i]] = { children: {} };
-          node = node.children[segs[i]];
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dockerfile 逐步构建教程 · Toby</title>
+    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+    <script>
+      (function () {
+        var KEY = "dockerfile-tutorial-state";
+        var mem = { modelContent: null, privateContent: null };
+        try {
+          var raw = localStorage.getItem(KEY);
+          if (raw) mem = JSON.parse(raw);
+        } catch (e) {}
+        window.zcode = {
+          widgetState: mem,
+          setWidgetState: function (next) {
+            try {
+              localStorage.setItem(KEY, JSON.stringify(next || {}));
+            } catch (e) {}
+            return Promise.resolve();
+          },
+        };
+      })();
+    </script>
+  </head>
+  <body style="margin: 0; padding: 24px; background: #e8ecf2">
+    <div id="dftut">
+      <style>
+        #dftut {
+          --df-bg: #f4f6fa;
+          --df-card: #ffffff;
+          --df-line: #e2e8f0;
+          --df-text: #101a2b;
+          --df-muted: #5b6a7d;
+          --df-blue: #1d63ed;
+          --df-blue-soft: #e8effd;
+          --df-violet: #6d3fd4;
+          --df-violet-soft: #f0eafc;
+          --df-green: #177a41;
+          --df-green-soft: #e3f4e9;
+          --df-amber: #b45309;
+          --df-amber-soft: #fdf0df;
+          --df-red: #c2372f;
+          --df-red-soft: #fdeceb;
+          --df-cyan: #0e7490;
+          --df-cyan-soft: #e0f3f7;
+          --df-code-bg: #0f1a2e;
+          font-size: 14px;
+          color: var(--df-text);
+          background: var(--df-bg);
+          border: 1px solid var(--df-line);
+          border-radius: 14px;
+          padding: 16px;
+          line-height: 1.55;
+          font-family:
+            -apple-system, "Segoe UI", system-ui, "PingFang SC",
+            "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
         }
-      });
-      var rows = [], dirs = {};
-      function hasKids(node){
-        for(var k in node.children) return true;
-        return false;
-      }
-      (function walk(node, depth, prefix){
-        var names = Object.keys(node.children);
-        names.sort(function(a, b){
-          var pa = prefix ? prefix + '/' + a : a;
-          var pb = prefix ? prefix + '/' + b : b;
-          var da = hasKids(node.children[a]) || DIR_RES.test(pa);
-          var db = hasKids(node.children[b]) || DIR_RES.test(pb);
-          if(da !== db) return da ? -1 : 1;
-          return a < b ? -1 : a > b ? 1 : 0;
-        });
-        names.forEach(function(name){
-          var child = node.children[name];
-          var path = prefix ? prefix + '/' + name : name;
-          if(hasKids(child)){
-            dirs[path] = true;
-            rows.push({ path: path, name: name, depth: depth });
-            walk(child, depth + 1, path);
-          } else {
-            rows.push({ path: path, name: name, depth: depth });
+        #dftut * {
+          box-sizing: border-box;
+        }
+        #dftut .dft-sr {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+        }
+
+        #dftut .dft-head {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px 14px;
+          align-items: baseline;
+          margin-bottom: 12px;
+        }
+        #dftut .dft-head h2 {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 500;
+        }
+        #dftut .dft-sub {
+          color: var(--df-muted);
+          font-size: 12px;
+        }
+        #dftut .dft-legend {
+          margin-left: auto;
+          display: flex;
+          gap: 12px;
+          font-size: 11.5px;
+          color: var(--df-muted);
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        #dftut .dft-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          display: inline-block;
+          margin-right: 5px;
+        }
+
+        #dftut .dft-bar {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+        #dftut .dft-chips {
+          display: flex;
+          gap: 6px;
+          overflow-x: auto;
+          padding: 2px;
+          flex: 1;
+          scrollbar-width: none;
+        }
+        #dftut .dft-chips::-webkit-scrollbar {
+          display: none;
+        }
+        #dftut .dft-chip {
+          flex: none;
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          border: 1px solid var(--df-line);
+          background: var(--df-card);
+          color: var(--df-text);
+          border-radius: 999px;
+          padding: 3px 10px;
+          font-size: 12px;
+          cursor: pointer;
+          transition:
+            background-color 0.2s,
+            color 0.2s,
+            border-color 0.2s;
+          font-family: inherit;
+        }
+        #dftut .dft-chip .n {
+          font-size: 11px;
+          color: var(--df-muted);
+          font-variant-numeric: tabular-nums;
+        }
+        #dftut .dft-chip:hover {
+          border-color: #c4d2e6;
+        }
+        #dftut .dft-chip.is-done.st-build {
+          background: var(--df-blue-soft);
+          border-color: transparent;
+          color: var(--df-blue);
+        }
+        #dftut .dft-chip.is-done.st-runtime {
+          background: var(--df-violet-soft);
+          border-color: transparent;
+          color: var(--df-violet);
+        }
+        #dftut .dft-chip.is-done .n {
+          color: inherit;
+          opacity: 0.75;
+        }
+        #dftut .dft-chip.is-active.st-build {
+          background: var(--df-blue);
+          border-color: var(--df-blue);
+          color: #fff;
+        }
+        #dftut .dft-chip.is-active.st-runtime {
+          background: var(--df-violet);
+          border-color: var(--df-violet);
+          color: #fff;
+        }
+        #dftut .dft-chip.is-active .n {
+          color: #fff;
+          opacity: 0.85;
+        }
+        #dftut .dft-chip:focus-visible {
+          outline: 2px solid var(--df-blue);
+          outline-offset: 1px;
+        }
+        #dftut .dft-divider {
+          flex: none;
+          font-size: 11px;
+          color: var(--df-muted);
+          padding: 0 3px;
+          align-self: center;
+        }
+
+        #dftut .dft-progress {
+          height: 3px;
+          border-radius: 2px;
+          background: #e4eaf1;
+          margin: 8px 0 12px;
+          overflow: hidden;
+        }
+        #dftut #dft-fill {
+          height: 100%;
+          width: 0;
+          background: var(--df-blue);
+          transition:
+            width 0.35s ease,
+            background-color 0.35s ease;
+        }
+
+        #dftut .dft-main {
+          display: grid;
+          grid-template-columns: minmax(0, 11fr) minmax(0, 12fr);
+          gap: 12px;
+          align-items: stretch;
+        }
+        @media (min-width: 781px) {
+          #dftut .dft-main {
+            min-height: 560px;
           }
-        });
-      })(root, 0, '');
-      return { rows: rows, dirs: dirs };
-    }
-    function rowMeta(r, dirs){
-      var p = r.path;
-      var isDir = dirs[p] || p === 'app' || DIR_RES.test(p);
-      var ic = 'ic-file', icon = 'file';
-      if(isDir){
-        if(/(^|\/)node_modules$/.test(p)){ ic = 'ic-pkg'; icon = 'package'; }
-        else if(/(^|\/)dist$/.test(p)){ ic = 'ic-box'; icon = 'box'; }
-        else { ic = 'ic-dir'; icon = (!dirs[p] && p === 'app') ? 'folder-open' : 'folder'; }
-      } else if(/package\.json$/.test(p)){ ic = 'ic-json'; icon = 'braces'; }
-      else if(/pnpm-lock\.yaml$/.test(p)){ ic = 'ic-lock'; icon = 'lock'; }
-      else if(/\.yaml$/.test(p)){ ic = 'ic-yaml'; icon = 'file-code'; }
-      var tag = null, tcls = null;
-      if(/(^|\/)node_modules$/.test(p)){ tag = '依赖'; tcls = 't-dep'; }
-      else if(/(^|\/)dist$/.test(p)){ tag = '产物'; tcls = 't-out'; }
-      else if(/(^|\/)src$/.test(p)){ tag = '源码'; tcls = 't-src'; }
-      else if(p === 'app' && !dirs[p]){ tag = '空目录'; tcls = 't-empty'; }
-      return { isDir: isDir, ic: ic, icon: icon, tag: tag, tcls: tcls };
-    }
-
-    var cur = -1, token = 0;
-
-    function stageCls(stage){ return stage === 'runtime' ? 'st-runtime' : 'st-build'; }
-
-    var lastRendered = null;
-    function renderTree(isInit){
-      var s = S[cur];
-      var built = buildRows(s.paths);
-      var prevSet = lastRendered || {};
-      var html = '';
-      if(s.mark){
-        html += '<div class="dft-stage-mark ' + stageCls(s.stage) + '"><i data-lucide="layers"></i><span>' + s.mark + '</span></div>';
-      }
-      var enterIdx = 0;
-      built.rows.forEach(function(r){
-        var m = rowMeta(r, built.dirs);
-        var enter = !prevSet[r.path] && !RM && !isInit;
-        var styleAttr = 'padding-left:' + (8 + r.depth * 15) + 'px';
-        if(enter) styleAttr = 'animation-delay:' + Math.min(enterIdx++ * 40, 480) + 'ms;' + styleAttr;
-        html += '<div class="dft-row' + (enter ? ' dft-enter' : '') + '" data-path="' + r.path + '" style="' + styleAttr + '">'
-          + '<span class="dft-ic ' + m.ic + '"><i data-lucide="' + m.icon + '"></i></span>'
-          + '<span class="dft-name ' + (m.isDir ? 'dir' : 'file') + '">' + r.name + '</span>'
-          + (enter ? '<span class="dft-tag t-new">新增</span>' : (m.tag ? '<span class="dft-tag ' + m.tcls + '">' + m.tag + '</span>' : ''))
-          + '</div>';
-      });
-      if(!built.rows.length){
-        html += '<div class="dft-empty">' + (s.empty || '(空)') + '</div>';
-      }
-      lastRendered = {};
-      built.rows.forEach(function(r){ lastRendered[r.path] = true; });
-      els.tree.innerHTML = html;
-      if(window.lucide) window.lucide.createIcons({ attrs: { width: 14, height: 14 } });
-    }
-
-    function renderPanel(){
-      var s = S[cur];
-      els.panel.className = 'dft-panel ' + stageCls(s.stage);
-      var html = '<div class="dft-phead">'
-        + '<span class="dft-stagebadge ' + stageCls(s.stage) + '">' + (s.stage === 'runtime' ? 'Stage 2 · 运行' : 'Stage 1 · 构建') + '</span>'
-        + '<span class="dft-count">' + (cur + 1) + ' / ' + S.length + '</span></div>'
-        + '<h3>' + s.title + '</h3>'
-        + '<pre class="dft-code"><code>' + s.code + '</code></pre>'
-        + '<p class="dft-body">' + s.body + '</p>';
-      if(s.bullets.length){
-        html += '<ul class="dft-bullets">' + s.bullets.map(function(b){ return '<li>' + b + '</li>'; }).join('') + '</ul>';
-      }
-      els.panel.innerHTML = html;
-      if(!RM){
-        els.panel.classList.remove('dft-panelin');
-        void els.panel.offsetWidth;
-        els.panel.classList.add('dft-panelin');
-      }
-    }
-
-    function updateChrome(){
-      chipEls.forEach(function(b, i){
-        b.classList.toggle('is-active', i === cur);
-        b.classList.toggle('is-done', i < cur);
-        if(i === cur) b.setAttribute('aria-current', 'step');
-        else b.removeAttribute('aria-current');
-      });
-      var active = chipEls[cur];
-      if(active){
-        var c = els.chips;
-        if(active.offsetLeft < c.scrollLeft + 10 || active.offsetLeft > c.scrollLeft + c.clientWidth - 90){
-          try{ c.scrollTo({ left: Math.max(0, active.offsetLeft - 40), behavior: RM ? 'auto' : 'smooth' }); }catch(e){ c.scrollLeft = Math.max(0, active.offsetLeft - 40); }
         }
-      }
-      var s = S[cur];
-      els.fill.style.width = (((cur + 1) / S.length) * 100) + '%';
-      els.fill.style.backgroundColor = s.stage === 'runtime' ? 'var(--df-violet)' : 'var(--df-blue)';
-      els.progress.setAttribute('aria-valuenow', String(cur + 1));
-      els.note.textContent = s.note;
-      els.note.className = 'dft-note ' + stageCls(s.stage);
-      if(s.sys){ els.sys.textContent = '系统目录 +' + s.sys; els.sys.className = 'dft-sys-add on'; }
-      else { els.sys.className = 'dft-sys-add'; }
-      els.ignore.hidden = cur !== 6;
-      els.ready.hidden = cur < 11;
-      renderPanel();
-    }
-
-    function saveState(){
-      try{
-        var z = window.zcode;
-        if(z && typeof z.setWidgetState === 'function'){
-          var p = z.setWidgetState({ modelContent: { step: cur } });
-          if(p && typeof p.catch === 'function') p.catch(function(){});
+        @media (max-width: 780px) {
+          #dftut .dft-main {
+            grid-template-columns: 1fr;
+          }
         }
-      }catch(e){}
-    }
 
-    function go(n, opts){
-      n = Math.max(0, Math.min(S.length - 1, n));
-      if(n === cur) return;
-      var prev = cur;
-      cur = n;
-      var t = ++token;
-      updateChrome();
-      var nextSet = {};
-      S[cur].paths.forEach(function(p){ nextSet[p] = true; });
-      var leaving = [];
-      if(prev >= 0){
-        Array.prototype.forEach.call(els.tree.querySelectorAll('.dft-row'), function(el){
-          var p = el.getAttribute('data-path');
-          if(p && !nextSet[p]) leaving.push(el);
-        });
-      }
-      if(leaving.length && !RM){
-        leaving.forEach(function(el){ el.classList.add('dft-leave'); });
-        setTimeout(function(){ if(token === t) renderTree(); }, 230);
-      } else {
-        renderTree();
-      }
-      if(!(opts && opts.noSave)) saveState();
-    }
-
-    document.addEventListener('keydown', function(e){
-      if(e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
-      var t = e.target;
-      if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-      if(e.key === 'ArrowRight'){ e.preventDefault(); go(cur + 1); }
-      else if(e.key === 'ArrowLeft'){ e.preventDefault(); go(cur - 1); }
-    });
-
-    window.addEventListener('zcode:set_globals', function(ev){
-      try{
-        var st = ev.detail && ev.detail.globals && ev.detail.globals.widgetState;
-        if(st && st.modelContent && typeof st.modelContent.step === 'number'
-          && st.modelContent.step >= 0 && st.modelContent.step < S.length && st.modelContent.step !== cur){
-          go(st.modelContent.step);
+        #dftut .dft-fs {
+          background: var(--df-card);
+          border: 1px solid var(--df-line);
+          border-radius: 12px;
+          padding: 12px;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
         }
-      }catch(e){}
-    });
+        #dftut .dft-fs-head {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 8px;
+          flex-wrap: wrap;
+        }
+        #dftut .dft-fs-title {
+          font-size: 13px;
+          font-weight: 500;
+        }
+        #dftut .dft-view-pill {
+          font-size: 11px;
+          color: var(--df-muted);
+          background: #eef2f7;
+          border-radius: 6px;
+          padding: 1px 7px;
+        }
+        #dftut .dft-img-chip {
+          font-size: 11px;
+          color: var(--df-muted);
+          background: #f0f3f8;
+          border-radius: 6px;
+          padding: 2px 8px;
+          display: inline-flex;
+          gap: 5px;
+          align-items: center;
+        }
+        #dftut .dft-img-chip svg {
+          width: 12px;
+          height: 12px;
+        }
+        #dftut .dft-sys-add {
+          font-size: 11px;
+          color: var(--df-green);
+          background: var(--df-green-soft);
+          border-radius: 6px;
+          padding: 2px 8px;
+          display: none;
+        }
+        #dftut .dft-sys-add.on {
+          display: inline-block;
+        }
+        #dftut .dft-note {
+          font-size: 12px;
+          border: 1px solid var(--df-line);
+          border-left: 3px solid var(--df-blue);
+          border-radius: 8px;
+          padding: 6px 10px;
+          margin-bottom: 8px;
+          background: #f7f9fc;
+        }
+        #dftut .dft-note.st-runtime {
+          border-left-color: var(--df-violet);
+        }
+        #dftut .dft-tree {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          max-height: 440px;
+          overflow-y: auto;
+          overflow-x: hidden;
+          scrollbar-width: thin;
+          scrollbar-color: #c4d0e0 transparent;
+          padding-right: 4px;
+          flex: 1 1 auto;
+        }
+        #dftut .dft-tree::-webkit-scrollbar {
+          width: 6px;
+        }
+        #dftut .dft-tree::-webkit-scrollbar-thumb {
+          background: #c4d0e0;
+          border-radius: 3px;
+        }
+        #dftut .dft-tree::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        #dftut .dft-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 2.5px 8px;
+          border-radius: 6px;
+          font-size: 12.5px;
+          min-height: 22px;
+        }
+        #dftut .dft-row:hover {
+          background: #f2f5f9;
+        }
+        #dftut .dft-name {
+          font-family:
+            ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New",
+            monospace;
+          white-space: nowrap;
+        }
+        #dftut .dft-name.dir {
+          font-weight: 500;
+        }
+        #dftut .dft-name.file {
+          color: #33445c;
+        }
+        #dftut .dft-ic {
+          display: inline-flex;
+          flex: none;
+        }
+        #dftut .dft-ic svg {
+          width: 14px;
+          height: 14px;
+        }
+        #dftut .ic-dir {
+          color: #2f6fde;
+        }
+        #dftut .ic-pkg {
+          color: #0e8f9e;
+        }
+        #dftut .ic-box {
+          color: #b45309;
+        }
+        #dftut .ic-file {
+          color: #8494a8;
+        }
+        #dftut .ic-json {
+          color: #8a63c9;
+        }
+        #dftut .ic-lock {
+          color: #b45309;
+        }
+        #dftut .ic-yaml {
+          color: var(--df-cyan);
+        }
+        #dftut .dft-tag {
+          flex: none;
+          font-size: 11px;
+          border-radius: 5px;
+          padding: 0 6px;
+          line-height: 1.6;
+          white-space: nowrap;
+        }
+        #dftut .t-new {
+          color: var(--df-green);
+          background: var(--df-green-soft);
+        }
+        #dftut .t-dep {
+          color: var(--df-amber);
+          background: var(--df-amber-soft);
+        }
+        #dftut .t-out {
+          color: var(--df-violet);
+          background: var(--df-violet-soft);
+        }
+        #dftut .t-src {
+          color: var(--df-cyan);
+          background: var(--df-cyan-soft);
+        }
+        #dftut .t-empty {
+          color: var(--df-muted);
+          background: #eef2f7;
+        }
+        #dftut .dft-stage-mark {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          font-size: 12px;
+          font-weight: 500;
+          border-radius: 8px;
+          padding: 6px 10px;
+          margin-bottom: 4px;
+        }
+        #dftut .dft-stage-mark svg {
+          width: 14px;
+          height: 14px;
+          flex: none;
+        }
+        #dftut .dft-stage-mark.st-build {
+          background: var(--df-blue-soft);
+          color: var(--df-blue);
+        }
+        #dftut .dft-stage-mark.st-runtime {
+          background: var(--df-violet-soft);
+          color: var(--df-violet);
+        }
+        #dftut .dft-empty {
+          font-size: 12px;
+          color: var(--df-muted);
+          padding: 10px 8px;
+        }
+        #dftut .dft-strip {
+          display: flex;
+          gap: 7px;
+          align-items: flex-start;
+          border-radius: 8px;
+          padding: 6px 10px;
+          font-size: 11.5px;
+          line-height: 1.5;
+        }
+        #dftut .dft-strip[hidden] {
+          display: none;
+        }
+        #dftut .dft-strip svg {
+          width: 13px;
+          height: 13px;
+          flex: none;
+          margin-top: 2px;
+        }
+        #dftut .dft-ignore {
+          color: var(--df-red);
+          background: var(--df-red-soft);
+        }
+        #dftut .dft-ready {
+          color: var(--df-green);
+          background: var(--df-green-soft);
+        }
 
-    var init = 0;
-    try{
-      var ws = window.zcode && window.zcode.widgetState;
-      if(ws && ws.modelContent && typeof ws.modelContent.step === 'number'
-        && ws.modelContent.step >= 0 && ws.modelContent.step < S.length){
-        init = ws.modelContent.step;
-      }
-    }catch(e){}
-    cur = init;
-    updateChrome();
-    renderTree(true);
-    if(window.lucide) window.lucide.createIcons({ attrs: { width: 14, height: 14 } });
-  })();
-  </script>
-</div>
+        #dftut .dft-rightcol {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          min-width: 0;
+        }
+        #dftut .dft-rightcol .dft-panel {
+          flex: 1 1 auto;
+        }
+        #dftut .dft-panel {
+          background: var(--df-card);
+          border: 1px solid var(--df-line);
+          border-radius: 12px;
+          padding: 14px 16px;
+          min-width: 0;
+        }
+        #dftut .dft-phead {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 6px;
+        }
+        #dftut .dft-stagebadge {
+          font-size: 11px;
+          border-radius: 999px;
+          padding: 2px 9px;
+          font-weight: 500;
+        }
+        #dftut .dft-stagebadge.st-build {
+          background: var(--df-blue-soft);
+          color: var(--df-blue);
+        }
+        #dftut .dft-stagebadge.st-runtime {
+          background: var(--df-violet-soft);
+          color: var(--df-violet);
+        }
+        #dftut .dft-count {
+          margin-left: auto;
+          font-size: 11.5px;
+          color: var(--df-muted);
+          font-variant-numeric: tabular-nums;
+        }
+        #dftut .dft-panel h3 {
+          margin: 2px 0 8px;
+          font-size: 15px;
+          font-weight: 500;
+        }
+        #dftut .dft-code {
+          background: var(--df-code-bg);
+          border-radius: 10px;
+          padding: 10px 12px;
+          overflow-x: auto;
+          margin: 0 0 10px;
+        }
+        #dftut .dft-code code {
+          font-family:
+            ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New",
+            monospace;
+          font-size: 12px;
+          color: #dbe4f2;
+          line-height: 1.65;
+          white-space: pre;
+          display: block;
+        }
+        #dftut .dft-code .k {
+          color: #7cc0ff;
+        }
+        #dftut .dft-code .f {
+          color: #ffc46b;
+        }
+        #dftut .dft-body {
+          margin: 0 0 9px;
+          font-size: 13px;
+          color: #2a3a52;
+        }
+        #dftut .dft-bullets {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+        }
+        #dftut .dft-bullets li {
+          position: relative;
+          padding-left: 16px;
+          font-size: 12.5px;
+          color: var(--df-muted);
+        }
+        #dftut .dft-bullets li::before {
+          content: "";
+          position: absolute;
+          left: 2px;
+          top: 6.5px;
+          width: 6px;
+          height: 6px;
+          border-radius: 2px;
+          background: #9db9e8;
+        }
+        #dftut .dft-panel.st-runtime .dft-bullets li::before {
+          background: #c3a8f0;
+        }
 
-</body>
+        @keyframes dft-enter {
+          0% {
+            opacity: 0;
+            transform: translateX(-10px);
+            background: var(--df-green-soft);
+          }
+          55% {
+            opacity: 1;
+            transform: translateX(0);
+            background: var(--df-green-soft);
+          }
+          100% {
+            opacity: 1;
+            background: transparent;
+          }
+        }
+        #dftut .dft-enter {
+          animation: dft-enter 0.95s ease both;
+        }
+        @keyframes dft-leave {
+          to {
+            opacity: 0;
+            transform: translateX(12px);
+          }
+        }
+        #dftut .dft-leave {
+          animation: dft-leave 0.22s ease forwards;
+        }
+        @keyframes dft-panelin {
+          from {
+            opacity: 0;
+            transform: translateY(6px);
+          }
+          to {
+            opacity: 1;
+            transform: none;
+          }
+        }
+        #dftut .dft-panelin {
+          animation: dft-panelin 0.28s ease both;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          #dftut * {
+            animation: none !important;
+            transition: none !important;
+          }
+        }
+      </style>
+
+      <p class="dft-sr">
+        Dockerfile 分步交互教程:顶部为 14
+        个构建步骤,左侧展示每一步后容器文件系统(主要是
+        /app)的内容,右侧讲解该指令的作用与原理。
+      </p>
+
+      <div class="dft-head">
+        <h2>Dockerfile 逐步构建教程</h2>
+        <span class="dft-sub"
+          >每一步如何改变容器里的文件系统 · 点击步骤条或用 ← → 浏览</span
+        >
+        <div class="dft-legend" aria-hidden="true">
+          <span
+            ><span class="dft-dot" style="background: var(--df-blue)"></span
+            >Stage 1 构建</span
+          >
+          <span
+            ><span class="dft-dot" style="background: var(--df-violet)"></span
+            >Stage 2 运行</span
+          >
+          <span
+            ><span class="dft-dot" style="background: var(--df-green)"></span
+            >新增</span
+          >
+        </div>
+      </div>
+
+      <div class="dft-bar">
+        <div
+          class="dft-chips"
+          id="dft-chips"
+          aria-label="Dockerfile 构建步骤"
+        ></div>
+      </div>
+      <div
+        class="dft-progress"
+        role="progressbar"
+        aria-label="构建进度"
+        aria-valuemin="1"
+        aria-valuemax="14"
+        aria-valuenow="1"
+      >
+        <div id="dft-fill"></div>
+      </div>
+
+      <div class="dft-main">
+        <section class="dft-fs" aria-label="容器文件系统">
+          <div class="dft-fs-head">
+            <span class="dft-fs-title">容器文件系统</span>
+            <span class="dft-view-pill">简化视图</span>
+            <span class="dft-img-chip"
+              ><i data-lucide="layers"></i>node:22.23.2-bookworm-slim</span
+            >
+            <span class="dft-sys-add" id="dft-sys"></span>
+          </div>
+          <div class="dft-note" id="dft-note"></div>
+          <div class="dft-tree" id="dft-tree" aria-label="/app 目录内容"></div>
+        </section>
+
+        <div class="dft-rightcol">
+          <article
+            class="dft-panel"
+            id="dft-panel"
+            aria-live="polite"
+          ></article>
+          <div class="dft-strip dft-ignore" id="dft-ignore" hidden>
+            <i data-lucide="ban"></i
+            ><span
+              >.dockerignore 拦截:<b
+                >**/node_modules、**/dist、data、backups、.env*、coverage、.git、.github、.zcode</b
+              >
+              与根级 docs/test/scripts/*.md/*.log ——
+              密钥与生产数据进不了镜像。注意裸模式(如
+              test、*.md)只匹配根级,子包的 test、README 仍会进入构建上下文</span
+            >
+          </div>
+          <div class="dft-strip dft-ready" id="dft-ready" hidden>
+            <i data-lucide="check"></i
+            ><span
+              >镜像组装完成 —— 可以执行 <b>docker build -t toby .</b>,然后
+              <b>docker compose up -d</b></span
+            >
+          </div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          var root = document.getElementById("dftut");
+          if (!root) return;
+          var RM =
+            window.matchMedia &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+          var PB = [
+            "app/package.json",
+            "app/pnpm-lock.yaml",
+            "app/pnpm-workspace.yaml",
+            "app/apps/server/package.json",
+            "app/apps/web/package.json",
+            "app/apps/web-mobile/package.json",
+            "app/packages/contract/package.json",
+          ];
+          var P6 = PB.concat([
+            "app/node_modules",
+            "app/apps/server/node_modules",
+            "app/apps/web/node_modules",
+            "app/apps/web-mobile/node_modules",
+            "app/packages/contract/node_modules",
+          ]);
+          var P7 = P6.concat([
+            "app/apps/server/src",
+            "app/apps/web/src",
+            "app/apps/web-mobile/src",
+            "app/packages/contract/src",
+          ]);
+          var P8 = P7.concat([
+            "app/apps/server/dist",
+            "app/apps/web/dist",
+            "app/apps/web-mobile/dist",
+          ]);
+          var P10 = [
+            "app/package.json",
+            "app/pnpm-workspace.yaml",
+            "app/apps/server/package.json",
+          ];
+          var P11 = P10.concat([
+            "app/node_modules",
+            "app/apps/server/node_modules",
+            "app/apps/server/dist",
+            "app/apps/web/dist",
+            "app/apps/web-mobile/dist",
+            "app/packages/contract/package.json",
+            "app/packages/contract/node_modules",
+            "app/packages/contract/src",
+          ]);
+
+          var S = [
+            {
+              chip: "FROM",
+              stage: "build",
+              paths: [],
+              mark: "Stage 1 · 构建阶段 —— 从全新基础镜像开始",
+              empty: "容器里还只有基础镜像,/app 尚未创建",
+              note: "基础镜像就位:Debian 12 + Node 22.23.2 工具链",
+              sys: null,
+              code: '<span class="k">FROM</span> node:22.23.2-bookworm-slim <span class="k">AS</span> build',
+              title: "第一阶段:构建镜像",
+              body: "多阶段构建的第一站。基础镜像把 Node 钉死在 22.23.2 —— 与根 package.json 的 engines 字段完全一致;镜像内的版本一致性由镜像 tag 直接保证。.npmrc 里的 engine-strict=true 只约束本地/CI 的安装:它在源码拷入时才进镜像,晚于 pnpm install,容器内并不生效。",
+              bullets: [
+                "bookworm-slim 即 Debian 12 精简版。不用 Alpine,因为 better-sqlite3 只发布 glibc 预编译包",
+                "AS build 给阶段命名,后面用 COPY --from=build 引用它",
+                "此刻容器里只有操作系统和 Node,还没有任何业务代码",
+              ],
+            },
+            {
+              chip: "WORKDIR",
+              stage: "build",
+              paths: ["app"],
+              note: "新建 /app(空目录)",
+              sys: null,
+              code: '<span class="k">WORKDIR</span> /app',
+              title: "创建工作目录 /app",
+              body: "WORKDIR 在容器内创建 /app(不存在时自动创建),并把后续所有指令的工作目录设在这里。整个 monorepo 结构接下来都会原样复刻在这个目录下。",
+              bullets: [
+                "目录不存在时 WORKDIR 会自动创建",
+                "相当于每个后续指令都先执行了 cd /app",
+              ],
+            },
+            {
+              chip: "corepack",
+              stage: "build",
+              paths: ["app"],
+              note: "变化发生在系统目录:/usr/local/bin 出现 pnpm 垫片",
+              sys: "/usr/local/bin/pnpm(+pnpx)垫片",
+              code: '<span class="k">RUN</span> corepack enable',
+              title: "启用 pnpm 包管理器",
+              body: "Node 镜像自带 corepack,但默认没有 pnpm 命令。corepack enable 只负责启用命令代理:在 /usr/local/bin 放入 pnpm/pnpx 垫片;首次调用 pnpm 时,Corepack 再按项目 packageManager 字段(本仓库 pnpm@11.18.0)选择并下载对应版本 —— 能否成功取决于 Corepack 自身版本与网络条件。",
+              bullets: [
+                "注意:目录变化在系统目录 /usr/local/bin,不在 /app",
+                "保证本地与容器使用完全相同的包管理器版本",
+              ],
+            },
+            {
+              chip: "COPY 清单",
+              stage: "build",
+              paths: PB,
+              note: "7 份依赖清单进入 /app",
+              sys: null,
+              code: '<span class="k">COPY</span> pnpm-workspace.yaml pnpm-lock.yaml package.json ./\n<span class="k">COPY</span> apps/server/package.json apps/server/\n<span class="k">COPY</span> apps/web/package.json apps/web/\n<span class="k">COPY</span> apps/web-mobile/package.json apps/web-mobile/\n<span class="k">COPY</span> packages/contract/package.json packages/contract/',
+              title: "先拷清单,再装依赖",
+              body: "Docker 层缓存的经典手法:先只拷贝各 package.json 与 lockfile 用来安装依赖,源码最后才进镜像。这样只要依赖不变,无论改多少代码,pnpm install 那一层永远命中缓存。",
+              bullets: [
+                "每条 COPY 各占一层,精确控制缓存失效范围",
+                "只拷 package.json、不拷源码,是缓存命中的关键",
+              ],
+            },
+            {
+              chip: "npm pkg",
+              stage: "build",
+              paths: PB,
+              note: "目录无变化 —— 修改的是刚拷入的 package.json(删一个字段)",
+              sys: null,
+              code: '<span class="k">RUN</span> npm pkg delete scripts.prepare',
+              title: "移除 prepare 脚本",
+              body: "根 package.json 里的 prepare 脚本运行 simple-git-hooks,在开发机上负责给 git 仓库安装 pre-commit / commit-msg 钩子。构建上下文里没有 .git 目录,钩子无从安装,所以要在 pnpm install 之前把它删掉 —— 此刻清单已拷入,删除有文件可改:它必须排在清单拷贝之后、install 之前。",
+              bullets: [
+                "npm pkg 直接修改 JSON,不用手写 sed 或 jq",
+                '对应 package.json 中 "prepare": "simple-git-hooks" 这一行',
+                "后面的 COPY . . 会用宿主机的原始 package.json 覆盖回来 —— 无害:prepare 只在 install 阶段执行,而 install 已经跑完",
+              ],
+            },
+            {
+              chip: "install",
+              stage: "build",
+              paths: P6,
+              note: "依赖落盘:根 node_modules + 各 workspace 自己的 node_modules",
+              sys: null,
+              code: '<span class="k">RUN</span> pnpm install --frozen-lockfile',
+              title: "按 lockfile 精确安装依赖",
+              body: "pnpm 按 pnpm-lock.yaml 逐字安装。--frozen-lockfile 禁止改动 lockfile —— 依赖与 lockfile 不一致时直接报错,保证容器、CI、同事机器上的依赖完全一致。",
+              bullets: [
+                "pnpm 用符号链接 + 硬链接组织 node_modules,省磁盘也更快",
+                "版本一致性由基础镜像 tag 保证;engine-strict(.npmrc)只在本地/CI 安装时兜底,容器内不生效",
+              ],
+            },
+            {
+              chip: "COPY .",
+              stage: "build",
+              paths: P7,
+              note: "其余内容进入 /app —— 全部 node_modules/dist、data、.env 与根级 docs/test/scripts 已被 .dockerignore 挡住;子包的 test、README 等小文件仍会进入",
+              sys: null,
+              code: '<span class="k">COPY</span> . .',
+              title: "拷入其余内容",
+              body: "把构建上下文中所有未被 .dockerignore 排除的内容拷进 /app —— 不只是源码:各包的 tsconfig、vite.config、README、test 等小文件也会进入(目录树为简化视图,未逐一画出)。已装好的 node_modules 不受影响,它们整个被挡在上下文之外。原始 package.json 会覆盖第 5 步删过字段的副本,但无害:prepare 只在 install 时执行。",
+              bullets: [
+                "密钥(.env)与生产数据(data/)根本进不了构建上下文",
+                "上下文更小:COPY 更快,缓存也更稳",
+              ],
+            },
+            {
+              chip: "build",
+              stage: "build",
+              paths: P8,
+              note: "三个 dist/ 构建产物生成",
+              sys: null,
+              code: '<span class="k">RUN</span> pnpm run build',
+              title: "构建两 Web + 服务端",
+              body: "依次构建 @toby/web、@toby/web-mobile(产出静态文件)与 @toby/server(nest build 编译进 apps/server/dist)。到此 Stage 1 的使命完成。",
+              bullets: [
+                "产物全部位于 apps/*/dist 目录",
+                "只依赖源码层:改代码只重跑构建,依赖安装层继续命中缓存",
+              ],
+            },
+            {
+              chip: "FROM",
+              stage: "runtime",
+              paths: [],
+              mark: "Stage 2 · 运行阶段 —— 全新基础镜像,Stage 1 的内容不带入",
+              empty: "全新镜像 —— /app 将重新组装",
+              note: "回到空白镜像:Stage 1 的工具链、源码、依赖全部留在过去",
+              sys: null,
+              code: '<span class="k">FROM</span> node:22.23.2-bookworm-slim <span class="k">AS</span> runtime',
+              title: "第二阶段:全新镜像",
+              body: "多阶段构建的核心:第二个 FROM 从干净的基础镜像重新开始 —— 没有被 COPY --from=build 显式搬运的内容(源码树、pnpm 下载缓存)一律不进最终镜像。但注意:本 Dockerfile 把 node_modules 整包拷入运行时,devDependencies 也随之进入;packages/contract 的源码同样会进入(见第 12 步)。",
+              bullets: [
+                "未被搬运的内容留在 build 阶段:两个 web 的 src、下载缓存等",
+                '注意:node_modules 是整包拷入,devDependencies 并未剥离 —— Dockerfile 注释 "production deps only" 与实际行为不符',
+                "体积更小、攻击面更小、拉取与部署更快",
+              ],
+            },
+            {
+              chip: "WORKDIR+ENV",
+              stage: "runtime",
+              paths: ["app"],
+              note: "重建 /app + 声明生产环境变量",
+              sys: null,
+              code: '<span class="k">WORKDIR</span> /app\n<span class="k">ENV</span> NODE_ENV=production',
+              title: "重建目录,切换生产模式",
+              body: "在全新镜像里重建 /app,并设置 NODE_ENV=production,让运行时框架走生产路径。",
+              bullets: [],
+            },
+            {
+              chip: "COPY 布局",
+              stage: "runtime",
+              paths: P10,
+              note: "仅 3 份清单 —— 刻意保留 monorepo 相对布局",
+              sys: null,
+              code: '<span class="k">COPY</span> pnpm-workspace.yaml package.json ./\n<span class="k">COPY</span> apps/server/package.json apps/server/package.json',
+              title: "保留 monorepo 布局",
+              body: "这里只拷 3 份清单,不是为了装依赖,而是服务器启动要靠它们:config.ts 靠 pnpm-workspace.yaml 定位仓库根;server 读 apps/server/package.json 获取版本号。",
+              bullets: [
+                "注意:没有 pnpm-lock.yaml —— 运行阶段不再安装任何东西",
+                "每个路径都是 load-bearing:缺一个就会 Cannot find module 或配置失败",
+              ],
+            },
+            {
+              chip: "COPY 产物",
+              stage: "runtime",
+              paths: P11,
+              note: "从 Stage 1 拷入依赖与产物 —— 整目录搬运的 contract 连 test/tsconfig 一并带入(树中省略)",
+              sys: null,
+              code: '<span class="k">COPY</span> <span class="f">--from=build</span> /app/node_modules ./node_modules\n<span class="k">COPY</span> <span class="f">--from=build</span> /app/apps/server/node_modules ./apps/server/node_modules\n<span class="k">COPY</span> <span class="f">--from=build</span> /app/apps/server/dist ./apps/server/dist\n<span class="k">COPY</span> <span class="f">--from=build</span> /app/apps/web/dist ./apps/web/dist\n<span class="k">COPY</span> <span class="f">--from=build</span> /app/apps/web-mobile/dist ./apps/web-mobile/dist\n<span class="k">COPY</span> <span class="f">--from=build</span> /app/packages/contract ./packages/contract',
+              title: "跨阶段搬运,组装镜像",
+              body: "--from=build 是多阶段构建的传送门:把根 node_modules、apps/server 的依赖、三个 dist 产物、packages/contract 整包从 Stage 1 搬进 Stage 2。",
+              bullets: [
+                "packages/contract 是纯逻辑包:无构建步骤、无构建产物,整目录搬运 —— src、node_modules 连同 test/tsconfig 一起进入运行时;它只被两个 web 应用以 workspace:* 依赖(构建时已打进 dist),服务端并不直接引用",
+                "apps/server/dist 里保留 infrastructure/db/backup-cli.js,容器内备份命令继续可用",
+              ],
+            },
+            {
+              chip: "EXPOSE",
+              stage: "runtime",
+              paths: P11,
+              note: "目录无变化 —— 仅写入端口元数据",
+              sys: null,
+              code: '<span class="k">EXPOSE</span> 8629',
+              title: "声明监听端口",
+              body: "EXPOSE 只是元数据,声明容器内服务监听 8629,并不会对外发布端口。真正的映射由 compose.yaml 完成:127.0.0.1:8629:8629,仅本机回环可访问。",
+              bullets: [
+                "健康检查也归 compose 所有:探针请求 /api/system/health",
+                "数据不进镜像:compose 把宿主机 ./data 挂载到容器的 /app/data",
+              ],
+            },
+            {
+              chip: "CMD",
+              stage: "runtime",
+              paths: P11,
+              note: "目录不再变化 —— 定义启动命令,镜像完成",
+              sys: null,
+              code: '<span class="k">CMD</span> ["node", "--env-file-if-exists=.env", "apps/server/dist/main.js"]',
+              title: "启动命令",
+              body: "容器启动即执行 node apps/server/dist/main.js。--env-file-if-exists=.env:容器内有 .env 就加载,没有也照常启动(compose 会注入环境变量)。数据库文件来自挂载卷,镜像保持无状态。",
+              bullets: [
+                "构建并运行:docker build -t toby . → docker compose up -d",
+                "验证:curl http://127.0.0.1:8629/api/system/health",
+              ],
+            },
+          ];
+
+          var els = {
+            chips: document.getElementById("dft-chips"),
+            fill: document.getElementById("dft-fill"),
+            progress: root.querySelector(".dft-progress"),
+            tree: document.getElementById("dft-tree"),
+            note: document.getElementById("dft-note"),
+            sys: document.getElementById("dft-sys"),
+            ignore: document.getElementById("dft-ignore"),
+            ready: document.getElementById("dft-ready"),
+            panel: document.getElementById("dft-panel"),
+          };
+          if (!els.chips || !els.tree || !els.panel) return;
+
+          var chipEls = [];
+          S.forEach(function (s, i) {
+            if (i === 8) {
+              var d = document.createElement("span");
+              d.className = "dft-divider";
+              d.textContent = "Stage 2";
+              els.chips.appendChild(d);
+            }
+            var b = document.createElement("button");
+            b.type = "button";
+            b.className = "dft-chip st-" + s.stage;
+            b.innerHTML = '<span class="n">' + (i + 1) + "</span>" + s.chip;
+            b.addEventListener("click", function () {
+              go(i);
+            });
+            els.chips.appendChild(b);
+            chipEls.push(b);
+          });
+
+          var DIR_RES = /(^|\/)(node_modules|src|dist)$/;
+          function buildRows(paths) {
+            var root = { children: {} };
+            paths.forEach(function (p) {
+              var segs = p.split("/");
+              var node = root;
+              for (var i = 0; i < segs.length; i++) {
+                if (!node.children[segs[i]])
+                  node.children[segs[i]] = { children: {} };
+                node = node.children[segs[i]];
+              }
+            });
+            var rows = [],
+              dirs = {};
+            function hasKids(node) {
+              for (var k in node.children) return true;
+              return false;
+            }
+            (function walk(node, depth, prefix) {
+              var names = Object.keys(node.children);
+              names.sort(function (a, b) {
+                var pa = prefix ? prefix + "/" + a : a;
+                var pb = prefix ? prefix + "/" + b : b;
+                var da = hasKids(node.children[a]) || DIR_RES.test(pa);
+                var db = hasKids(node.children[b]) || DIR_RES.test(pb);
+                if (da !== db) return da ? -1 : 1;
+                return a < b ? -1 : a > b ? 1 : 0;
+              });
+              names.forEach(function (name) {
+                var child = node.children[name];
+                var path = prefix ? prefix + "/" + name : name;
+                if (hasKids(child)) {
+                  dirs[path] = true;
+                  rows.push({ path: path, name: name, depth: depth });
+                  walk(child, depth + 1, path);
+                } else {
+                  rows.push({ path: path, name: name, depth: depth });
+                }
+              });
+            })(root, 0, "");
+            return { rows: rows, dirs: dirs };
+          }
+          function rowMeta(r, dirs) {
+            var p = r.path;
+            var isDir = dirs[p] || p === "app" || DIR_RES.test(p);
+            var ic = "ic-file",
+              icon = "file";
+            if (isDir) {
+              if (/(^|\/)node_modules$/.test(p)) {
+                ic = "ic-pkg";
+                icon = "package";
+              } else if (/(^|\/)dist$/.test(p)) {
+                ic = "ic-box";
+                icon = "box";
+              } else {
+                ic = "ic-dir";
+                icon = !dirs[p] && p === "app" ? "folder-open" : "folder";
+              }
+            } else if (/package\.json$/.test(p)) {
+              ic = "ic-json";
+              icon = "braces";
+            } else if (/pnpm-lock\.yaml$/.test(p)) {
+              ic = "ic-lock";
+              icon = "lock";
+            } else if (/\.yaml$/.test(p)) {
+              ic = "ic-yaml";
+              icon = "file-code";
+            }
+            var tag = null,
+              tcls = null;
+            if (/(^|\/)node_modules$/.test(p)) {
+              tag = "依赖";
+              tcls = "t-dep";
+            } else if (/(^|\/)dist$/.test(p)) {
+              tag = "产物";
+              tcls = "t-out";
+            } else if (/(^|\/)src$/.test(p)) {
+              tag = "源码";
+              tcls = "t-src";
+            } else if (p === "app" && !dirs[p]) {
+              tag = "空目录";
+              tcls = "t-empty";
+            }
+            return { isDir: isDir, ic: ic, icon: icon, tag: tag, tcls: tcls };
+          }
+
+          var cur = -1,
+            token = 0;
+
+          function stageCls(stage) {
+            return stage === "runtime" ? "st-runtime" : "st-build";
+          }
+
+          var lastRendered = null;
+          function renderTree(isInit) {
+            var s = S[cur];
+            var built = buildRows(s.paths);
+            var prevSet = lastRendered || {};
+            var html = "";
+            if (s.mark) {
+              html +=
+                '<div class="dft-stage-mark ' +
+                stageCls(s.stage) +
+                '"><i data-lucide="layers"></i><span>' +
+                s.mark +
+                "</span></div>";
+            }
+            var enterIdx = 0;
+            built.rows.forEach(function (r) {
+              var m = rowMeta(r, built.dirs);
+              var enter = !prevSet[r.path] && !RM && !isInit;
+              var styleAttr = "padding-left:" + (8 + r.depth * 15) + "px";
+              if (enter)
+                styleAttr =
+                  "animation-delay:" +
+                  Math.min(enterIdx++ * 40, 480) +
+                  "ms;" +
+                  styleAttr;
+              html +=
+                '<div class="dft-row' +
+                (enter ? " dft-enter" : "") +
+                '" data-path="' +
+                r.path +
+                '" style="' +
+                styleAttr +
+                '">' +
+                '<span class="dft-ic ' +
+                m.ic +
+                '"><i data-lucide="' +
+                m.icon +
+                '"></i></span>' +
+                '<span class="dft-name ' +
+                (m.isDir ? "dir" : "file") +
+                '">' +
+                r.name +
+                "</span>" +
+                (enter
+                  ? '<span class="dft-tag t-new">新增</span>'
+                  : m.tag
+                    ? '<span class="dft-tag ' +
+                      m.tcls +
+                      '">' +
+                      m.tag +
+                      "</span>"
+                    : "") +
+                "</div>";
+            });
+            if (!built.rows.length) {
+              html +=
+                '<div class="dft-empty">' + (s.empty || "(空)") + "</div>";
+            }
+            lastRendered = {};
+            built.rows.forEach(function (r) {
+              lastRendered[r.path] = true;
+            });
+            els.tree.innerHTML = html;
+            if (window.lucide)
+              window.lucide.createIcons({ attrs: { width: 14, height: 14 } });
+          }
+
+          function renderPanel() {
+            var s = S[cur];
+            els.panel.className = "dft-panel " + stageCls(s.stage);
+            var html =
+              '<div class="dft-phead">' +
+              '<span class="dft-stagebadge ' +
+              stageCls(s.stage) +
+              '">' +
+              (s.stage === "runtime" ? "Stage 2 · 运行" : "Stage 1 · 构建") +
+              "</span>" +
+              '<span class="dft-count">' +
+              (cur + 1) +
+              " / " +
+              S.length +
+              "</span></div>" +
+              "<h3>" +
+              s.title +
+              "</h3>" +
+              '<pre class="dft-code"><code>' +
+              s.code +
+              "</code></pre>" +
+              '<p class="dft-body">' +
+              s.body +
+              "</p>";
+            if (s.bullets.length) {
+              html +=
+                '<ul class="dft-bullets">' +
+                s.bullets
+                  .map(function (b) {
+                    return "<li>" + b + "</li>";
+                  })
+                  .join("") +
+                "</ul>";
+            }
+            els.panel.innerHTML = html;
+            if (!RM) {
+              els.panel.classList.remove("dft-panelin");
+              void els.panel.offsetWidth;
+              els.panel.classList.add("dft-panelin");
+            }
+          }
+
+          function updateChrome() {
+            chipEls.forEach(function (b, i) {
+              b.classList.toggle("is-active", i === cur);
+              b.classList.toggle("is-done", i < cur);
+              if (i === cur) b.setAttribute("aria-current", "step");
+              else b.removeAttribute("aria-current");
+            });
+            var active = chipEls[cur];
+            if (active) {
+              var c = els.chips;
+              if (
+                active.offsetLeft < c.scrollLeft + 10 ||
+                active.offsetLeft > c.scrollLeft + c.clientWidth - 90
+              ) {
+                try {
+                  c.scrollTo({
+                    left: Math.max(0, active.offsetLeft - 40),
+                    behavior: RM ? "auto" : "smooth",
+                  });
+                } catch (e) {
+                  c.scrollLeft = Math.max(0, active.offsetLeft - 40);
+                }
+              }
+            }
+            var s = S[cur];
+            els.fill.style.width = ((cur + 1) / S.length) * 100 + "%";
+            els.fill.style.backgroundColor =
+              s.stage === "runtime" ? "var(--df-violet)" : "var(--df-blue)";
+            els.progress.setAttribute("aria-valuenow", String(cur + 1));
+            els.note.textContent = s.note;
+            els.note.className = "dft-note " + stageCls(s.stage);
+            if (s.sys) {
+              els.sys.textContent = "系统目录 +" + s.sys;
+              els.sys.className = "dft-sys-add on";
+            } else {
+              els.sys.className = "dft-sys-add";
+            }
+            els.ignore.hidden = cur !== 6;
+            els.ready.hidden = cur < 11;
+            renderPanel();
+          }
+
+          function saveState() {
+            try {
+              var z = window.zcode;
+              if (z && typeof z.setWidgetState === "function") {
+                var p = z.setWidgetState({ modelContent: { step: cur } });
+                if (p && typeof p.catch === "function") p.catch(function () {});
+              }
+            } catch (e) {}
+          }
+
+          function go(n, opts) {
+            n = Math.max(0, Math.min(S.length - 1, n));
+            if (n === cur) return;
+            var prev = cur;
+            cur = n;
+            var t = ++token;
+            updateChrome();
+            var nextSet = {};
+            S[cur].paths.forEach(function (p) {
+              nextSet[p] = true;
+            });
+            var leaving = [];
+            if (prev >= 0) {
+              Array.prototype.forEach.call(
+                els.tree.querySelectorAll(".dft-row"),
+                function (el) {
+                  var p = el.getAttribute("data-path");
+                  if (p && !nextSet[p]) leaving.push(el);
+                },
+              );
+            }
+            if (leaving.length && !RM) {
+              leaving.forEach(function (el) {
+                el.classList.add("dft-leave");
+              });
+              setTimeout(function () {
+                if (token === t) renderTree();
+              }, 230);
+            } else {
+              renderTree();
+            }
+            if (!(opts && opts.noSave)) saveState();
+          }
+
+          document.addEventListener("keydown", function (e) {
+            if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey)
+              return;
+            var t = e.target;
+            if (
+              t &&
+              (t.tagName === "INPUT" ||
+                t.tagName === "TEXTAREA" ||
+                t.tagName === "SELECT" ||
+                t.isContentEditable)
+            )
+              return;
+            if (e.key === "ArrowRight") {
+              e.preventDefault();
+              go(cur + 1);
+            } else if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              go(cur - 1);
+            }
+          });
+
+          window.addEventListener("zcode:set_globals", function (ev) {
+            try {
+              var st =
+                ev.detail && ev.detail.globals && ev.detail.globals.widgetState;
+              if (
+                st &&
+                st.modelContent &&
+                typeof st.modelContent.step === "number" &&
+                st.modelContent.step >= 0 &&
+                st.modelContent.step < S.length &&
+                st.modelContent.step !== cur
+              ) {
+                go(st.modelContent.step);
+              }
+            } catch (e) {}
+          });
+
+          var init = 0;
+          try {
+            var ws = window.zcode && window.zcode.widgetState;
+            if (
+              ws &&
+              ws.modelContent &&
+              typeof ws.modelContent.step === "number" &&
+              ws.modelContent.step >= 0 &&
+              ws.modelContent.step < S.length
+            ) {
+              init = ws.modelContent.step;
+            }
+          } catch (e) {}
+          cur = init;
+          updateChrome();
+          renderTree(true);
+          if (window.lucide)
+            window.lucide.createIcons({ attrs: { width: 14, height: 14 } });
+        })();
+      </script>
+    </div>
+  </body>
 </html>
