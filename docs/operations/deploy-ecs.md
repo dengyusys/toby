@@ -115,9 +115,35 @@ docker load < /opt/toby-init/toby.tar.gz && cd /opt/toby && docker compose up -d
 
 `data/` is untouched; user data survives updates.
 
-## Future automation
+## Automated deployment (GitHub Actions → ACR → ECS)
 
-When updates become routine, replace the tarball transfer with a registry +
-CI pipeline (e.g. Aliyun ACR or GHCR): CI builds and pushes on merge, the
-server updates with `docker compose pull && docker compose up -d`. Registry
-credentials live in the CI secrets — contributors never handle them.
+Replaces the manual tarball update. On every push to `main` (after the four
+checks pass) CI builds the image, pushes it to Aliyun ACR, then SSHes into
+the server to pull and restart. Pipeline: `.github/workflows/ci.yml` (jobs
+`docker` + `deploy`), gated by the repo variable `DEPLOY_ENABLED=true`.
+
+One-time setup:
+
+1. **ACR** (Aliyun console): enable the personal Container Registry, create a
+   namespace (e.g. `toby`), note the fixed password from 访问凭证.
+2. **Edit the workflow env** — `.github/workflows/ci.yml`, job `docker`:
+   set `ACR_REGISTRY` (your region) and `ACR_NAMESPACE`.
+3. **Deploy SSH key** (dev machine): `ssh-keygen -t ed25519 -f toby-deploy -N ""`,
+   append `toby-deploy.pub` to the server's `~/.ssh/authorized_keys`.
+4. **GitHub secrets** (repo → Settings → Secrets and variables → Actions):
+   `ACR_USERNAME`, `ACR_PASSWORD`, `ECS_HOST` (server IP),
+   `ECS_SSH_KEY` (contents of the private `toby-deploy` key).
+5. **Server** (once):
+   ```bash
+   docker login registry.cn-hangzhou.aliyuncs.com   # same ACR credentials
+   # update the compose file and point it at the registry image:
+   # scp deploy/compose.server.yaml root@<IP>:/opt/toby/docker-compose.yaml
+   echo 'TOBY_IMAGE=registry.cn-hangzhou.aliyuncs.com/toby/toby:latest' >> /opt/toby/.env
+   ```
+6. **Enable**: repo → Settings → Secrets and variables → Actions → Variables →
+   `DEPLOY_ENABLED` = `true`. Push to `main` (or run the workflow manually)
+   and watch the Actions tab.
+
+Rollback: the pipeline tags every build `sha-<commit>`; pin `TOBY_IMAGE` in
+the server `.env` to the previous sha tag and `docker compose up -d`, or
+flip `DEPLOY_ENABLED` to `false` to stop the pipeline while you recover.

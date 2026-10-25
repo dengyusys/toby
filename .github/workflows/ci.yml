@@ -1,11 +1,14 @@
-# Post-hoc safety net: the same four checks AGENTS.md requires locally.
-# 事后安全网:与 AGENTS.md 要求的本地四项检查完全一致。
+# Post-hoc safety net: the same four checks AGENTS.md requires locally,
+# then (main pushes only) build + push the image and deploy to the ECS.
+# 事后安全网:与 AGENTS.md 要求的本地四项检查完全一致;
+# 通过后(仅 main 推送)构建推送镜像并部署到 ECS。
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -27,3 +30,81 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run ${{ matrix.task }}
+
+  # Build & push only after all four checks pass, only on main pushes, and
+  # only when the repo variable DEPLOY_ENABLED=true (set it in
+  # Settings → Secrets and variables → Actions → Variables once the ACR
+  # registry and the secrets below exist; also serves as a kill switch).
+  # 四项检查全绿后才会构建;仅 main 推送触发;且仓库变量
+  # DEPLOY_ENABLED=true 时才运行(ACR 与 secrets 就绪后在
+  # Settings → Secrets and variables → Actions → Variables 设置;
+  # 平时也可当急停开关)。
+  docker:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # Registry address and namespace live in GitHub repo Variables
+      # (Settings → Secrets and variables → Actions → Variables):
+      #   ACR_REGISTRY  — the instance's PUBLIC internet address (GitHub
+      #                   runners cannot reach the -vpc intranet variant)
+      #   ACR_NAMESPACE — your ACR namespace
+      # The ECS pulls via the -vpc address configured in its .env
+      # TOBY_IMAGE. No instance-specific value belongs in this file.
+      # 仓库地址与命名空间存放在 GitHub 仓库 Variables
+      # (Settings → Secrets and variables → Actions → Variables):
+      #   ACR_REGISTRY  — 实例的公网地址(GitHub 服务器够不着 -vpc 内网地址)
+      #   ACR_NAMESPACE — 你的 ACR 命名空间
+      # ECS 拉取用其 .env 里 TOBY_IMAGE 配置的 -vpc 内网地址,
+      # 本文件中不落任何实例专属信息。
+      ACR_REGISTRY: ${{ vars.ACR_REGISTRY }}
+      ACR_NAMESPACE: ${{ vars.ACR_NAMESPACE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/toby:latest
+            ${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/toby:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Pull the fresh image on the server and restart. The server compose file
+  # reads the image name from TOBY_IMAGE in /opt/toby/.env.
+  # 服务器拉取新镜像并重启;镜像名来自服务器 /opt/toby/.env 里的 TOBY_IMAGE。
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    needs: docker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: SSH pull and restart
+        env:
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+        run: |
+          install -m 600 /dev/null key
+          printf '%s\n' "$ECS_SSH_KEY" > key
+          ssh -i key -o StrictHostKeyChecking=accept-new root@"$ECS_HOST" '
+            set -e
+            cd /opt/toby
+            docker compose pull
+            docker compose up -d
+            sleep 12
+            curl -sf http://127.0.0.1:8629/ >/dev/null \
+              || { echo "health probe failed, recent logs:"; docker logs --tail 30 toby; exit 1; }
+            docker image prune -f
+          '

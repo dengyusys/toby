@@ -113,8 +113,36 @@ docker load < /opt/toby-init/toby.tar.gz && cd /opt/toby && docker compose up -d
 
 `data/` 不受影响,用户数据在更新后保留。
 
-## 后续自动化
+## 自动化部署(GitHub Actions → ACR → ECS)
 
-更新频繁之后,把镜像直传升级为"镜像仓库 + CI"(如阿里云 ACR 或 GHCR):
-合并代码后 CI 自动构建推送,服务器 `docker compose pull && docker compose up -d`
-即可更新。仓库凭据放在 CI 的 secrets 里 —— 贡献者永远不经手。
+替代手动的镜像直传更新:每次推送 `main`(四项检查通过后)CI 自动构建镜像、
+推送到阿里云 ACR,再 SSH 到服务器拉取重启。流水线在
+`.github/workflows/ci.yml`(`docker` + `deploy` 两个 job),
+由仓库变量 `DEPLOY_ENABLED=true` 开启。
+
+一次性配置:
+
+1. **开通 ACR**(阿里云控制台):容器镜像服务 → 个人版 → 创建命名空间
+   (如 `toby`),在"访问凭证"里设置固定密码并记下。
+2. **改 workflow 环境变量** —— `.github/workflows/ci.yml` 的 `docker` job:
+   按你的地域/命名空间修改 `ACR_REGISTRY` 和 `ACR_NAMESPACE` 两行。
+3. **部署专用 SSH 密钥**(本机):
+   `ssh-keygen -t ed25519 -f toby-deploy -N ""`,
+   把 `toby-deploy.pub` 追加到服务器的 `~/.ssh/authorized_keys`。
+4. **GitHub secrets**(仓库 → Settings → Secrets and variables → Actions):
+   `ACR_USERNAME`、`ACR_PASSWORD`、`ECS_HOST`(服务器 IP)、
+   `ECS_SSH_KEY`(`toby-deploy` 私钥的全部内容)。
+5. **服务器**(一次性):
+   ```bash
+   docker login registry.cn-hangzhou.aliyuncs.com   # 与 CI 相同的 ACR 凭据
+   # 更新 compose 并让镜像走仓库(本机执行):
+   # scp deploy/compose.server.yaml root@<IP>:/opt/toby/docker-compose.yaml
+   echo 'TOBY_IMAGE=registry.cn-hangzhou.aliyuncs.com/toby/toby:latest' >> /opt/toby/.env
+   ```
+6. **开启**:仓库 → Settings → Secrets and variables → Actions →
+   Variables → 新增 `DEPLOY_ENABLED` = `true`。之后推送 `main`
+   (或手动触发 workflow),在 Actions 页观察全流程。
+
+回滚:流水线每次构建都会打 `sha-<commit>` 标签;把服务器 `.env` 里的
+`TOBY_IMAGE` 指回上一个 sha 标签再 `docker compose up -d` 即可;
+需要抢修时把 `DEPLOY_ENABLED` 改为 `false` 先停住流水线。
