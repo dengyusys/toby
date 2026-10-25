@@ -31,16 +31,17 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run ${{ matrix.task }}
 
-  # Build & push only after all four checks pass, only on main pushes, and
-  # only when the repo variable DEPLOY_ENABLED=true (set it in
-  # Settings → Secrets and variables → Actions → Variables once the ACR
-  # registry and the secrets below exist; also serves as a kill switch).
-  # 四项检查全绿后才会构建;仅 main 推送触发;且仓库变量
+  # Build & push only after all four checks pass, only on main (push or
+  # manual dispatch), and only when the repo variable DEPLOY_ENABLED=true
+  # (set it in Settings → Secrets and variables → Actions → Variables once
+  # the ACR registry and the secrets below exist; also serves as a kill
+  # switch).
+  # 四项检查全绿后才会构建;仅 main 分支(推送或手动触发)运行;且仓库变量
   # DEPLOY_ENABLED=true 时才运行(ACR 与 secrets 就绪后在
   # Settings → Secrets and variables → Actions → Variables 设置;
   # 平时也可当急停开关)。
   docker:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     needs: check
     runs-on: ubuntu-latest
     permissions:
@@ -85,7 +86,7 @@ jobs:
   # reads the image name from TOBY_IMAGE in /opt/toby/.env.
   # 服务器拉取新镜像并重启;镜像名来自服务器 /opt/toby/.env 里的 TOBY_IMAGE。
   deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     needs: docker
     runs-on: ubuntu-latest
     permissions:
