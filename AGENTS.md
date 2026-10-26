@@ -63,6 +63,7 @@ If one change touches several rows, run all the checks those rows list.
 
 ## Git workflow
 
+- **Every commit and every push requires the user's explicit permission and confirmation, each and every time — no exceptions.** Automatic commits and pushes are forbidden, even when the user requested the change itself or approved earlier commits.
 - AI never commits, pushes, or rewrites history on its own: show the user the exact changes and the full commit message first and get explicit approval. Approval of a plan does not cover individual commits.
 - Run `git status --short` before starting — never touch or revert uncommitted changes that are not yours.
 - Commit messages and code comments in **English**; Conventional Commits with English scopes (e.g. `feat(schedule): add month view`).
