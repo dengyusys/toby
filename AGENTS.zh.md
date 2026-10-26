@@ -67,7 +67,7 @@
 - 动手前先跑 `git status --short`——工作区里别人的改动,不碰也不回退。
 - 提交信息与代码注释用**英文**;Conventional Commits,scope 用英文域名(如 `feat(schedule): add month view`)。
 - 提交信息只留一行标题:不写正文段落,不加 Co-Authored-By 之类尾注。
-- 改动直接 push 进 `main`:推之前本地 `pnpm run check` 必须全绿。CI 在 push 到 `main` 与每次 PR 后跑同样四项检查,作为事后保险;dependabot 的升级 PR 是仅有的 PR。大型迁移可走 `feat/*` 分支、本地合并后再推。
+- 改动直接 push 进 `main`:推之前本地 `pnpm run check` 必须全绿。CI 在 push 到 `main` 与每次 PR 后跑同样四项检查,作为事后保险。Dependabot 暂时停用(已删除 `.github/dependabot.yml`),当前没有 PR。大型迁移可走 `feat/*` 分支、本地合并后再推。
 - 文档是双语的:任何文档改动必须同时落到英文文件与它的 `.zh.md` 镜像,同一笔提交内完成。
 - 契约变了才更新 `docs/features/` 对应文档,纯实现细节变化不用碰;架构变化伴随 `docs/decisions/` 新 ADR;进度以提交历史为准。
 

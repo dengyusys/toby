@@ -48,7 +48,7 @@ chore(deps): bump dependencies
 
 - Changes land on `main` by direct push: run `pnpm run check` first — it must be green. CI runs the same four checks on every push to `main` and every pull request as a post-hoc safety net.
 - Branch naming (for local experiments): `feat/<scope>-<topic>`, `fix/<topic>`, `chore/<topic>`, `docs/<topic>` — e.g. `feat/framework-server`.
-- The only PRs are dependabot's dependency upgrades — review and merge with one click (or apply manually).
+- Dependabot is temporarily disabled (`.github/dependabot.yml` was removed), so there are currently no PRs.
 
 ## Further rules
 

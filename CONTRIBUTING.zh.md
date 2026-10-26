@@ -48,7 +48,7 @@ chore(deps): bump dependencies
 
 - 改动直接 push 进 `main`:推之前先跑 `pnpm run check`,必须全绿。CI 在 push 到 `main` 与每次 PR 后跑同样四项检查,作为事后保险。
 - 分支命名(本地实验用):`feat/<scope>-<主题>`、`fix/<主题>`、`chore/<主题>`、`docs/<主题>`,如 `feat/framework-server`。
-- 仅有的 PR 是 dependabot 的依赖升级——过目后一键合并(或手工套用)。
+- Dependabot 暂时停用(已删除 `.github/dependabot.yml`),当前没有 PR。
 
 ## 更多规则
 
