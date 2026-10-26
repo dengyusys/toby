@@ -22,9 +22,9 @@
 | `pnpm run start`                   | 生产模式:构建前端与服务端,运行 `dist/main.js`(单进程提供页面与 API) |
 | `pnpm run check`                   | 全量检查:typecheck / lint / format / test                           |
 | `pnpm run typecheck`               | 仅类型检查                                                          |
-| `pnpm run lint`                    | 仅 ESLint(含域边界纪律)                                             |
+| `pnpm run lint`                    | 仅 ESLint(代码质量规则)                                             |
 | `pnpm run format` / `format:check` | Prettier 格式化 / 校验                                              |
-| `pnpm run test`                    | 全部测试(先构建服务端;各包 + 根 HTTP 集成测试)                      |
+| `pnpm run test`                    | 全部测试(先构建服务端;各包 + 根 HTTP 集成与边界测试)                |
 | `pnpm run build`                   | 构建两个 web 与服务端(`nest build` → `dist/`)                       |
 
 端口、进程、部署细节看 `docs/operations/`,这里不重复。
@@ -52,7 +52,7 @@
 - `packages/contract/`(纯逻辑)——唯一的跨端共享通道;组件与样式各端自持,永不共享。
 - 依赖方向永远 `apps → packages`:packages 不许 import apps;前端不许 import `@toby/server`。
 - 域互不导入;跨域接线只在组合根。`infrastructure/` 不导入业务域;域内 `types.ts` 保持纯净(禁 fastify / infrastructure / `node:`)。
-- 以上边界由 ESLint `no-restricted-imports` 机器强制,违规即构建失败。
+- 以上边界由 `test/boundaries.test.ts` 中的导入边界测试机器强制,违规即构建失败。
 - `data/` 存运行时 SQLite 数据库。
 
 ## 代码风格

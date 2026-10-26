@@ -23,8 +23,8 @@ pnpm run dev      # 开发环境:server 8629 + web 8630 + web-mobile 8631
 | -------------------- | ------------------------------------------------------------ |
 | `pnpm run check`     | 全量检查:typecheck / lint / format / test,提交前跑这一个就够 |
 | `pnpm run typecheck` | 仅类型检查                                                   |
-| `pnpm run lint`      | 仅 ESLint(含域边界纪律)                                      |
-| `pnpm run test`      | 仅测试(各包 + 根 HTTP 集成测试)                              |
+| `pnpm run lint`      | 仅 ESLint(代码质量规则)                                      |
+| `pnpm run test`      | 仅测试(各包 + 根 HTTP 集成与边界测试)                        |
 
 「改了什么就跑什么」的对照表见 [AGENTS.zh.md](AGENTS.zh.md)。
 

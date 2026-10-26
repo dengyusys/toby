@@ -51,7 +51,7 @@ test/             # 根 HTTP 集成测试
 
 - `apps/` 存放可独立运行的应用;两个 Web 应用互不导入,跨端共享只经 `@toby/contract`(纯逻辑)。
 - 依赖方向永远 `apps → packages`:packages 不导入 apps;Web 应用不导入 `@toby/server`。
-- 以上边界由 ESLint `no-restricted-imports` 机器强制,违规即构建失败。
+- 以上边界由 `test/boundaries.test.ts` 中的导入边界测试机器强制,违规即构建失败。
 
 ## 运行拓扑
 
@@ -125,14 +125,14 @@ flowchart TB
 - `domains/` 下每个域自含 Nest 模块工厂、controller、service、store 与纯业务文件;**域与域互不导入**,跨域接线只发生在组合根 `apps/server/src/main.ts`。
 - 域内 `types.ts` 保持纯净:不导入 fastify、infrastructure、`node:` 模块。
 - `infrastructure/` 不导入业务域;开库能力由 `infrastructure/db` 提供,域内 store 消费。
-- 新增业务域时,在 ESLint 的 `DOMAIN_ALLOWED` 表登记一行,边界规则自动生成。
+- 新增业务域无需登记规则——`test/boundaries.test.ts` 的边界测试从文件系统自动发现各域。
 
 安全边界:
 
 - HTTP 写路径必须经提案确认;任何绕过提案的写端点都是缺陷。记账域已在使用;后续域复用同一提案确认内核(infrastructure/actions/)。
 - AI 不获得文件路径、数据内容与 shell;其工具经安全分级门控,write-intent(写意图)工具只产出提案(docs/decisions/ai-pi-runtime.zh.md)。密钥只存在于本地环境配置,Web 包内不得包含密钥。
 - 引入 Python 等新运行时需先立 ADR。
-- 上述纪律由 ESLint 文件级规则机器强制(见 `eslint.config.js`)。
+- 上述导入纪律由 `test/boundaries.test.ts` 机器强制。
 
 ## 目录演进约定
 

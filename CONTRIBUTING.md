@@ -23,8 +23,8 @@ pnpm run dev      # dev environment: server 8629 + web 8630 + web-mobile 8631
 | -------------------- | ------------------------------------------------------------------------------------------- |
 | `pnpm run check`     | Full check: typecheck / lint / format / test — this one command is enough before committing |
 | `pnpm run typecheck` | Type checks only                                                                            |
-| `pnpm run lint`      | ESLint only (including boundary rules)                                                      |
-| `pnpm run test`      | Tests only (per-package + root HTTP integration tests)                                      |
+| `pnpm run lint`      | ESLint only (code-quality rules)                                                            |
+| `pnpm run test`      | Tests only (per-package + root HTTP integration and boundary tests)                         |
 
 The "what you changed is what you run" table lives in [AGENTS.md](AGENTS.md).
 

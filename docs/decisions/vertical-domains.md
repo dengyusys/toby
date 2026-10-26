@@ -32,12 +32,12 @@ For example, when modifying the ledger feature, the routes, business logic, and 
 
 ## Why domain slices?
 
-**The code structure tracks business change.** Adding a new domain means adding a module and wiring it in `main.ts`, leaving existing modules untouched; each domain owns its rules, logic, and data access and does not import other domains — cross-domain collaboration is wired in `main.ts` through explicit interfaces, and ESLint enforces these constraints so they are not left to discipline.
+**The code structure tracks business change.** Adding a new domain means adding a module and wiring it in `main.ts`, leaving existing modules untouched; each domain owns its rules, logic, and data access and does not import other domains — cross-domain collaboration is wired in `main.ts` through explicit interfaces, and the import-boundary tests (`test/boundaries.test.ts`) enforce these constraints so they are not left to discipline.
 
 **Business logic is easier to understand and test.** A domain's implementation lives in one directory; you don't need to understand the whole project's layering to read it. Business rules that avoid framework and infrastructure dependencies can be plain functions — unit-testable directly, without an HTTP server or a database.
 
 ## In this repository
 
-The concrete boundaries (never import across domains, infrastructure never depends on domains, machine-enforced by ESLint) are owned by the [system overview](../system-overview.md) and `AGENTS.md` — see those instead of a second list here.
+The concrete boundaries (never import across domains, infrastructure never depends on domains, machine-enforced by the boundary tests in `test/boundaries.test.ts`) are owned by the [system overview](../system-overview.md) and `AGENTS.md` — see those instead of a second list here.
 
 The goal of this design is not a fancier architecture — it is keeping the code organized the way the business evolves.

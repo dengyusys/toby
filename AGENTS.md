@@ -16,16 +16,16 @@ Before implementing: find the currently authoritative doc (feature docs + ADRs) 
 
 All from the repo root:
 
-| Command                            | What it does                                                                              |
-| ---------------------------------- | ----------------------------------------------------------------------------------------- |
-| `pnpm run dev`                     | Start dev: server 8629 → web 8630 / web-mobile 8631                                       |
-| `pnpm run start`                   | Production: build webs + server, run `dist/main.js` (single process serves pages and API) |
-| `pnpm run check`                   | Full check: typecheck / lint / format / test                                              |
-| `pnpm run typecheck`               | Type checks only                                                                          |
-| `pnpm run lint`                    | ESLint only (including boundary rules)                                                    |
-| `pnpm run format` / `format:check` | Prettier format / check                                                                   |
-| `pnpm run test`                    | All tests (builds the server first; per-package + root HTTP integration tests)            |
-| `pnpm run build`                   | Build both web apps and the server (`nest build` → `dist/`)                               |
+| Command                            | What it does                                                                                |
+| ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| `pnpm run dev`                     | Start dev: server 8629 → web 8630 / web-mobile 8631                                         |
+| `pnpm run start`                   | Production: build webs + server, run `dist/main.js` (single process serves pages and API)   |
+| `pnpm run check`                   | Full check: typecheck / lint / format / test                                                |
+| `pnpm run typecheck`               | Type checks only                                                                            |
+| `pnpm run lint`                    | ESLint only (code-quality rules)                                                            |
+| `pnpm run format` / `format:check` | Prettier format / check                                                                     |
+| `pnpm run test`                    | All tests (builds the server first; per-package + root HTTP integration and boundary tests) |
+| `pnpm run build`                   | Build both web apps and the server (`nest build` → `dist/`)                                 |
 
 Ports, processes, and deployment details live in `docs/operations/` — not repeated here.
 
@@ -52,7 +52,7 @@ If one change touches several rows, run all the checks those rows list.
 - `packages/contract/` (pure logic) — the only cross-app sharing path; components and styles are owned by each app and never shared.
 - Dependency direction is always `apps → packages`: packages never import apps; the web apps never import `@toby/server`.
 - Domains never import each other; cross-domain wiring happens only in the composition root. `infrastructure/` never imports business domains; a domain's `types.ts` stays pure (no fastify / infrastructure / `node:` imports).
-- These boundaries are machine-enforced by ESLint `no-restricted-imports`; a violation fails the build.
+- These boundaries are machine-enforced by the import-boundary tests in `test/boundaries.test.ts`; a violation fails the build.
 - `data/` holds the runtime SQLite databases.
 
 ## Code style

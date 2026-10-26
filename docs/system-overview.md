@@ -51,7 +51,7 @@ test/             # root HTTP integration tests
 
 - `apps/` holds independently runnable apps; the two web apps never import each other; cross-app sharing goes only through `@toby/contract` (pure logic).
 - Dependency direction is always `apps → packages`: packages never import apps; web apps never import `@toby/server`.
-- These boundaries are machine-enforced by ESLint `no-restricted-imports`; a violation fails the build.
+- These boundaries are machine-enforced by the import-boundary tests in `test/boundaries.test.ts`; a violation fails the build.
 
 ## Runtime topology
 
@@ -125,14 +125,14 @@ Domain organization discipline:
 - Every domain under `domains/` contains its own module (Nest module factory), controller, services, stores, and pure business files; **domains never import each other** — cross-domain wiring happens only in the composition root `apps/server/src/main.ts`.
 - A domain's `types.ts` stays pure: no fastify, no infrastructure, no `node:` imports.
 - `infrastructure/` never imports business domains; database opening is provided by `infrastructure/db` and consumed by domain stores.
-- Adding a business domain means adding one row to ESLint's `DOMAIN_ALLOWED` table; the boundary rules generate themselves.
+- Adding a business domain needs no rule registration — the boundary tests in `test/boundaries.test.ts` discover domains from the filesystem.
 
 Security boundaries:
 
 - HTTP write paths must go through proposal confirmation; any write endpoint bypassing it is a defect. Ledger is live on it; later domains reuse the same actions kernel (`infrastructure/actions/`).
 - The AI gets no file paths, no data contents, and no shell; its tools are kind-gated, and write-intent tools only produce proposals (docs/decisions/ai-pi-runtime.md). Secrets live only in local environment config, never inside web bundles.
 - Introducing new runtimes (Python etc.) requires an ADR first.
-- These disciplines are machine-enforced by file-level ESLint rules (see `eslint.config.js`).
+- These import disciplines are machine-enforced by `test/boundaries.test.ts`.
 
 ## Layout evolution rules
 
