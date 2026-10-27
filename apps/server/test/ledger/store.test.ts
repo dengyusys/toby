@@ -1,6 +1,7 @@
 /**
  * Ledger store against a real sqlite database in a temporary directory:
- * migrations, batch inserts, month listing and month-window queries.
+ * lazy open + migrations, batch inserts, month listing, month-window
+ * queries, and shutdown close.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
@@ -8,33 +9,26 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { createDomainDb } from "../../src/infrastructure/db/create-db.ts";
-import { applyMigrations } from "../../src/infrastructure/db/migrate.ts";
-import {
-  LEDGER_MIGRATIONS,
-  monthBounds,
-  createLedgerStore,
-} from "../../src/domains/ledger/store.ts";
+import { monthBounds, LedgerStore } from "../../src/domains/ledger/store.ts";
 import type { LedgerEntry } from "../../src/domains/ledger/types.ts";
 
 const dataRoot = mkdtempSync(path.join(tmpdir(), "toby-ledger-store-"));
-const fixedNow = () => new Date("2026-10-20T08:00:00.000Z");
+const fixedNow = () => Date.parse("2026-10-20T08:00:00.000Z");
 
 afterAll(async () => {
   rmSync(dataRoot, { recursive: true, force: true });
 });
 
-// One isolated database per case: a fresh subdirectory per call.
+// One isolated database per case: a fresh subdirectory per call. The
+// store opens and migrates its database lazily, exactly as under DI.
 let caseCounter = 0;
 
-async function openStore() {
+async function openStore(): Promise<LedgerStore> {
   caseCounter += 1;
   const config = resolveConfig({
     env: { TOBY_DATA_ROOT: path.join(dataRoot, `case-${caseCounter}`) },
   });
-  const db = await createDomainDb(config, "ledger");
-  await applyMigrations(db, LEDGER_MIGRATIONS);
-  return { store: createLedgerStore(db, { now: fixedNow }), db };
+  return new LedgerStore(config, fixedNow);
 }
 
 function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
@@ -62,7 +56,7 @@ describe("ledger store", () => {
   });
 
   it("inserts a batch, returns ids, and reads the rows back", async () => {
-    const { store, db } = await openStore();
+    const store = await openStore();
     try {
       const ids = await store.insertTransactions([
         entry({ amount: 2500 }),
@@ -83,12 +77,12 @@ describe("ledger store", () => {
       expect(rows[0]!.created_at).toBe("2026-10-20T08:00:00.000Z");
       expect(rows[1]!.amount).toBe(2500);
     } finally {
-      await db.close();
+      await store.close();
     }
   });
 
   it("lists distinct months descending", async () => {
-    const { store, db } = await openStore();
+    const store = await openStore();
     try {
       await store.insertTransactions([
         entry({ date: "2026-08-15" }),
@@ -102,12 +96,12 @@ describe("ledger store", () => {
         "2025-12",
       ]);
     } finally {
-      await db.close();
+      await store.close();
     }
   });
 
   it("month queries never bleed adjacent months", async () => {
-    const { store, db } = await openStore();
+    const store = await openStore();
     try {
       await store.insertTransactions([
         entry({ date: "2026-09-30" }),
@@ -123,17 +117,17 @@ describe("ledger store", () => {
       const november = await store.listMonthTransactions("2026-11");
       expect(november.map((row) => row.date)).toEqual(["2026-11-01"]);
     } finally {
-      await db.close();
+      await store.close();
     }
   });
 
   it("empty database lists no months and empty month windows", async () => {
-    const { store, db } = await openStore();
+    const store = await openStore();
     try {
       expect(await store.listMonths()).toEqual([]);
       expect(await store.listMonthTransactions("2026-10")).toEqual([]);
     } finally {
-      await db.close();
+      await store.close();
     }
   });
 });

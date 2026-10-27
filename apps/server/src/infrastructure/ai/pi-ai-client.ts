@@ -2,8 +2,9 @@
  * Single-shot AI transport over pi-ai's unified API: one `complete()` call
  * per request, with the app-level JSON protocol (tolerant parsing, one
  * correction retry) kept on this side per docs/decisions/ai-pi-runtime.md.
- * It currently has no production caller — chat's intent classification is
- * its expected first consumer. pi-ai never rejects — provider failures
+ * It currently has no production caller — kept for the upcoming chat
+ * domain (docs/features/chat.md), whose intent classification is its
+ * expected first consumer. pi-ai never rejects — provider failures
  * arrive as the assistant message's stopReason/errorMessage and are mapped
  * onto the closed AiError union here. No business logic lives in this file.
  *

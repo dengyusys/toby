@@ -6,19 +6,12 @@
  */
 
 import path from "node:path";
-import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Controller, Get, Post } from "@nestjs/common";
-import {
-  createNestServer,
-  type NestServer,
-} from "../../src/infrastructure/http/nest-app.ts";
-
-const missingRoot = path.join(
-  mkdtempSync(path.join(tmpdir(), "toby-eh-")),
-  "no-dist",
-);
+import { Controller, Get, Post, type DynamicModule } from "@nestjs/common";
+import { resolveConfig } from "../../src/infrastructure/config/config.ts";
+import { createTestApp } from "../app-fixture.ts";
+import type { NestServer } from "../../src/infrastructure/http/nest-app.ts";
 
 // Test-local routes: a JSON body route (to trigger parse errors) and two
 // routes that throw — one domain-shaped (Error + code + status), one not.
@@ -43,19 +36,21 @@ class ProbeController {
   }
 }
 
-class ProbeModule {}
-const probeModule = {
-  module: ProbeModule,
+const probeModule: DynamicModule = {
+  module: class ProbeModule {},
   controllers: [ProbeController],
 };
 
 let app: NestServer;
 
 beforeEach(async () => {
-  app = await createNestServer({
-    webRoot: path.join(missingRoot, "web"),
-    mobileWebRoot: path.join(missingRoot, "mobile"),
-    domainModules: [probeModule],
+  // The probe module touches no database; a never-created data root is
+  // enough for the config shape.
+  app = await createTestApp({
+    config: resolveConfig({
+      env: { TOBY_DATA_ROOT: path.join(tmpdir(), "toby-error-handler-probe") },
+    }),
+    modules: [probeModule],
   });
 });
 

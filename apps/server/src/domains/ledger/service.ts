@@ -2,14 +2,24 @@
  * Ledger service: the use-case layer tying validation, the proposal
  * registry and the store together. Every write goes through a proposal;
  * month reports aggregate store rows in pure TypeScript. The clock is
- * injected so tests can drive auto-write, expiry and pruning.
+ * injected by token so tests can drive auto-write, expiry and pruning.
  */
 
 import { randomUUID } from "node:crypto";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from "@nestjs/common";
 import { AiError } from "../../infrastructure/ai/errors.ts";
 import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
-import type { Logger } from "../../infrastructure/logging/logger.ts";
-import { type LedgerStore } from "./store.ts";
+import {
+  CLOCK,
+  type Clock,
+} from "../../infrastructure/providers/shared-tokens.ts";
+import { LedgerStore } from "./store.ts";
 import { LedgerRequestError } from "./errors.ts";
 import { createProposalRegistry, type ProposalRegistry } from "./proposals.ts";
 import {
@@ -18,6 +28,7 @@ import {
   type LedgerFollowUp,
 } from "./extraction.ts";
 import { isRecord, normalizeEntry } from "./validation.ts";
+import { LEDGER_EXTRACTOR, LEDGER_TIMING } from "./tokens.ts";
 import type {
   LedgerCancelResult,
   LedgerCategorySummary,
@@ -28,6 +39,8 @@ import type {
 } from "./types.ts";
 
 const MONTH_PATTERN = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
+
+const SWEEP_INTERVAL_MS = 1_000;
 
 /** Aggregate one month's rows into the report shape (pure function). */
 export function buildMonthReport(
@@ -69,28 +82,18 @@ export function buildMonthReport(
   };
 }
 
-export interface LedgerServiceDeps {
-  now?: () => number;
+/**
+ * Proposal-timing knobs, overridable per test via the LEDGER_TIMING token;
+ * production uses the kernel defaults (empty overrides).
+ */
+export interface LedgerTiming {
   autoWriteDelayMs?: number;
   ttlMs?: number;
   retentionMs?: number;
-  /** Extraction agent for the one-sentence path; absent keeps it 501. */
-  extractor?: LedgerExtractor;
-  /** pino logger; auto-write failures surface here instead of dying silent. */
-  logger?: Logger;
 }
 
 /** A proposal, or the AI asking the user one clarifying question. */
 export type LedgerProposalResult = LedgerProposalView | LedgerFollowUp;
-
-export interface LedgerService {
-  createProposal(body: unknown): Promise<LedgerProposalResult>;
-  commit(id: string): Promise<LedgerCommitResult>;
-  cancel(id: string): Promise<LedgerCancelResult>;
-  months(): Promise<{ months: readonly string[] }>;
-  monthReport(month: string | undefined): Promise<LedgerMonthReport>;
-  sweep(): Promise<void>;
-}
 
 /** One message for every 501 AI_UNAVAILABLE path. */
 const AI_UNCONFIGURED_MESSAGE =
@@ -111,23 +114,67 @@ function aiHttpError(error: AiError): LedgerRequestError {
   );
 }
 
-export function assembleLedgerService(
-  store: LedgerStore,
-  deps: LedgerServiceDeps = {},
-): LedgerService {
-  const now = deps.now ?? Date.now;
-  const registry: ProposalRegistry = createProposalRegistry({
-    now,
-    autoWriteDelayMs: deps.autoWriteDelayMs,
-    ttlMs: deps.ttlMs,
-    retentionMs: deps.retentionMs,
-  });
+@Injectable()
+export class LedgerService implements OnModuleInit, OnModuleDestroy {
+  private readonly registry: ProposalRegistry;
+  private readonly logger = new Logger(LedgerService.name);
+  private timer?: NodeJS.Timeout;
+
+  constructor(
+    private readonly store: LedgerStore,
+    @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(LEDGER_TIMING) timing: LedgerTiming,
+    @Inject(LEDGER_EXTRACTOR)
+    private readonly extractor: LedgerExtractor | undefined,
+  ) {
+    this.registry = createProposalRegistry({
+      now: this.clock,
+      autoWriteDelayMs: timing.autoWriteDelayMs,
+      ttlMs: timing.ttlMs,
+      retentionMs: timing.retentionMs,
+    });
+  }
+
+  // A 1 s tick bounds the auto-write moment's timing error to about a
+  // second. Runs until the application shuts down.
+  onModuleInit(): void {
+    this.timer = setInterval(() => {
+      // sweep swallows commit failures internally; this catch only guards
+      // future edits that let something else throw — Node 22 kills the
+      // process on an unhandled rejection.
+      this.sweep().catch((error: unknown) => {
+        this.logger.error("ledger sweep failed", { err: error });
+      });
+    }, SWEEP_INTERVAL_MS);
+    this.timer.unref();
+  }
+
+  // Teardown ordering: Nest destroys providers by descending dependency
+  // depth, and this service sits above LedgerStore (which closes the
+  // database) in that chain — so the timer is cleared first. Do not break
+  // the LedgerService → LedgerStore dependency chain.
+  onModuleDestroy(): void {
+    clearInterval(this.timer);
+  }
+
+  async createProposal(body: unknown): Promise<LedgerProposalResult> {
+    if (!isRecord(body)) {
+      throw new LedgerRequestError(
+        "INVALID_ENTRY",
+        HTTP_STATUS.badRequest,
+        "request body must be a JSON object",
+      );
+    }
+    if (typeof body.text === "string") {
+      return this.createFromText(body.text);
+    }
+    const entry = normalizeEntry(body.entry);
+    return this.registry.add(randomUUID(), [entry]);
+  }
 
   // The one-sentence branch: extract → (question | entries) → proposal.
   // A named step so createProposal stays a thin dispatcher.
-  const createFromText = async (
-    rawText: string,
-  ): Promise<LedgerProposalResult> => {
+  private async createFromText(rawText: string): Promise<LedgerProposalResult> {
     const text = rawText.trim();
     if (!text) {
       throw new LedgerRequestError(
@@ -136,7 +183,7 @@ export function assembleLedgerService(
         "text must not be empty",
       );
     }
-    if (!deps.extractor) {
+    if (!this.extractor) {
       throw new LedgerRequestError(
         "AI_UNAVAILABLE",
         HTTP_STATUS.notImplemented,
@@ -145,7 +192,7 @@ export function assembleLedgerService(
     }
     let draft: LedgerDraft;
     try {
-      draft = await deps.extractor.extract(text, new Date(now()));
+      draft = await this.extractor.extract(text, new Date(this.clock()));
     } catch (error) {
       if (error instanceof AiError) {
         throw aiHttpError(error);
@@ -155,68 +202,54 @@ export function assembleLedgerService(
     if ("question" in draft) {
       return draft;
     }
-    return registry.add(randomUUID(), draft.entries);
-  };
+    return this.registry.add(randomUUID(), draft.entries);
+  }
 
-  return {
-    async createProposal(body) {
-      if (!isRecord(body)) {
-        throw new LedgerRequestError(
-          "INVALID_ENTRY",
-          HTTP_STATUS.badRequest,
-          "request body must be a JSON object",
-        );
-      }
-      if (typeof body.text === "string") {
-        return createFromText(body.text);
-      }
-      const entry = normalizeEntry(body.entry);
-      return registry.add(randomUUID(), [entry]);
-    },
+  commit(id: string): Promise<LedgerCommitResult> {
+    return this.registry.commit(id, (entries) =>
+      this.store.insertTransactions(entries).then((transaction_ids) => ({
+        written: entries.length,
+        transaction_ids,
+      })),
+    );
+  }
 
-    commit(id) {
-      return registry.commit(id, (entries) =>
-        store.insertTransactions(entries).then((transaction_ids) => ({
-          written: entries.length,
-          transaction_ids,
-        })),
+  cancel(id: string): Promise<LedgerCancelResult> {
+    return this.registry.cancel(id);
+  }
+
+  async months(): Promise<{ months: readonly string[] }> {
+    return { months: await this.store.listMonths() };
+  }
+
+  async monthReport(month: string | undefined): Promise<LedgerMonthReport> {
+    if (month === undefined || !MONTH_PATTERN.test(month)) {
+      throw new LedgerRequestError(
+        "INVALID_MONTH",
+        HTTP_STATUS.badRequest,
+        'month query parameter is required as "YYYY-MM"',
       );
-    },
+    }
+    const rows = await this.store.listMonthTransactions(month);
+    return buildMonthReport(month, rows);
+  }
 
-    cancel(id) {
-      return registry.cancel(id);
-    },
-
-    async months() {
-      return { months: await store.listMonths() };
-    },
-
-    async monthReport(month) {
-      if (month === undefined || !MONTH_PATTERN.test(month)) {
-        throw new LedgerRequestError(
-          "INVALID_MONTH",
-          HTTP_STATUS.badRequest,
-          'month query parameter is required as "YYYY-MM"',
+  async sweep(): Promise<void> {
+    for (const id of this.registry.dueForAutoWrite()) {
+      // A failing write leaves the proposal pending; the next sweep
+      // retries it until the TTL backstop expires the proposal. The
+      // failure is logged so a persistently failing store never eats
+      // data silently.
+      await this.commit(id).catch((error: unknown) => {
+        this.logger.warn(
+          "auto-write failed; retrying until the proposal expires",
+          {
+            proposalId: id,
+            err: error,
+          },
         );
-      }
-      const rows = await store.listMonthTransactions(month);
-      return buildMonthReport(month, rows);
-    },
-
-    async sweep() {
-      for (const id of registry.dueForAutoWrite()) {
-        // A failing write leaves the proposal pending; the next sweep
-        // retries it until the TTL backstop expires the proposal. The
-        // failure is logged so a persistently failing store never eats
-        // data silently.
-        await this.commit(id).catch((error: unknown) => {
-          deps.logger?.warn(
-            { proposal_id: id, err: error },
-            "auto-write failed; retrying until the proposal expires",
-          );
-        });
-      }
-      registry.sweep();
-    },
-  };
+      });
+    }
+    this.registry.sweep();
+  }
 }

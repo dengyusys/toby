@@ -142,13 +142,17 @@ function resolveDatabaseConfig(env: Env): DatabaseConfig {
   };
 }
 
+// Relative values resolve against the repository root, never the process
+// cwd — the layout inside the Docker image depends on it.
 function resolveRelative(value: string | undefined, fallback: string): string {
   return value ? path.resolve(repositoryRoot, value) : fallback;
 }
 
 /**
- * pino rejects unknown levels with a library-internal error; validate here
- * so a typo in TOBY_LOG_LEVEL fails with a config-shaped message instead.
+ * Fastify's access log (pino internally) rejects unknown levels with a
+ * library-internal error; validate here so a typo in TOBY_LOG_LEVEL fails
+ * with a config-shaped message instead. The same value drives the built-in
+ * Nest logger through infrastructure/logging/nest-logger.ts.
  */
 const LOG_LEVELS = new Set([
   "trace",

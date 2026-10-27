@@ -257,7 +257,8 @@ describe("http contract (auth enabled)", () => {
       stdio: ["ignore", "ignore", "pipe"],
       windowsHide: true,
     });
-    // Health is guarded now; readiness is the exempt session endpoint.
+    // Health is public again (the Docker healthcheck depends on it);
+    // readiness polling stays on the session endpoint.
     const deadline = Date.now() + 20_000;
     for (;;) {
       if (authProcess.exitCode !== null) {
@@ -299,6 +300,14 @@ describe("http contract (auth enabled)", () => {
     expect(denied.status).toBe(401);
     const deniedBody = (await denied.json()) as { error: { code: string } };
     expect(deniedBody.error.code).toBe("AUTH_REQUIRED");
+
+    // Health is @Public: the healthcheck endpoint must answer without a
+    // session, and percent-encoded paths must not dodge the guard.
+    const health = await fetch(`${authUrl}/api/system/health`);
+    expect(health.status).toBe(200);
+    expect(await health.json()).toEqual({ status: "ok" });
+    const encoded = await fetch(`${authUrl}/%61pi/ledger/months`);
+    expect(encoded.status).toBe(401);
 
     const wrong = await fetch(`${authUrl}/api/auth/login`, {
       method: "POST",

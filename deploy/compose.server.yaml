@@ -3,14 +3,15 @@
 #   - no build section: the image either comes from `docker load` (tarball
 #     transfer, default) or from a registry pull (set TOBY_IMAGE in .env —
 #     see docs/operations/deploy-ecs.md "Automated deployment")
-#   - healthcheck probes "/" instead of /api/system/health so it stays green
-#     whether or not TOBY_AUTH_PASSWORD_HASH is set (auth returns 401 on /api/*)
+#   - healthcheck probes "/" so it also verifies static serving;
+#     /api/system/health would work too — it is exempt from authentication
+#     by design (the Docker healthcheck target)
 # 服务器端 compose(阿里云 ECS / 任意单台 VPS 通用)。与根 compose.yaml 的差异:
 #   - 无 build 段:镜像默认来自 docker load(镜像包直传);
 #     自动化部署时在 .env 里设置 TOBY_IMAGE 走仓库拉取,
 #     见 docs/operations/deploy-ecs.zh.md "自动化部署"一节
-#   - 健康检查探 "/" 而非 /api/system/health —— 无论是否开启
-#     TOBY_AUTH_PASSWORD_HASH 都是 200(开启认证后 /api/* 一律 401)
+#   - 健康检查探 "/" —— 顺带验证静态资源;探 /api/system/health 也可以,
+#     该端点按设计豁免认证(就是给 Docker healthcheck 用的)
 services:
   server:
     # Compose interpolates ${...} from the .env file next to this compose

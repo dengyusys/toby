@@ -1,73 +1,20 @@
 /**
- * Auth domain Nest module: builds the service from config and returns it
- * together with the module and the root request guard — the guard is how
- * authentication, once enabled, covers every domain's endpoints while
- * exempting the login endpoint itself and the static pages carrying the
- * login UI. The session sweeper runs until the application shuts down
- * (lazy expiry already covers correctness; the sweeper only bounds memory).
+ * Auth domain Nest module: the service (owning the session sweeper) and
+ * the session guard as @Injectable classes. Importing the auth module is
+ * what makes authentication available to the composition root, which
+ * installs the guard globally. (APP_GUARD registration is not used: it is
+ * broken under the ESM test tooling — see
+ * docs/decisions/idiomatic-nest-services.md.)
  */
 
-import { type DynamicModule } from "@nestjs/common";
-import type { FastifyRequest } from "fastify";
-import type { TobyConfig } from "../../infrastructure/config/config.ts";
-import type { RequestGuardFn } from "../../infrastructure/http/contract.ts";
-import {
-  assembleAuthService,
-  type AuthService,
-  type AuthServiceDeps,
-} from "./service.ts";
-import { AuthController, readSessionCookie } from "./auth.controller.ts";
-import { AUTH_COOKIE, AUTH_SERVICE } from "./tokens.ts";
+import { Module } from "@nestjs/common";
+import { AuthController } from "./auth.controller.ts";
+import { AuthService } from "./service.ts";
+import { SessionGuard } from "./session.guard.ts";
 
-const AUTH_LIFECYCLE = Symbol("AUTH_LIFECYCLE");
-
-const SESSION_SWEEP_INTERVAL_MS = 60_000;
-
-export interface AuthNestAssembly {
-  module: DynamicModule;
-  /** Root-level request guard: no-op while auth is disabled. */
-  requestGuard: RequestGuardFn;
-  service: AuthService;
-}
-
-export function createAuthModule(
-  config: TobyConfig,
-  deps: AuthServiceDeps = {},
-): AuthNestAssembly {
-  const service = assembleAuthService(config.auth, deps);
-  const requestGuard = async (request: FastifyRequest): Promise<void> => {
-    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
-    service.requireSession(pathname, readSessionCookie(request));
-  };
-  const sweeper = setInterval(() => {
-    service.sweepSessions();
-  }, SESSION_SWEEP_INTERVAL_MS);
-  sweeper.unref();
-
-  class AuthDomainModule {}
-  const module: DynamicModule = {
-    module: AuthDomainModule,
-    controllers: [AuthController],
-    providers: [
-      { provide: AUTH_SERVICE, useValue: service },
-      {
-        provide: AUTH_COOKIE,
-        useValue: {
-          secureCookie: config.auth.secureCookie,
-          sessionTtlMs: config.auth.sessionTtlMs,
-        },
-      },
-      {
-        provide: AUTH_LIFECYCLE,
-        useValue: {
-          onApplicationShutdown: () => {
-            clearInterval(sweeper);
-          },
-        },
-      },
-    ],
-    exports: [AUTH_SERVICE],
-  };
-
-  return { module, requestGuard, service };
-}
+@Module({
+  controllers: [AuthController],
+  providers: [AuthService, SessionGuard],
+  exports: [AuthService, SessionGuard],
+})
+export class AuthModule {}

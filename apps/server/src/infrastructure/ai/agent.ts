@@ -36,7 +36,7 @@ import type { AiRuntimeConfig } from "./types.ts";
 import { AiError } from "./errors.ts";
 import { resolveCatalogModel } from "./model-catalog.ts";
 import { textOf } from "./pi-ai-client.ts";
-import type { Logger } from "../logging/logger.ts";
+import type { Logger } from "@nestjs/common";
 
 /** Safety classification every Toby tool must carry. */
 export type ToolKind = "read-only" | "write-intent";
@@ -107,20 +107,20 @@ function createToolGate(
     const name = context.toolCall.name;
     const entry = toolByName.get(name);
     if (!entry) {
-      logger?.warn({ tool: name }, "ai tool call blocked: not registered");
+      logger?.warn("ai tool call blocked: not registered", { tool: name });
       return { block: true, reason: `unknown tool: ${name}` };
     }
     if (!spec.policy.allowedKinds.includes(entry.kind)) {
-      logger?.warn(
-        { tool: name, kind: entry.kind },
-        "ai tool call blocked: kind not allowed by policy",
-      );
+      logger?.warn("ai tool call blocked: kind not allowed by policy", {
+        tool: name,
+        kind: entry.kind,
+      });
       return {
         block: true,
         reason: `tool ${name} is not allowed in this agent`,
       };
     }
-    logger?.info({ tool: name, kind: entry.kind }, "ai tool call allowed");
+    logger?.log("ai tool call allowed", { tool: name, kind: entry.kind });
     return undefined;
   };
 }
@@ -237,17 +237,14 @@ function createTobyAgent(
 
       const usage = assistant?.usage;
       if (usage) {
-        logger?.info(
-          {
-            model: model.id,
-            provider: model.provider,
-            turns,
-            inTokens: usage.input,
-            outTokens: usage.output,
-            costUsd: usage.cost.total,
-          },
-          "ai agent run usage",
-        );
+        logger?.log("ai agent run usage", {
+          model: model.id,
+          provider: model.provider,
+          turns,
+          inTokens: usage.input,
+          outTokens: usage.output,
+          costUsd: usage.cost.total,
+        });
       }
       return {
         text: textOf(assistant),

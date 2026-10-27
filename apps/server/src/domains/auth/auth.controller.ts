@@ -4,45 +4,38 @@
  * never reads it. Setting and clearing the cookie happens here because
  * only this layer knows the deployment shape (Secure flag); the
  * server-side expiry stays the source of truth regardless of the cookie's
- * Max-Age.
+ * Max-Age. All three routes are @Public: logout must stay idempotent for
+ * an unknown session and the login page needs the session query before
+ * any cookie exists.
  */
 
 import { Body, Controller, Get, Inject, Post, Req, Res } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { TobyConfig } from "../../infrastructure/config/config.ts";
 import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
+import { Public } from "../../infrastructure/http/public.decorator.ts";
 import { sendJsonReply } from "../../infrastructure/http/response.ts";
+import { TOBY_CONFIG } from "../../infrastructure/providers/shared-tokens.ts";
+import { readSessionCookie, SESSION_COOKIE } from "./cookie.ts";
 import { AuthError } from "./errors.ts";
-import { LOGIN_SUCCESS, SESSION_COOKIE, type AuthService } from "./service.ts";
-import { AUTH_COOKIE, AUTH_SERVICE } from "./tokens.ts";
+import { LOGIN_SUCCESS, AuthService } from "./service.ts";
 
-export function readSessionCookie(
-  request: FastifyRequest,
-  name: string = SESSION_COOKIE,
-): string | undefined {
-  const header = request.headers.cookie;
-  if (!header) {
-    return undefined;
-  }
-  for (const part of header.split(";")) {
-    const separator = part.indexOf("=");
-    const key = part.slice(0, separator).trim();
-    if (key === name && separator > 0) {
-      return part.slice(separator + 1).trim();
-    }
-  }
-  return undefined;
-}
-
+@Public()
 @Controller("api/auth")
 export class AuthController {
-  // Property injection (see system.controller.ts for the rationale).
-  @Inject(AUTH_SERVICE)
-  private readonly service!: AuthService;
-  @Inject(AUTH_COOKIE)
-  private readonly cookie!: { secureCookie: boolean; sessionTtlMs: number };
+  private readonly secureCookie: boolean;
+  private readonly sessionTtlMs: number;
+
+  constructor(
+    private readonly service: AuthService,
+    @Inject(TOBY_CONFIG) config: TobyConfig,
+  ) {
+    this.secureCookie = config.auth.secureCookie;
+    this.sessionTtlMs = config.auth.sessionTtlMs;
+  }
 
   private cookieFlags(): string {
-    return `; Path=/; HttpOnly; SameSite=Strict${this.cookie.secureCookie ? "; Secure" : ""}`;
+    return `; Path=/; HttpOnly; SameSite=Strict${this.secureCookie ? "; Secure" : ""}`;
   }
 
   @Post("login")
@@ -56,7 +49,7 @@ export class AuthController {
       const grant = await this.service.login(password, request.ip);
       reply.header(
         "set-cookie",
-        `${SESSION_COOKIE}=${grant.token}; Max-Age=${Math.floor(this.cookie.sessionTtlMs / 1000)}${this.cookieFlags()}`,
+        `${SESSION_COOKIE}=${grant.token}; Max-Age=${Math.floor(this.sessionTtlMs / 1000)}${this.cookieFlags()}`,
       );
       sendJsonReply(reply, HTTP_STATUS.ok, LOGIN_SUCCESS);
     } catch (error) {

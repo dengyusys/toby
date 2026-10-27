@@ -1,13 +1,27 @@
 /**
- * Ledger store: hand-written SQL over the database port. One transactions
- * table per the feature contract; money stays integer cents, dates are
- * local "YYYY-MM-DD" strings, created_at is a UTC ISO string for stable
- * ordering. DDL differs per dialect exactly where it must (auto-increment
- * column type); everything else sticks to the portable SQL subset.
+ * Ledger store: hand-written SQL over the domain database. One
+ * transactions table per the feature contract; money stays integer
+ * cents, dates are local "YYYY-MM-DD" strings, created_at is a UTC ISO
+ * string for stable ordering. The store owns its database lifecycle:
+ * opens the file and applies migrations lazily (memoized — first caller
+ * pays, everyone shares), closes it on shutdown. DDL differs per dialect
+ * exactly where it must; everything else sticks to the portable SQL
+ * subset.
  */
 
+import { Inject, Injectable, type OnModuleDestroy } from "@nestjs/common";
+import type { TobyConfig } from "../../infrastructure/config/config.ts";
+import { createDomainDb } from "../../infrastructure/db/create-db.ts";
+import {
+  applyMigrations,
+  type DomainMigrations,
+} from "../../infrastructure/db/migrate.ts";
 import type { DomainDb } from "../../infrastructure/db/types.ts";
-import type { DomainMigrations } from "../../infrastructure/db/migrate.ts";
+import {
+  CLOCK,
+  TOBY_CONFIG,
+  type Clock,
+} from "../../infrastructure/providers/shared-tokens.ts";
 import type { LedgerEntry, LedgerTransactionRow } from "./types.ts";
 
 export const LEDGER_MIGRATIONS: DomainMigrations = {
@@ -54,61 +68,88 @@ export function monthBounds(month: string): { start: string; end: string } {
   return { start: `${month}-01`, end: `${nextYear}-${nextMonth}-01` };
 }
 
-export interface LedgerStore {
+@Injectable()
+export class LedgerStore implements OnModuleDestroy {
+  private opening?: Promise<DomainDb>;
+
+  constructor(
+    @Inject(TOBY_CONFIG) private readonly config: TobyConfig,
+    @Inject(CLOCK) private readonly clock: Clock,
+  ) {}
+
+  /**
+   * The opened database; opening (with migrations) happens once. A failed
+   * open forgets the memo, so a transient failure (mysql unreachable)
+   * retries on the next call instead of bricking the domain until restart.
+   */
+  private db(): Promise<DomainDb> {
+    this.opening ??= (async () => {
+      const handle = await createDomainDb(this.config, "ledger");
+      await applyMigrations(handle, LEDGER_MIGRATIONS);
+      return handle;
+    })().catch((error: unknown) => {
+      this.opening = undefined;
+      throw error;
+    });
+    return this.opening;
+  }
+
+  async close(): Promise<void> {
+    const handle = await this.opening?.catch(() => undefined);
+    await handle?.close();
+    this.opening = undefined;
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.close();
+  }
+
   /** Insert a whole proposal batch in one transaction; returns the ids. */
-  insertTransactions(
+  async insertTransactions(
     entries: readonly LedgerEntry[],
-  ): Promise<readonly number[]>;
-  listMonths(): Promise<readonly string[]>;
-  listMonthTransactions(
-    month: string,
-  ): Promise<readonly LedgerTransactionRow[]>;
-}
-
-export function createLedgerStore(
-  db: DomainDb,
-  deps: { now: () => Date },
-): LedgerStore {
-  return {
-    async insertTransactions(entries) {
-      if (entries.length === 0) {
-        return [];
+  ): Promise<readonly number[]> {
+    if (entries.length === 0) {
+      return [];
+    }
+    const createdAt = new Date(this.clock()).toISOString();
+    const db = await this.db();
+    return db.transaction(async (tx) => {
+      const ids: number[] = [];
+      for (const entry of entries) {
+        const result = await tx.run(
+          "INSERT INTO transactions (date, type, category, account, amount, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [
+            entry.date,
+            entry.type,
+            entry.category,
+            entry.account,
+            entry.amount,
+            entry.note,
+            createdAt,
+          ],
+        );
+        ids.push(result.insertId ?? 0);
       }
-      const createdAt = deps.now().toISOString();
-      return db.transaction(async (tx) => {
-        const ids: number[] = [];
-        for (const entry of entries) {
-          const result = await tx.run(
-            "INSERT INTO transactions (date, type, category, account, amount, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [
-              entry.date,
-              entry.type,
-              entry.category,
-              entry.account,
-              entry.amount,
-              entry.note,
-              createdAt,
-            ],
-          );
-          ids.push(result.insertId ?? 0);
-        }
-        return ids;
-      });
-    },
+      return ids;
+    });
+  }
 
-    async listMonths() {
-      const rows = await db.query<{ month: string }>(
-        "SELECT DISTINCT substr(date, 1, 7) AS month FROM transactions ORDER BY month DESC",
-      );
-      return rows.map((row) => row.month);
-    },
+  async listMonths(): Promise<readonly string[]> {
+    const db = await this.db();
+    const rows = await db.query<{ month: string }>(
+      "SELECT DISTINCT substr(date, 1, 7) AS month FROM transactions ORDER BY month DESC",
+    );
+    return rows.map((row) => row.month);
+  }
 
-    async listMonthTransactions(month) {
-      const { start, end } = monthBounds(month);
-      return db.query<LedgerTransactionRow>(
-        "SELECT id, date, type, category, account, amount, note, created_at FROM transactions WHERE date >= ? AND date < ? ORDER BY date ASC, id ASC",
-        [start, end],
-      );
-    },
-  };
+  async listMonthTransactions(
+    month: string,
+  ): Promise<readonly LedgerTransactionRow[]> {
+    const db = await this.db();
+    const { start, end } = monthBounds(month);
+    return db.query<LedgerTransactionRow>(
+      "SELECT id, date, type, category, account, amount, note, created_at FROM transactions WHERE date >= ? AND date < ? ORDER BY date ASC, id ASC",
+      [start, end],
+    );
+  }
 }

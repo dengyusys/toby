@@ -1,20 +1,18 @@
 /**
- * System domain HTTP contract, exercised through app.inject: health, info,
- * the 404/405 discrimination, and the shared response headers.
+ * System domain HTTP contract, exercised through the test fixture:
+ * health, info, the 404/405 discrimination, and the shared response
+ * headers.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  createNestServer,
-  type NestServer,
-} from "../../src/infrastructure/http/nest-app.ts";
+import { resolveConfig } from "../../src/infrastructure/config/config.ts";
 import { SystemModule } from "../../src/domains/system/system.module.ts";
+import { createTestApp } from "../app-fixture.ts";
+import type { NestServer } from "../../src/infrastructure/http/nest-app.ts";
 
-// Non-existent static roots: the API server must still work (fresh clone
-// without web builds) and warn instead of crashing.
 const tempDir = mkdtempSync(path.join(tmpdir(), "toby-system-"));
 
 afterAll(() => {
@@ -24,10 +22,9 @@ afterAll(() => {
 let app: NestServer;
 
 beforeEach(async () => {
-  app = await createNestServer({
-    webRoot: path.join(tempDir, "web"),
-    mobileWebRoot: path.join(tempDir, "mobile"),
-    domainModules: [SystemModule],
+  app = await createTestApp({
+    config: resolveConfig({ env: { TOBY_DATA_ROOT: tempDir } }),
+    modules: [SystemModule],
   });
 });
 
@@ -79,6 +76,23 @@ describe("system api", () => {
     expect(response.json()).toEqual({
       error: { code: "METHOD_NOT_ALLOWED", message: "method not allowed" },
     });
+  });
+
+  it("an encoded path still discriminates as 405, like the router does", async () => {
+    const response = await app.inject({
+      method: "PUT",
+      url: "/api/%73ystem/health",
+    });
+    expect(response.statusCode).toBe(405);
+    expect(response.json().error.code).toBe("METHOD_NOT_ALLOWED");
+  });
+
+  it("an undecodable path is rejected by the router as 400", async () => {
+    // Fastify refuses malformed percent-encoding before routing; the
+    // filter's decode fallback is defense in depth for anything that
+    // slips past this gate.
+    const response = await app.inject({ method: "GET", url: "/%zz" });
+    expect(response.statusCode).toBe(400);
   });
 
   it("missing static roots only affect static serving, not the API", async () => {

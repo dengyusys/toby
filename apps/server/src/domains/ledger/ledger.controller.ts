@@ -4,27 +4,15 @@
  * domain-shaped error caught by the global exception filter.
  */
 
-import {
-  Body,
-  Controller,
-  Get,
-  Inject,
-  Param,
-  Post,
-  Query,
-  Res,
-} from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
 import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
 import { sendJsonReply } from "../../infrastructure/http/response.ts";
-import type { LedgerService } from "./service.ts";
-import { LEDGER_SERVICE } from "./tokens.ts";
+import { LedgerService } from "./service.ts";
 
 @Controller("api/ledger")
 export class LedgerController {
-  // Property injection (see system.controller.ts for the rationale).
-  @Inject(LEDGER_SERVICE)
-  private readonly service!: LedgerService;
+  constructor(private readonly service: LedgerService) {}
 
   @Get("months")
   async months(@Res() reply: FastifyReply): Promise<void> {

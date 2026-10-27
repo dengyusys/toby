@@ -1,54 +1,74 @@
 /**
- * Toby server entry point (Nest over the Fastify adapter): resolve config,
- * assemble the domain modules, build the app, listen. Each domain is one
- * assembly line; cross-domain wiring happens only here in the composition
- * root. Runs from the nest build output (dist/main.js).
+ * Toby server entry point: resolve config, build the Nest application
+ * over the Fastify adapter, apply the Fastify-level contract, listen.
+ * Each domain is one import in AppModule; cross-domain wiring happens
+ * only in the composition root (app.module.ts and this file). Runs from
+ * the nest build output (dist/main.js).
  */
 
+import { Logger } from "@nestjs/common";
 import { resolveConfig } from "./infrastructure/config/config.ts";
-import { getLogger } from "./infrastructure/logging/logger.ts";
-import { createNestServer } from "./infrastructure/http/nest-app.ts";
-import { SystemModule } from "./domains/system/system.module.ts";
-import { createLedgerModule } from "./domains/ledger/ledger.module.ts";
-import { createAuthModule } from "./domains/auth/auth.module.ts";
+import { createNestLogger } from "./infrastructure/logging/nest-logger.ts";
+import {
+  applyHttpContract,
+  createTobyAdapter,
+} from "./infrastructure/http/nest-app.ts";
+import { createAppModule } from "./app.module.ts";
+import { SessionGuard } from "./domains/auth/session.guard.ts";
+import { NestFactory } from "@nestjs/core";
+import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 
 async function main(): Promise<void> {
   const config = resolveConfig();
-  const logger = getLogger(config);
 
-  // One line per domain; later domains only add lines here.
-  const ledger = await createLedgerModule(config, { logger });
-  const auth = createAuthModule(config);
+  const app = await NestFactory.create<NestFastifyApplication>(
+    createAppModule(config),
+    createTobyAdapter({
+      trustProxy: config.trustProxy,
+      logLevel: config.logLevel,
+    }),
+    // Built-in logger in JSON mode for app and framework logs (false when
+    // TOBY_LOG_LEVEL=silent); Fastify's own access log runs at the same
+    // level.
+    // abortOnError off: a DI failure surfaces as a normal error instead
+    // of process.abort() eating it (vitest workers died with SIGABRT).
+    { logger: createNestLogger(config.logLevel), abortOnError: false },
+  );
 
-  const server = await createNestServer({
+  const logger = new Logger("Bootstrap");
+  const staticLogger = new Logger("StaticAssets");
+
+  const server = await applyHttpContract(app, {
     webRoot: config.paths.webRoot,
     mobileWebRoot: config.paths.mobileWebRoot,
-    domainModules: [SystemModule, ledger, auth.module],
-    requestGuard: auth.requestGuard,
-    trustProxy: config.trustProxy,
-    logger,
+    warn: (message) => staticLogger.warn(message),
+    // The session guard comes straight from the container (providers
+    // instantiate during NestFactory.create above); APP_GUARD registration
+    // is broken under the ESM tooling
+    // (docs/decisions/idiomatic-nest-services.md).
+    globalGuard: app.get(SessionGuard),
   });
 
   try {
     await server.listen(config.server.host, config.server.port);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
-      logger.error(
-        { port: config.server.port },
-        "port already in use; free it or change TOBY_PORT",
-      );
+      logger.error("port already in use; free it or change TOBY_PORT", {
+        port: config.server.port,
+      });
     } else {
-      logger.error({ err: error }, "listen failed");
+      logger.error("listen failed", { err: error });
     }
     process.exitCode = 1;
     await server.close();
     return;
   }
 
-  logger.info(
-    { host: config.server.host, port: config.server.port, pid: process.pid },
-    "toby server started",
-  );
+  // The built-in JSON record carries pid and timestamp already.
+  logger.log("toby server started", {
+    host: config.server.host,
+    port: config.server.port,
+  });
 }
 
 try {

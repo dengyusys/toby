@@ -58,7 +58,7 @@ If one change touches several rows, run all the checks those rows list.
 ## Code style
 
 - `apps/web`, `apps/web-mobile`, `packages`: `.ts` runs on Node 22 with no build step — no `enum` / `namespace` / constructor parameter properties; use `import type` (`erasableSyntaxOnly` enforces this).
-- `apps/server`: built with `nest build`; decorators, `emitDecoratorMetadata`, constructor parameter properties and Nest idioms are allowed there — but tests run through vitest's transform, which emits no decorator metadata, so prefer `@Inject(token)` property injection (see `docs/decisions/nestjs-server-stack.md`).
+- `apps/server`: built with `nest build`; decorators, `emitDecoratorMetadata`, constructor parameter properties and Nest idioms are allowed there. Server tests run through vitest with the swc transform (`apps/server/vitest.config.ts`), which emits decorator metadata like the build — write services as `@Injectable()` classes with constructor injection; use `@Inject(token)` only for value-shaped or optional dependencies (`TOBY_CONFIG` / `CLOCK`, domain extractor / timing tokens) and the built-in `new Logger(X.name)` facade for logging (see `docs/decisions/idiomatic-nest-services.md`).
 - No Python; introducing it requires an ADR first.
 
 ## Git workflow

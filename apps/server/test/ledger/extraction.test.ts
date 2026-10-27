@@ -21,7 +21,7 @@ import type {
   TobyTool,
 } from "../../src/infrastructure/ai/agent.ts";
 import { AiError } from "../../src/infrastructure/ai/errors.ts";
-import { caught } from "../helpers.ts";
+import { caughtAiError } from "../helpers.ts";
 
 /** One scripted model action in the fake loop. */
 type Step =
@@ -271,13 +271,13 @@ describe("createLedgerExtractor", () => {
         },
       },
     ]);
-    const error = await caught(extractor.extract("乱七八糟", NOW));
+    const error = await caughtAiError(extractor.extract("乱七八糟", NOW));
     expect(error.code).toBe("max-turns-exceeded");
   });
 
   it("reports unparseable-output when the model ends without either tool", async () => {
     const { extractor } = makeExtractor([{ text: "我猜是 35 元" }]);
-    const error = await caught(extractor.extract("35", NOW));
+    const error = await caughtAiError(extractor.extract("35", NOW));
     expect(error.code).toBe("unparseable-output");
   });
 });

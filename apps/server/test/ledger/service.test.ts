@@ -5,8 +5,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleLedgerService } from "../../src/domains/ledger/service.ts";
-import type { LedgerStore } from "../../src/domains/ledger/store.ts";
+import { Logger } from "@nestjs/common";
+import { LedgerService } from "../../src/domains/ledger/service.ts";
+import { LedgerStore } from "../../src/domains/ledger/store.ts";
 import type {
   LedgerDraft,
   LedgerExtractor,
@@ -16,7 +17,17 @@ import type {
   LedgerProposalView,
 } from "../../src/domains/ledger/types.ts";
 import { AiError } from "../../src/infrastructure/ai/errors.ts";
-import type { Logger } from "../../src/infrastructure/logging/logger.ts";
+
+// The service logs through the `new Logger` facade; silence it for the
+// whole file (individual tests override with a collector).
+Logger.overrideLogger(false);
+
+// The store methods the service actually calls — the class's private
+// fields exist only for DI, so fakes satisfy the structural shape.
+type LedgerStoreLike = Pick<
+  LedgerStore,
+  "insertTransactions" | "listMonths" | "listMonthTransactions"
+>;
 
 const AUTO_WRITE_MS = 30_000;
 const TTL_MS = 600_000;
@@ -42,7 +53,7 @@ function fakeStore(options: { failFirstWrites?: number } = {}) {
   const calls: StoreCall[] = [];
   let writes = 0;
   let nextId = 1;
-  const store: LedgerStore = {
+  const store: LedgerStoreLike = {
     async insertTransactions(entries) {
       writes += 1;
       if (writes <= (options.failFirstWrites ?? 0)) {
@@ -61,15 +72,18 @@ function fakeStore(options: { failFirstWrites?: number } = {}) {
   return { store, calls };
 }
 
-function makeService(store: LedgerStore, extractor?: LedgerExtractor) {
+function makeService(store: LedgerStoreLike, extractor?: LedgerExtractor) {
   let nowMs = Date.parse("2026-10-20T08:00:00.000Z");
-  const service = assembleLedgerService(store, {
-    now: () => nowMs,
-    autoWriteDelayMs: AUTO_WRITE_MS,
-    ttlMs: TTL_MS,
-    retentionMs: RETENTION_MS,
-    ...(extractor ? { extractor } : {}),
-  });
+  const service = new LedgerService(
+    store as unknown as LedgerStore,
+    () => nowMs,
+    {
+      autoWriteDelayMs: AUTO_WRITE_MS,
+      ttlMs: TTL_MS,
+      retentionMs: RETENTION_MS,
+    },
+    extractor,
+  );
   return {
     service,
     advance: (ms: number) => {
@@ -91,9 +105,7 @@ const structuredBody = {
 };
 
 // Structured-path helper: narrows the proposal|follow-up union.
-async function propose(
-  service: ReturnType<typeof assembleLedgerService>,
-): Promise<LedgerProposalView> {
+async function propose(service: LedgerService): Promise<LedgerProposalView> {
   const result = await service.createProposal(structuredBody);
   if (!("proposal_id" in result)) {
     throw new Error("expected a proposal from the structured path");
@@ -194,21 +206,31 @@ describe("ledger service proposal lifecycle", () => {
   it("a failing auto-write logs a warning on every sweep", async () => {
     const { store } = fakeStore({ failFirstWrites: 99 });
     const warnings: unknown[][] = [];
-    let nowMs = Date.parse("2026-10-20T08:00:00.000Z");
-    const service = assembleLedgerService(store, {
-      now: () => nowMs,
-      autoWriteDelayMs: AUTO_WRITE_MS,
-      ttlMs: TTL_MS,
-      retentionMs: RETENTION_MS,
-      logger: {
-        warn: (...args: unknown[]) => warnings.push(args),
-      } as unknown as Logger,
+    Logger.overrideLogger({
+      log: () => {},
+      error: () => {},
+      warn: (...args: unknown[]) => warnings.push(args),
     });
-    await service.createProposal(structuredBody);
-    nowMs += AUTO_WRITE_MS;
-    await service.sweep();
-    await service.sweep();
-    expect(warnings).toHaveLength(2);
+    try {
+      let nowMs = Date.parse("2026-10-20T08:00:00.000Z");
+      const service = new LedgerService(
+        store as unknown as LedgerStore,
+        () => nowMs,
+        {
+          autoWriteDelayMs: AUTO_WRITE_MS,
+          ttlMs: TTL_MS,
+          retentionMs: RETENTION_MS,
+        },
+        undefined,
+      );
+      await service.createProposal(structuredBody);
+      nowMs += AUTO_WRITE_MS;
+      await service.sweep();
+      await service.sweep();
+      expect(warnings).toHaveLength(2);
+    } finally {
+      Logger.overrideLogger(false);
+    }
   });
 
   it("expired proposals answer 410 on commit and cancel", async () => {
@@ -289,7 +311,7 @@ describe("ledger service one-sentence path", () => {
 
   function makeAiService(
     draft: () => LedgerDraft | Promise<LedgerDraft>,
-    store: LedgerStore = fakeStore().store,
+    store: LedgerStoreLike = fakeStore().store,
   ) {
     const fake = fakeExtractor(draft);
     const harness = makeService(store, fake.extractor);

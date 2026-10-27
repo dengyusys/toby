@@ -2,7 +2,8 @@
  * Ledger domain types: the pure vocabulary shared by validation, the
  * proposal registry, the store and the controller. Amounts are integer cents
  * end to end; dates are local "YYYY-MM-DD" strings; timestamps are UTC ISO
- * strings.
+ * strings. Response shapes are mirrored by hand in
+ * packages/contract/src/ledger-client.ts — change both sides together.
  */
 
 /** Direction of money movement. */

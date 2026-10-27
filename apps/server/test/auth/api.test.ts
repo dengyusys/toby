@@ -9,18 +9,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  createNestServer,
-  type NestServer,
-} from "../../src/infrastructure/http/nest-app.ts";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
 import { SystemModule } from "../../src/domains/system/system.module.ts";
-import { createLedgerModule } from "../../src/domains/ledger/ledger.module.ts";
-import { createAuthModule } from "../../src/domains/auth/auth.module.ts";
+import { LedgerModule } from "../../src/domains/ledger/ledger.module.ts";
+import { AuthModule } from "../../src/domains/auth/auth.module.ts";
+import { SessionGuard } from "../../src/domains/auth/session.guard.ts";
 import { hashPassword } from "../../src/domains/auth/password.ts";
+import { createTestApp } from "../app-fixture.ts";
+import type { NestServer } from "../../src/infrastructure/http/nest-app.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-auth-api-"));
-const staticRoot = path.join(baseDir, "static");
 const PASSWORD = "correct horse battery staple";
 const PASSWORD_HASH = hashPassword(PASSWORD);
 
@@ -42,14 +40,12 @@ async function buildApp(env: Record<string, string>): Promise<void> {
       ...env,
     },
   });
-  const ledger = await createLedgerModule(config, { now: () => nowMs });
-  const auth = createAuthModule(config, { now: () => nowMs });
-  app = await createNestServer({
-    webRoot: path.join(staticRoot, "web"),
-    mobileWebRoot: path.join(staticRoot, "mobile"),
-    domainModules: [SystemModule, ledger, auth.module],
-    requestGuard: auth.requestGuard,
+  app = await createTestApp({
+    config,
+    modules: [SystemModule, LedgerModule, AuthModule],
+    clock: () => nowMs,
     trustProxy: config.trustProxy,
+    globalGuard: (nestApp) => nestApp.get(SessionGuard),
   });
 }
 
@@ -121,7 +117,7 @@ describe("auth enabled", () => {
     for (const url of [
       "/api/ledger/months",
       "/api/ledger/transactions?month=2026-10",
-      "/api/system/health",
+      "/api/system/info",
     ]) {
       const response = await inject("GET", url);
       expect(response.statusCode).toBe(401);
@@ -134,6 +130,23 @@ describe("auth enabled", () => {
     const session = await inject("GET", "/api/auth/session");
     expect(session.statusCode).toBe(200);
     expect(session.json().authenticated).toBe(false);
+  });
+
+  it("health stays public: the Docker healthcheck must not need a session", async () => {
+    const health = await inject("GET", "/api/system/health");
+    expect(health.statusCode).toBe(200);
+    expect(health.json()).toEqual({ status: "ok" });
+  });
+
+  it("percent-encoded paths cannot dodge the session guard", async () => {
+    // The router matches /%61pi/... and /api/%6Cedger/... onto /api/...
+    // routes after decoding; the guard's exemption decision comes from
+    // route metadata, so the encoded variants must answer 401 all the same.
+    for (const url of ["/%61pi/ledger/months", "/api/%6Cedger/months"]) {
+      const response = await inject("GET", url);
+      expect(response.statusCode).toBe(401);
+      expect(response.json().error.code).toBe("AUTH_REQUIRED");
+    }
   });
 
   it("static pages stay exempt (404 for missing builds, never 401)", async () => {

@@ -4,9 +4,11 @@ English | [简体中文](nestjs-server-stack.zh.md)
 
 The server is assembled with NestJS 12 on the Fastify adapter. The engine
 did not change — Fastify 5 stays — what changed is the organization:
-domains are Nest modules with controllers, services are injected through
-tokens, cross-cutting behavior lives in a global exception filter and a
-global guard.
+domains are Nest modules with controllers, services are `@Injectable()`
+classes with constructor injection (see
+[idiomatic-nest-services.md](idiomatic-nest-services.md) for how that
+landed), cross-cutting behavior lives in a global exception filter and a
+global session guard.
 
 ## Why
 
@@ -39,8 +41,14 @@ controllable.**
   server's shape gate; `typebox/value`'s `Check`/`Errors` validate and
   point at the offending path, and the same error text feeds back to the
   model as a tool error.
-- **pino** — structured JSON logging, low overhead; no heavier
-  observability suite.
+- **built-in Nest logger** — the `ConsoleLogger` in JSON mode covers app
+  and framework logs (structured params, one machine-readable record per
+  line on stdout); services use the documented `new Logger(X.name)`
+  facade. HTTP access logs stay Fastify's own (`logger: { level }`,
+  pino internally): its default serializers log method/url/host/IP only —
+  headers never enter the log, so no redaction is configured (decision:
+  deferred; revisit if serializers ever include headers). pino is no
+  longer a direct dependency of this app.
 
 ## What the migration taught (non-obvious mechanics)
 
@@ -48,18 +56,21 @@ These are load-bearing; changing them breaks tests in confusing ways:
 
 - **`app.init()` before `inject()`.** Controllers are wired onto the
   adapter during `init()` (or `listen()`); the test path never listens, so
-  `createNestServer` inits explicitly.
+  `applyHttpContract` inits explicitly.
 - **The root module must be a decorated class.** A plain `DynamicModule`
   object as the NestFactory root instantiates providers but never
   registers routes. Runtime assembly works by applying the `Module`
   decorator imperatively; domain modules may be plain `DynamicModule`
   objects (the standard `forRoot` pattern).
-- **Property injection with `@Inject(token)`.** vitest's esbuild transform
-  emits no `emitDecoratorMetadata`, so constructor injection is metadata-
-  blind under test. Property injection with explicit Symbol tokens works
-  under both tsc and esbuild. Tokens live in per-domain `tokens.ts` —
-  importing them from the module file creates a circular import that
-  silently turns decorators into `@Inject(undefined)`.
+- **Constructor injection everywhere (superseded the property-injection
+  rule).** This ADR originally mandated `@Inject(token)` property
+  injection because vitest's esbuild transform emitted no
+  `emitDecoratorMetadata`. Server tests now run through `unplugin-swc`
+  (`apps/server/vitest.config.ts`), which emits decorator metadata like
+  the tsc build, and `test/infrastructure/di-metadata.test.ts` pins that
+  premise — constructor injection works identically in build and test.
+  Value-shaped dependencies still use tokens; see
+  [idiomatic-nest-services.md](idiomatic-nest-services.md).
 - **`RawErrorFastifyAdapter`.** The stock adapter rewrites `FastifyError`
   into `HttpException`, discarding the `FST_ERR_*` codes the exception
   filter maps onto the public `INVALID_JSON` / `PAYLOAD_TOO_LARGE`
@@ -80,11 +91,16 @@ These are load-bearing; changing them breaks tests in confusing ways:
   (registered on the adapter instance) already serves both SPA roots with
   the exact previous semantics — it IS the plan's fallback option,
   pre-validated.
-- **No `nestjs-pino`**: the adapter runs on the shared pino instance
-  (`loggerInstance`), keeping access-log bytes and redaction identical.
-- **class-validator/class-transformer deferred**: body parsing stays
-  hand-rolled in controllers so HTTP behavior is byte-preserved; adopting
-  `ValidationPipe` is a separate, consciously-verified step.
+- **No `nestjs-pino`**: with app logs on the built-in logger there is
+  nothing left for it to unify; access logs are Fastify's own at the
+  shared `TOBY_LOG_LEVEL`.
+- **typebox stays; class-validator removed (resolved).** The deferred
+  ValidationPipe adoption was decided against: the ledger draft schema is
+  simultaneously the AI tool contract and the server's shape gate, and a
+  global pipe would take over body parsing and threaten the `FST_ERR_*`
+  envelope mapping. The unused class-validator/class-transformer
+  dependencies were dropped — see
+  [idiomatic-nest-services.md](idiomatic-nest-services.md).
 
 ## Commands
 

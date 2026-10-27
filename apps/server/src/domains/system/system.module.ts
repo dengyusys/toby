@@ -1,20 +1,16 @@
 /**
- * System domain Nest module: registers the walking-skeleton controller and
- * provides the assembled service. Establishes the house pattern every
- * domain follows — controllers stay pure HTTP shells over the same
- * service layer, wired through injection tokens (services are interfaces
- * plus assemble functions, not classes).
+ * System domain Nest module. The house pattern every domain follows:
+ * controllers are pure HTTP shells over @Injectable class services,
+ * constructor-injected; shared runtime values arrive by token from the
+ * global SharedProvidersModule.
  */
 
 import { Module } from "@nestjs/common";
-import { assembleSystemService } from "./service.ts";
+import { SystemService } from "./service.ts";
 import { SystemController } from "./system.controller.ts";
-import { SYSTEM_SERVICE } from "./tokens.ts";
 
 @Module({
   controllers: [SystemController],
-  providers: [
-    { provide: SYSTEM_SERVICE, useFactory: () => assembleSystemService() },
-  ],
+  providers: [SystemService],
 })
 export class SystemModule {}

@@ -49,7 +49,7 @@
 | `TOBY_AUTH_RATE_LIMIT_WINDOW_MS` | `60000`       | 登录限流窗口(1000–3600000 毫秒)                                                                               |
 | `TOBY_AUTH_SECURE_COOKIE`        | `false`       | `true` 为会话 Cookie 追加 `Secure`(HTTPS 部署)                                                                |
 | `TOBY_TRUST_PROXY`               | `false`       | 信任受控反向代理的 X-Forwarded-For(登录限流按真实客户端分桶);直连暴露时可被伪造该头                           |
-| `TOBY_LOG_LEVEL`                 | `info`        | pino 级别(`warn` 可让开发输出安静)                                                                            |
+| `TOBY_LOG_LEVEL`                 | `info`        | 同时控制应用日志(Nest 内置 logger,JSON 行)与 Fastify 访问日志(`warn` 可让开发输出安静)                        |
 
 MySQL 适配器是可选项(见[数据库适配器决策](../decisions/db-adapter.zh.md));推荐默认仍是 SQLite,`pnpm run test` 永远不需要运行中的 MySQL —— MySQL 适配器测试仅在设置了 `TOBY_TEST_MYSQL_URL` 时运行。供应商密钥不进仓库。一句话记账里的相对日期（「昨天」等）按服务器本地时间换算——请让服务器运行在与用户一致的时区。
 

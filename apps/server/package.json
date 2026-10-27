@@ -20,22 +20,21 @@
     "@nestjs/core": "catalog:",
     "@nestjs/platform-fastify": "catalog:",
     "better-sqlite3": "catalog:",
-    "class-transformer": "catalog:",
-    "class-validator": "catalog:",
     "fastify": "catalog:",
     "mysql2": "catalog:",
-    "pino": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
     "typebox": "catalog:"
   },
   "devDependencies": {
     "@nestjs/cli": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "@nestjs/testing": "catalog:",
+    "@swc/core": "catalog:",
     "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
+    "unplugin-swc": "catalog:",
     "vitest": "catalog:"
   }
 }

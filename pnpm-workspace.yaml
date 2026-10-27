@@ -36,6 +36,13 @@ allowBuilds:
   # 残留 —— npm 包自带预构建产物,两者的脚本运行时都不需要。
   "@google/genai": false
   protobufjs: false
+  # @swc/core's postinstall only verifies/downloads a native binding; the
+  # platform packages (@swc/core-win32-x64-msvc, @swc/core-linux-x64-gnu,
+  # ...) arrive as optionalDependencies, so the script stays blocked.
+  # @swc/core 的 postinstall 只是校验/下载原生绑定;平台包
+  # (@swc/core-win32-x64-msvc、@swc/core-linux-x64-gnu 等)已随
+  # optionalDependencies 分发,脚本保持阻断。
+  "@swc/core": false
 
 # Version table for the whole workspace. Groups run web runtime -> web build
 # -> server -> testing -> language & types; inside a group the core framework
@@ -82,7 +89,6 @@ catalog:
   "@fastify/static": ^10.1.3
   better-sqlite3: ^13.0.3
   mysql2: ^3.24.6
-  pino: ^10.1.0
 
   # AI runtime (pi ecosystem) — pinned exact: pi-agent-core depends on exact
   # pi-ai 1.3.0 / typebox 1.3.27; a caret here would install a second copy of
@@ -94,21 +100,27 @@ catalog:
   typebox: 1.3.27
 
   # Nest runtime — the server stack, over the same Fastify 5 engine.
+  # Exact-pinned: a caret range resolves to the newest 12.x, which pnpm's
+  # minimumReleaseAge gate rejects on release day (it auto-writes a
+  # minimumReleaseAgeExclude bypass); upgrades are deliberate catalog edits.
   # Nest 运行时 —— 服务端技术栈,仍跑在 Fastify 5 引擎上。
-  "@nestjs/common": ^12.2.0
-  "@nestjs/core": ^12.2.0
-  "@nestjs/platform-fastify": ^12.2.0
+  # 精确钉版:caret 范围会解析到最新的 12.x,发布当天被 pnpm 的
+  # minimumReleaseAge 闸门拒绝(否则会自动写入 minimumReleaseAgeExclude
+  # 绕过);升级时应有意地修改本表。
+  "@nestjs/common": 12.2.0
+  "@nestjs/core": 12.2.0
+  "@nestjs/platform-fastify": 12.2.0
   reflect-metadata: ^0.2.2
   rxjs: ^7.8.0
-  class-validator: ^0.15.1
-  class-transformer: ^0.5.1
-  "@nestjs/testing": ^12.2.0
+  "@nestjs/testing": 12.2.0
   "@nestjs/cli": ^12.0.10
 
   # Testing — vitest everywhere, DOM stack for the web apps.
   # 测试 —— vitest 全局使用,DOM 栈归前端应用。
   vitest: ^5.0.1
   "@vitest/coverage-v8": ^5.0.1
+  unplugin-swc: ^2.0.0
+  "@swc/core": ^1.16.20
   happy-dom: ^20.14.5
   "@testing-library/react": ^16.3.3
   "@testing-library/jest-dom": ^7.0.1

@@ -30,7 +30,7 @@ All JSON; errors follow the server's standard envelope.
 
 ## Key rules
 
-- With authentication on, every page and `/api/*` requires a valid session except the auth endpoints themselves (login, the idempotent logout, the session query that feeds the login page) and static page assets (login UI only, no business data); otherwise a uniform 401.
+- With authentication on, every `/api/*` endpoint requires a valid session except the auth endpoints themselves (login, the idempotent logout, the session query that feeds the login page) and `GET /api/system/health` (the Docker healthcheck target; it carries no business data). Static page assets are served without server-side gating — the enforced boundary is the API; the SPA redirects to the login page client-side. Everything else answers a uniform 401, and percent-encoded paths cannot dodge the guard.
 - The web returns to the login page on 401; proposal-confirmation requests never auto-retry.
 - Login rate limiting is a fixed window per client IP; over the limit returns 429 with Retry-After.
 - No plaintext passwords or tokens are stored; passwords, tokens, and keys never enter source, Git, configs, or logs.

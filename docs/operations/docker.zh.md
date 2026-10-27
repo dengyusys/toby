@@ -81,9 +81,9 @@ curl http://127.0.0.1:8629/api/system/health
 ## 故障排查
 
 - **`failed to fetch oauth token`** —— Docker Hub 不可达;见第 1 步。
-- **启用登录后 healthcheck `unhealthy`** —— 设置
-  `TOBY_AUTH_PASSWORD_HASH` 后,`/api/system/health` 按设计返回 401。
-  扩大鉴权豁免面或更换 `compose.yaml` 中的探针。
+- **healthcheck `unhealthy`** —— `/api/system/health` 按设计豁免认证
+  (Docker healthcheck 就依赖它),报 unhealthy 说明进程或端口真的有问题;
+  用 `docker logs` 查。
 - **端口 8629 被占** —— dev server 或别的容器占着;释放它,或同时改
   端口映射与 `TOBY_PORT`。
 - **容器启动报 `Cannot find module`** —— runtime 阶段丢了 monorepo

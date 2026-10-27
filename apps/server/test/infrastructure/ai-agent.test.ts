@@ -19,7 +19,7 @@ import {
   defineTool,
 } from "../../src/infrastructure/ai/agent.ts";
 import { AiError } from "../../src/infrastructure/ai/errors.ts";
-import { caught } from "../helpers.ts";
+import { caughtAiError } from "../helpers.ts";
 
 const CONFIG = { model: "faux/faux-1", timeoutMs: 5_000 };
 
@@ -204,7 +204,7 @@ describe("createTobyAgentFactory", () => {
       tools: [],
       policy: { allowedKinds: ["read-only"], maxTurns: 2 },
     });
-    const error = await caught(agent.run("go"));
+    const error = await caughtAiError(agent.run("go"));
     expect(error).toBeInstanceOf(AiError);
     expect(error.code).toBe("timeout");
   });
@@ -222,7 +222,7 @@ describe("createTobyAgentFactory", () => {
       tools: [],
       policy: { allowedKinds: ["read-only"], maxTurns: 2 },
     });
-    const error = await caught(agent.run("go"));
+    const error = await caughtAiError(agent.run("go"));
     // The faux provider's auth resolves, so the 502-shaped code applies.
     expect(error.code).toBe("request-failed");
     expect(error.message).toContain("provider exploded");

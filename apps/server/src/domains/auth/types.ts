@@ -1,6 +1,8 @@
 /**
  * Auth domain types: single-user access for public deployments. Pure
  * vocabulary only — no transport, no infrastructure, no node: imports.
+ * Response shapes are mirrored by hand in packages/contract/src — change
+ * both sides together.
  */
 
 /** GET /api/auth/session response. */

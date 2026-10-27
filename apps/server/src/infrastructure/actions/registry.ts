@@ -12,7 +12,9 @@
  *
  * The kernel is transport- and domain-agnostic: domains pass their own
  * executor (the transactional write) at commit time and drive the sweeper
- * from their module; the kernel starts no timers of its own.
+ * from their module; the kernel starts no timers of its own. The registry
+ * is in-memory only: a process restart drops every unconfirmed proposal
+ * (deliberate — docs/decisions/actions-kernel.md).
  *
  * Error codes intentionally keep the ledger-era PROPOSAL_* names: they are
  * the wire contract the web apps match on. Renaming to ACTION_* is a

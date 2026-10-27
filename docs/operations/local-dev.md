@@ -49,7 +49,7 @@ Loaded from the repository-root `.env` when present (copy `.env.example` to star
 | `TOBY_AUTH_RATE_LIMIT_WINDOW_MS` | `60000`       | Login rate-limit window (1000–3600000 ms)                                                                                                 |
 | `TOBY_AUTH_SECURE_COOKIE`        | `false`       | `true` appends `Secure` to the session cookie (HTTPS deployments)                                                                         |
 | `TOBY_TRUST_PROXY`               | `false`       | Trust X-Forwarded-For behind a reverse proxy you control (per-client login rate limiting); directly exposed servers allow header spoofing |
-| `TOBY_LOG_LEVEL`                 | `info`        | pino level (`warn` quiets dev output)                                                                                                     |
+| `TOBY_LOG_LEVEL`                 | `info`        | drives both the app log (built-in Nest logger, JSON lines) and Fastify's access log (`warn` quiets dev output)                            |
 
 The MySQL adapter is optional (see the [db adapter decision](../decisions/db-adapter.md)); SQLite is the recommended default and `pnpm run test` never needs a MySQL daemon — MySQL adapter tests run only when `TOBY_TEST_MYSQL_URL` is set. Provider credentials stay out of the repository. Relative dates in one-sentence bookkeeping ("昨天" and the like) resolve against the server's own local time — run the server in the user's timezone.
 

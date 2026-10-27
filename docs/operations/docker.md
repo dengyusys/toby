@@ -86,10 +86,9 @@ container. Logs: `docker compose logs -f server`.
 ## Troubleshooting
 
 - **`failed to fetch oauth token`** — Docker Hub unreachable; see Step 1.
-- **Healthcheck `unhealthy` with auth enabled** — with
-  `TOBY_AUTH_PASSWORD_HASH` set, `/api/system/health` answers 401 by
-  design. Extend the auth exemption or replace the probe in
-  `compose.yaml`.
+- **Healthcheck `unhealthy`** — `/api/system/health` is exempt from
+  authentication by design (the Docker healthcheck depends on it), so this
+  means the process or port is actually broken; check `docker logs`.
 - **Port 8629 in use** — the dev server or another container holds it;
   free it or change the mapping and `TOBY_PORT` together.
 - **`Cannot find module` at container start** — the runtime stage lost a

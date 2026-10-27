@@ -9,19 +9,20 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  createNestServer,
-  type NestServer,
-} from "../../src/infrastructure/http/nest-app.ts";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { createLedgerModule } from "../../src/domains/ledger/ledger.module.ts";
+import { LedgerModule } from "../../src/domains/ledger/ledger.module.ts";
+import {
+  LEDGER_EXTRACTOR,
+  LEDGER_TIMING,
+} from "../../src/domains/ledger/tokens.ts";
 import type {
   LedgerDraft,
   LedgerExtractor,
 } from "../../src/domains/ledger/extraction.ts";
+import { createTestApp } from "../app-fixture.ts";
+import type { NestServer } from "../../src/infrastructure/http/nest-app.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-ledger-api-"));
-const staticRoot = path.join(baseDir, "static");
 
 afterAll(() => {
   rmSync(baseDir, { recursive: true, force: true });
@@ -41,16 +42,19 @@ async function buildApp(extractor?: LedgerExtractor): Promise<void> {
   const config = resolveConfig({
     env: { TOBY_DATA_ROOT: path.join(baseDir, `case-${caseCounter}`) },
   });
-  const ledgerModule = await createLedgerModule(config, {
-    now: () => nowMs,
-    autoWriteDelayMs: AUTO_WRITE_MS,
-    ttlMs: TTL_MS,
-    ...(extractor ? { extractor } : {}),
-  });
-  app = await createNestServer({
-    webRoot: path.join(staticRoot, "web"),
-    mobileWebRoot: path.join(staticRoot, "mobile"),
-    domainModules: [ledgerModule],
+  app = await createTestApp({
+    config,
+    modules: [LedgerModule],
+    clock: () => nowMs,
+    overrides: (builder) => {
+      let b = builder
+        .overrideProvider(LEDGER_TIMING)
+        .useValue({ autoWriteDelayMs: AUTO_WRITE_MS, ttlMs: TTL_MS });
+      if (extractor) {
+        b = b.overrideProvider(LEDGER_EXTRACTOR).useValue(extractor);
+      }
+      return b;
+    },
   });
 }
 

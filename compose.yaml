@@ -15,10 +15,9 @@ services:
       - path: .env
         required: false
     healthcheck:
-      # NOTE: healthcheck assumes authentication is disabled (the default).
-      # With TOBY_AUTH_PASSWORD_HASH set, /api/system/health answers 401 —
-      # extend the auth exemption or swap the probe before enabling auth in
-      # a container.
+      # /api/system/health is exempt from authentication by design (the
+      # Docker healthcheck depends on it), so this probe stays green with
+      # or without TOBY_AUTH_PASSWORD_HASH.
       test:
         [
           "CMD",

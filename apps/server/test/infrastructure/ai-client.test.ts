@@ -18,7 +18,7 @@ import {
   fauxText,
 } from "@earendil-works/pi-ai/providers/faux";
 import { AiError } from "../../src/infrastructure/ai/errors.ts";
-import { caught } from "../helpers.ts";
+import { caughtAiError } from "../helpers.ts";
 import { createPiAiClient } from "../../src/infrastructure/ai/pi-ai-client.ts";
 
 const TIMEOUT_MS = 5_000;
@@ -74,7 +74,9 @@ describe("createPiAiClient", () => {
   it("maps an empty reply to request-failed", async () => {
     const { client, faux } = makeHarness();
     faux.appendResponses([fauxAssistantMessage(fauxText("").text)]);
-    const error = await caught(client.text([{ role: "user", content: "x" }]));
+    const error = await caughtAiError(
+      client.text([{ role: "user", content: "x" }]),
+    );
     expect(error.code).toBe("request-failed");
   });
 
@@ -123,7 +125,9 @@ describe("createPiAiClient", () => {
       fauxAssistantMessage("garbage"),
       fauxAssistantMessage(fauxText("still garbage").text),
     ]);
-    const error = await caught(client.json([{ role: "user", content: "x" }]));
+    const error = await caughtAiError(
+      client.json([{ role: "user", content: "x" }]),
+    );
     expect(error).toBeInstanceOf(AiError);
     expect(error.code).toBe("unparseable-output");
     expect(faux.state.callCount).toBe(2);
@@ -135,7 +139,9 @@ describe("createPiAiClient", () => {
       fauxAssistantMessage("", { stopReason: "error", errorMessage: "boom" }),
     ]);
     // The faux provider's auth resolves, so the failure is a plain 502.
-    const error = await caught(client.text([{ role: "user", content: "x" }]));
+    const error = await caughtAiError(
+      client.text([{ role: "user", content: "x" }]),
+    );
     expect(error.code).toBe("request-failed");
     expect(error.message).toContain("boom");
   });
@@ -182,7 +188,9 @@ describe("createPiAiClient", () => {
       { model: "test-unconfigured/test-model", timeoutMs: TIMEOUT_MS },
       { models },
     );
-    const error = await caught(client.text([{ role: "user", content: "x" }]));
+    const error = await caughtAiError(
+      client.text([{ role: "user", content: "x" }]),
+    );
     expect(error.code).toBe("unconfigured");
   });
 
@@ -196,7 +204,9 @@ describe("createPiAiClient", () => {
       { models },
     );
     faux.appendResponses([fauxAssistantMessage("word ".repeat(200))]);
-    const error = await caught(client.text([{ role: "user", content: "x" }]));
+    const error = await caughtAiError(
+      client.text([{ role: "user", content: "x" }]),
+    );
     expect(error.code).toBe("timeout");
   });
 

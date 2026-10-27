@@ -10,13 +10,13 @@
 
 ## 技术栈
 
-| 层     | 选型                                                                                                                                                                          |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 运行   | Node 22.23.2;服务端经 `nest build` 构建,前端经 Vite 构建                                                                                                                      |
-| 包管理 | pnpm 11.18.0 workspaces(`apps/*` + `packages/*`)                                                                                                                              |
-| 服务端 | NestJS 12（跑于 Fastify 5 之上）+ 自建数据库适配 port —— 指 ports-and-adapters 架构概念,非网络端口 —— （默认 SQLite，可选 MySQL）+ pino + typebox（AI:pi-ai + pi-agent-core） |
-| 前端   | React 19 + Vite 6 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`)                                                                                                         |
-| 测试   | vitest + happy-dom + @testing-library                                                                                                                                         |
+| 层     | 选型                                                                                                                                                                                      |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 运行   | Node 22.23.2;服务端经 `nest build` 构建,前端经 Vite 构建                                                                                                                                  |
+| 包管理 | pnpm 11.18.0 workspaces(`apps/*` + `packages/*`)                                                                                                                                          |
+| 服务端 | NestJS 12（跑于 Fastify 5 之上）+ 自建数据库适配 port —— 指 ports-and-adapters 架构概念,非网络端口 —— （默认 SQLite，可选 MySQL）+ Nest 内置 logger + typebox（AI:pi-ai + pi-agent-core） |
+| 前端   | React 19 + Vite 6 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`)                                                                                                                     |
+| 测试   | vitest + happy-dom + @testing-library                                                                                                                                                     |
 
 ## 系统上下文
 
@@ -114,7 +114,7 @@ sequenceDiagram
 ```mermaid
 flowchart TB
     BOOT["main.ts(组合根)<br/>每域一行装配,跨域接线只在这里"]
-    INFRA["infrastructure/<br/>config(TOBY_*)·http(Nest 应用工厂/错误包络(统一错误响应结构)/双 SPA 静态)<br/>logging(pino)·db(适配 port:sqlite / mysql)"]
+    INFRA["infrastructure/<br/>config(TOBY_*)·http(Nest 应用工厂/错误包络(统一错误响应结构)/双 SPA 静态)<br/>logging(Nest 内置 logger · Fastify 访问日志)·db(适配 port:sqlite / mysql)"]
     DOM["domains/*<br/>业务域,逐个落地"]
     BOOT --> INFRA
     BOOT --> DOM

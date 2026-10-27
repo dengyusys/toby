@@ -3,8 +3,10 @@
 [English](nestjs-server-stack.md) | 简体中文
 
 服务端以 NestJS 12 + Fastify 适配器装配。引擎没换——仍是 Fastify
-5——换的是组织方式:域是带 controller 的 Nest 模块,服务经 token 注入,
-横切行为收进全局异常过滤器与全局守卫。
+5——换的是组织方式:域是带 controller 的 Nest 模块,服务是带构造注入的
+`@Injectable()` 类(落地过程见
+[idiomatic-nest-services.zh.md](idiomatic-nest-services.zh.md)),横切行为
+收进全局异常过滤器与全局会话守卫。
 
 ## 为什么
 
@@ -31,21 +33,29 @@
   模型的工具契约,也是服务端的形状门控;`typebox/value` 的
   `Check`/`Errors` 负责校验并定位出错字段,同一份错误文本还能作为
   工具错误回喂给模型。
-- **pino** —— 结构化 JSON 日志,低开销;不引入更重的可观测性套件。
+- **Nest 内置 logger** —— `ConsoleLogger` 的 JSON 模式承担应用与框架
+  日志(结构化参数,stdout 每行一条机器可读记录),服务侧用官方文档的
+  `new Logger(X.name)` 门面。HTTP 访问日志仍归 Fastify 自己
+  (`logger: { level }`,内部是 pino):默认序列化器只记
+  method/url/host/IP,不记 headers——日志里本来就不含头字段,因此未配
+  置脱敏(决策:暂缓;若将来序列化器纳入 headers 必须重议)。pino 不再
+  是应用的直接依赖。
 
 ## 迁移摸清的机制(非显然,动它们会让测试以迷惑的方式坏掉)
 
 - **`inject()` 之前要 `app.init()`。** controller 在 `init()`(或
   `listen()`)期间才挂上适配器;测试路径不 listen,所以
-  `createNestServer` 显式 init。
+  `applyHttpContract` 显式 init。
 - **根模块必须是装饰过的类。** 纯 `DynamicModule` 对象当根:provider
   会实例化但路由永不注册。运行时组装用命令式应用 `Module` 装饰器;
   域模块可以是纯 `DynamicModule` 对象(标准 `forRoot` 形态)。
-- **`@Inject(token)` 属性注入。** vitest 的 esbuild 转换不产出
-  `emitDecoratorMetadata`,测试下构造注入拿不到元数据。显式 Symbol
-  token 的属性注入在 tsc 与 esbuild 双通。token 放在各域的
-  `tokens.ts`——从 module 文件反向 import 会造成循环导入,装饰器静默
-  变成 `@Inject(undefined)`。
+- **全面构造器注入(取代属性注入规则)。** 本 ADR 最初规定
+  `@Inject(token)` 属性注入,理由是 vitest 的 esbuild 转换不产出
+  `emitDecoratorMetadata`。server 测试现经 `unplugin-swc` 转换
+  (`apps/server/vitest.config.ts`),与 tsc 构建一样产出装饰器元数据,
+  `test/infrastructure/di-metadata.test.ts` 钉住该前提——构造注入在
+  构建与测试下行为一致。值型依赖仍用 token;见
+  [idiomatic-nest-services.zh.md](idiomatic-nest-services.zh.md)。
 - **`RawErrorFastifyAdapter`。** 原版适配器把 `FastifyError` 重写成
   `HttpException`,丢掉 `FST_ERR_*` 码(异常过滤器靠它映射
   `INVALID_JSON`/`PAYLOAD_TOO_LARGE` 公共包络);子类放行原始错误。
@@ -62,11 +72,13 @@
 - **不用 `@nestjs/serve-static`**:现有 `staticAssetsPlugin`(挂在
   适配器实例上)本就以与之前完全相同的语义服务两个 SPA 根——它就是
   计划里的回退选项,且已被验证。
-- **不用 `nestjs-pino`**:适配器直接跑共享 pino 实例
-  (`loggerInstance`),访问日志字节与脱敏行为保持不变。
-- **class-validator/class-transformer 暂缓**:controller 内请求体解析
-  保持手写,HTTP 行为逐字节保持;引入 `ValidationPipe` 是另行确认的
-  独立步骤。
+- **不用 `nestjs-pino`**:应用日志已在内置 logger 上,没有需要它统一
+  的东西了;访问日志由 Fastify 自带,走同一个 `TOBY_LOG_LEVEL`。
+- **typebox 保留;class-validator 已移除(已决)。** 暂缓的
+  ValidationPipe 采纳最终决定不做:ledger 草稿 schema 同时是 AI 工具
+  契约与服务端 shape 门,全局管道还会接管 body 解析、威胁 `FST_ERR_*`
+  包络映射。未使用的 class-validator/class-transformer 依赖已删除——见
+  [idiomatic-nest-services.zh.md](idiomatic-nest-services.zh.md)。
 
 ## 命令
 

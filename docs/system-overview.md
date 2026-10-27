@@ -10,13 +10,13 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 
 ## Stack
 
-| Layer    | Choice                                                                                                                                                                               |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runtime  | Node 22.23.2; server built with `nest build`, webs with Vite                                                                                                                         |
-| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                                                                                    |
-| Server   | NestJS 12 over Fastify 5 + own db adapter port — "port" as in ports-and-adapters, not a network port — (SQLite default, MySQL optional) + pino + typebox (AI: pi-ai + pi-agent-core) |
-| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                                                                            |
-| Tests    | vitest + happy-dom + @testing-library                                                                                                                                                |
+| Layer    | Choice                                                                                                                                                                                               |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime  | Node 22.23.2; server built with `nest build`, webs with Vite                                                                                                                                         |
+| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                                                                                                    |
+| Server   | NestJS 12 over Fastify 5 + own db adapter port — "port" as in ports-and-adapters, not a network port — (SQLite default, MySQL optional) + built-in Nest logger + typebox (AI: pi-ai + pi-agent-core) |
+| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                                                                                            |
+| Tests    | vitest + happy-dom + @testing-library                                                                                                                                                                |
 
 ## System context
 
@@ -114,7 +114,7 @@ Two non-inferable details: the AI's draft passes shape, domain, and semantic val
 ```mermaid
 flowchart TB
     BOOT["main.ts (composition root)<br/>one line per domain; all cross-domain wiring lives here"]
-    INFRA["infrastructure/<br/>config (TOBY_*) · http (Nest app factory / error envelope / dual-SPA static)<br/>logging (pino) · db (adapter port: sqlite / mysql)"]
+    INFRA["infrastructure/<br/>config (TOBY_*) · http (Nest app factory / error envelope / dual-SPA static)<br/>logging (Nest built-in logger · Fastify access log) · db (adapter port: sqlite / mysql)"]
     DOM["domains/*<br/>business domains, landing one by one"]
     BOOT --> INFRA
     BOOT --> DOM

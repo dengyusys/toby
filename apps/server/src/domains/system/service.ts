@@ -1,37 +1,38 @@
 /**
  * System domain service: the tiny use-case layer. Health needs nothing;
  * info assembles the runtime identity (version + start time + uptime).
- * Dependencies are injected so tests can pin the clock.
+ * The clock is injected by token so tests pin and advance time.
  */
 
+import { Inject, Injectable } from "@nestjs/common";
+import {
+  CLOCK,
+  type Clock,
+} from "../../infrastructure/providers/shared-tokens.ts";
 import type { SystemHealth, SystemInfo } from "./types.ts";
 import { readServerVersion } from "./version.ts";
 
-export interface SystemService {
-  health(): SystemHealth;
-  info(): SystemInfo;
-}
+@Injectable()
+export class SystemService {
+  private readonly version: string;
+  private readonly startedAtMs: number;
 
-export interface SystemServiceDeps {
-  version?: string;
-  startedAt?: Date;
-  now?: () => number;
-}
+  constructor(@Inject(CLOCK) private readonly clock: Clock) {
+    this.version = readServerVersion();
+    this.startedAtMs = this.clock();
+  }
 
-export function assembleSystemService(
-  deps: SystemServiceDeps = {},
-): SystemService {
-  const version = deps.version ?? readServerVersion();
-  const startedAt = deps.startedAt ?? new Date();
-  const now = deps.now ?? Date.now;
-  return {
-    health: () => ({ status: "ok" }),
-    info: () => ({
+  health(): SystemHealth {
+    return { status: "ok" };
+  }
+
+  info(): SystemInfo {
+    return {
       name: "toby",
-      version,
+      version: this.version,
       node: process.versions.node,
-      started_at: startedAt.toISOString(),
-      uptime_seconds: Math.floor((now() - startedAt.getTime()) / 1000),
-    }),
-  };
+      started_at: new Date(this.startedAtMs).toISOString(),
+      uptime_seconds: Math.floor((this.clock() - this.startedAtMs) / 1000),
+    };
+  }
 }
