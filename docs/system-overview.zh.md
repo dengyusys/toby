@@ -114,7 +114,7 @@ sequenceDiagram
 ```mermaid
 flowchart TB
     BOOT["main.ts(组合根)<br/>每域一行装配,跨域接线只在这里"]
-    INFRA["infrastructure/<br/>config(TOBY_*)·http(应用外壳/错误体/请求上下文/双 SPA 静态)<br/>model(AI 运行时)·actions-kernel(提案内核)·db(适配 port:sqlite / mysql)"]
+    INFRA["infrastructure/<br/>config(TOBY_*)·http(请求体上限/错误体/no-store/双 SPA 静态)<br/>model(AI 运行时)·actions-kernel(提案内核)·db(适配 port:sqlite / mysql)"]
     DOM["domains/*<br/>业务域,逐个落地"]
     BOOT --> INFRA
     BOOT --> DOM

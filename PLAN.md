@@ -58,7 +58,7 @@ toby/
 ├── apps/server/                 # @toby/server(后端单进程)
 │   └── src/
 │       ├── main.ts              # 组合根:resolveConfig → assembleSystem → createServer → listen
-│       ├── infrastructure/      # config(TOBY_* env)/http(应用外壳+错误体+请求上下文+双SPA静态)/ai/actions/db(适配 port:sqlite/mysql 适配器,可扩展)
+│       ├── infrastructure/      # config(TOBY_* env)/http(请求体上限+错误体+no-store+双SPA静态)/model/actions-kernel/db(适配 port:sqlite/mysql 适配器,可扩展)
 │       └── domains/system/      # 走通域:module.ts router.ts(health/info) types.ts
 │   └── test/                    # app.inject 测试 + sqlite 临时目录测试 + mysql 门控测试(TOBY_TEST_MYSQL_URL)
 ├── apps/web/                    # @toby/web,PC 端入口 /
