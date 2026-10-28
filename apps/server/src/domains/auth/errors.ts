@@ -1,28 +1,14 @@
-/**
- * Auth wire error codes — the closed union of every code this domain puts
- * on the HTTP envelope. Web clients match on these strings; add new codes
- * here and in the clients, nowhere else.
- */
+/** The domain's closed wire-code union: clients match these, never messages. */
+
+import { DomainHttpError } from "../../infrastructure/http/http-error.ts";
 
 export type AuthErrorCode =
-  "AUTH_DISABLED" | "RATE_LIMITED" | "INVALID_CREDENTIALS" | "AUTH_REQUIRED";
+  "AUTH_DISABLED" | "INVALID_CREDENTIALS" | "AUTH_REQUIRED";
 
-/** Login/guard failure; optionally carries a Retry-After hint (429). */
-export class AuthError extends Error {
-  readonly code: AuthErrorCode;
-  readonly status: number;
-  readonly retryAfterSeconds?: number;
-
-  constructor(
-    code: AuthErrorCode,
-    status: number,
-    message: string,
-    retryAfterSeconds?: number,
-  ) {
-    super(message);
+/** Login/guard failure. */
+export class AuthError extends DomainHttpError {
+  constructor(code: AuthErrorCode, status: number, message: string) {
+    super(status, code, message);
     this.name = "AuthError";
-    this.code = code;
-    this.status = status;
-    this.retryAfterSeconds = retryAfterSeconds;
   }
 }

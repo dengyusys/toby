@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   ActionStateError,
   createActionRegistry,
-} from "../../src/infrastructure/actions/registry.ts";
+} from "../../../src/infrastructure/actions-kernel/registry.ts";
 
 interface Probe {
   readonly value: string;
@@ -97,7 +97,7 @@ describe("createActionRegistry", () => {
       .catch((thrown: unknown) => thrown)) as ActionStateError;
     expect(error).toBeInstanceOf(ActionStateError);
     expect(error.code).toBe("PROPOSAL_EXPIRED");
-    expect(error.status).toBe(410);
+    expect(error.getStatus()).toBe(410);
   });
 
   it("cancel works while pending and is rejected after commit", async () => {

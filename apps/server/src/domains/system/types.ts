@@ -1,5 +1,5 @@
 /**
- * System domain types. This file stays pure: no fastify, no infrastructure,
+ * System domain types. This file stays pure: no HTTP adapter, no infrastructure,
  * no node: imports — domain types are transport-free.
  */
 

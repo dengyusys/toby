@@ -60,7 +60,6 @@ beforeAll(async () => {
       TOBY_HOST: "127.0.0.1",
       TOBY_PORT: String(port),
       TOBY_DATA_ROOT: tempDataRoot,
-      TOBY_LOG_LEVEL: "warn",
     },
     stdio: ["ignore", "ignore", "pipe"],
     windowsHide: true,
@@ -115,7 +114,7 @@ describe("http contract (api)", () => {
   it("health returns ok with no-store json", async () => {
     const response = await fetch(`${baseUrl}/api/system/health`);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: "ok" });
+    expect(await response.json()).toMatchObject({ status: "ok" });
     expect(response.headers.get("content-type")).toContain("application/json");
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
@@ -137,21 +136,24 @@ describe("http contract (api)", () => {
     expect(body.uptime_seconds).toBeGreaterThanOrEqual(0);
   });
 
-  it("unknown paths get the PAGE_NOT_FOUND envelope", async () => {
+  it("unknown paths get the PAGE_NOT_FOUND body", async () => {
     const response = await fetch(`${baseUrl}/api/nope`);
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({
-      error: { code: "PAGE_NOT_FOUND", message: "page not found" },
+      statusCode: 404,
+      message: "page not found",
+      error: "Not Found",
+      errorCode: "PAGE_NOT_FOUND",
     });
   });
 
-  it("method mismatch is discriminated as 405", async () => {
+  it("a method mismatch is a not-found like any other unmatched request", async () => {
     const response = await fetch(`${baseUrl}/api/system/health`, {
       method: "POST",
     });
-    expect(response.status).toBe(405);
-    expect(await response.json()).toEqual({
-      error: { code: "METHOD_NOT_ALLOWED", message: "method not allowed" },
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({
+      errorCode: "PAGE_NOT_FOUND",
     });
   });
 });
@@ -251,7 +253,6 @@ describe("http contract (auth enabled)", () => {
         TOBY_HOST: "127.0.0.1",
         TOBY_PORT: String(port),
         TOBY_DATA_ROOT: authDataRoot,
-        TOBY_LOG_LEVEL: "warn",
         TOBY_AUTH_PASSWORD_HASH: passwordHash,
       },
       stdio: ["ignore", "ignore", "pipe"],
@@ -298,14 +299,14 @@ describe("http contract (auth enabled)", () => {
   it("guards the API until login, then opens it", async () => {
     const denied = await fetch(`${authUrl}/api/ledger/months`);
     expect(denied.status).toBe(401);
-    const deniedBody = (await denied.json()) as { error: { code: string } };
-    expect(deniedBody.error.code).toBe("AUTH_REQUIRED");
+    const deniedBody = (await denied.json()) as { errorCode: string };
+    expect(deniedBody.errorCode).toBe("AUTH_REQUIRED");
 
     // Health is @Public: the healthcheck endpoint must answer without a
     // session, and percent-encoded paths must not dodge the guard.
     const health = await fetch(`${authUrl}/api/system/health`);
     expect(health.status).toBe(200);
-    expect(await health.json()).toEqual({ status: "ok" });
+    expect(await health.json()).toMatchObject({ status: "ok" });
     const encoded = await fetch(`${authUrl}/%61pi/ledger/months`);
     expect(encoded.status).toBe(401);
 

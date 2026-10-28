@@ -17,7 +17,6 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm -r --if-present run test && pnpm --filter @toby/server run build && vitest run",
-    "backup": "pnpm --filter @toby/server run backup",
     "prepare": "simple-git-hooks"
   },
   "simple-git-hooks": {

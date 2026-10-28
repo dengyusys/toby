@@ -22,22 +22,25 @@
  * the kernel.
  */
 
-import { HTTP_STATUS } from "../http/contract.ts";
+import { HttpStatus } from "@nestjs/common";
+import { DomainHttpError } from "../http/http-error.ts";
 
 const DEFAULT_ACTION_AUTO_WRITE_DELAY_MS = 30_000;
 const DEFAULT_ACTION_TTL_MS = 10 * 60_000;
 const DEFAULT_ACTION_RETENTION_MS = 60 * 60_000;
 
-/** Domain-shaped error recognized by the unified HTTP error boundary. */
-export class ActionStateError extends Error {
-  readonly code: string;
-  readonly status: number;
+/** The kernel's closed set of wire codes. */
+export type ActionErrorCode =
+  | "PROPOSAL_NOT_FOUND"
+  | "PROPOSAL_EXPIRED"
+  | "PROPOSAL_CANCELLED"
+  | "PROPOSAL_COMMITTED";
 
-  constructor(code: string, status: number, message: string) {
-    super(message);
+/** A proposal-state failure, answered by the unified HTTP error boundary. */
+export class ActionStateError extends DomainHttpError {
+  constructor(code: ActionErrorCode, status: number, message: string) {
+    super(status, code, message);
     this.name = "ActionStateError";
-    this.code = code;
-    this.status = status;
   }
 }
 
@@ -93,7 +96,7 @@ export function createActionRegistry<P, R>(
     if (!record) {
       throw new ActionStateError(
         "PROPOSAL_NOT_FOUND",
-        HTTP_STATUS.notFound,
+        HttpStatus.NOT_FOUND,
         "proposal not found",
       );
     }
@@ -124,14 +127,14 @@ export function createActionRegistry<P, R>(
       if (record.status === "expired") {
         throw new ActionStateError(
           "PROPOSAL_EXPIRED",
-          HTTP_STATUS.gone,
+          HttpStatus.GONE,
           "proposal has expired",
         );
       }
       if (record.status === "cancelled") {
         throw new ActionStateError(
           "PROPOSAL_CANCELLED",
-          HTTP_STATUS.conflict,
+          HttpStatus.CONFLICT,
           "proposal was cancelled and cannot be committed",
         );
       }
@@ -149,7 +152,7 @@ export function createActionRegistry<P, R>(
         record.status = "expired";
         throw new ActionStateError(
           "PROPOSAL_EXPIRED",
-          HTTP_STATUS.gone,
+          HttpStatus.GONE,
           "proposal has expired",
         );
       }
@@ -176,14 +179,14 @@ export function createActionRegistry<P, R>(
         record.status = "expired";
         throw new ActionStateError(
           "PROPOSAL_EXPIRED",
-          HTTP_STATUS.gone,
+          HttpStatus.GONE,
           "proposal has expired",
         );
       }
       if (record.status === "committed") {
         throw new ActionStateError(
           "PROPOSAL_COMMITTED",
-          HTTP_STATUS.conflict,
+          HttpStatus.CONFLICT,
           "proposal is already committed",
         );
       }
@@ -192,7 +195,7 @@ export function createActionRegistry<P, R>(
       if (record.inFlight) {
         throw new ActionStateError(
           "PROPOSAL_COMMITTED",
-          HTTP_STATUS.conflict,
+          HttpStatus.CONFLICT,
           "proposal commit is already in progress",
         );
       }

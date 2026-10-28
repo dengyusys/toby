@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { Type } from "typebox";
+import { z } from "zod";
 import { createModels } from "@earendil-works/pi-ai";
 import {
   fauxAssistantMessage,
@@ -17,9 +17,9 @@ import {
 import {
   createTobyAgentFactory,
   defineTool,
-} from "../../src/infrastructure/ai/agent.ts";
-import { AiError } from "../../src/infrastructure/ai/errors.ts";
-import { caughtAiError } from "../helpers.ts";
+} from "../../../src/infrastructure/model/agent.ts";
+import { AiError } from "../../../src/infrastructure/model/errors.ts";
+import { caughtAiError } from "../../helpers.ts";
 
 const CONFIG = { model: "faux/faux-1", timeoutMs: 5_000 };
 
@@ -37,7 +37,7 @@ function makeProbeTool(name: string) {
     name,
     label: name,
     description: `probe tool ${name}`,
-    parameters: Type.Object({ value: Type.Optional(Type.String()) }),
+    parameters: z.object({ value: z.string().optional() }),
     execute: async (_id, params) => {
       calls.push(params);
       return { content: [{ type: "text", text: "ok" }], details: {} };
@@ -50,7 +50,7 @@ const ECHO_TOOL = defineTool("read-only", {
   name: "echo",
   label: "echo",
   description: "echo a value",
-  parameters: Type.Object({ value: Type.String() }),
+  parameters: z.object({ value: z.string() }),
   execute: async (_id, params) => ({
     content: [{ type: "text", text: params.value }],
     details: {},
@@ -104,7 +104,7 @@ describe("createTobyAgentFactory", () => {
       name: "strict_probe",
       label: "strict_probe",
       description: "strict probe tool",
-      parameters: Type.Object({ value: Type.String() }),
+      parameters: z.object({ value: z.string() }),
       execute: async (_id, params) => {
         executions += 1;
         return {
@@ -155,7 +155,7 @@ describe("createTobyAgentFactory", () => {
       name: "submit_thing",
       label: "submit_thing",
       description: "submit a thing",
-      parameters: Type.Object({ value: Type.String() }),
+      parameters: z.object({ value: z.string() }),
       execute: async () => {
         throw new Error("must never execute");
       },

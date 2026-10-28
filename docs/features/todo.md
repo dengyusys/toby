@@ -19,7 +19,7 @@ A one-shot todo board: one sentence in the chat, a proposal card confirmed, then
 
 ## Interface
 
-All JSON; errors follow the server's standard envelope. Response shapes and error codes are defined by code and tests when the domain lands.
+All JSON; errors follow the server's standard error body. Response shapes and error codes are defined by code and tests when the domain lands.
 
 | Method and path                        | Purpose                                                                                                                             |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |

@@ -2,7 +2,7 @@
 
 [English](actions-kernel.md) | 简体中文
 
-一切写意图 AI 动作都经过同一个共享状态机：`infrastructure/actions/` 中的
+一切写意图 AI 动作都经过同一个共享状态机：`infrastructure/actions-kernel/` (`registry.ts`) 中的
 **提案确认内核**。ledger 的提案注册表是它的第一个消费方适配器；chat、
 schedule 以及后续所有域都复用它,而不是各自长一套。
 
@@ -46,6 +46,4 @@ schedule 以及后续所有域都复用它,而不是各自长一套。
 ## 参考
 
 2026-10-24 正式成文:上述规则此前存于代码注释与 ledger 实现中。
-关联文档:备份流程([docs/operations/backup.zh.md](../operations/backup.zh.md))
-的重启边界来自上文的内存语义;工具分级门控定义于
-[ai-pi-runtime.zh.md](ai-pi-runtime.zh.md)。
+工具分级门控定义于 [ai-pi-runtime.zh.md](ai-pi-runtime.zh.md)。

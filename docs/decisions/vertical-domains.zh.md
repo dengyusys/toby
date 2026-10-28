@@ -18,8 +18,9 @@
 src/
 ├── domains/
 │   ├── schedule/
-│   │   ├── controller.ts
-│   │   ├── service.ts
+│   │   ├── schedule.controller.ts
+│   │   ├── schedule.service.ts
+│   │   ├── schedule.module.ts
 │   │   ├── store.ts
 │   │   └── types.ts
 │   └── ledger/
@@ -27,6 +28,10 @@ src/
 ├── infrastructure/
 └── main.ts
 ```
+
+Nest 角色文件带域前缀(`<域>.controller.ts`、`<域>.service.ts`、`<域>.module.ts`)——
+这正是 `nest g` 生成的名字,也让三个 `service.ts` 在编辑器里不至于长得一模一样。
+域内词汇(`types.ts`、`errors.ts`、`store.ts`、`schema.ts`)不加前缀:它们由目录限定作用域,且每个只出现一次。
 
 例如,修改记账功能时,相关路由、业务逻辑和存储代码都集中在 `domains/ledger/` 中,不必在多个技术目录之间寻找和修改文件。
 

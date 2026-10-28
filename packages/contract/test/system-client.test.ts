@@ -57,11 +57,14 @@ describe("createSystemClient", () => {
 });
 
 describe("requestJson error mapping", () => {
-  it("decodes the { error: { code, message } } envelope into ApiError", async () => {
+  it("decodes the server error body into ApiError", async () => {
     stubFetch(
       404,
       JSON.stringify({
-        error: { code: "PAGE_NOT_FOUND", message: "page not found" },
+        statusCode: 404,
+        message: "page not found",
+        error: "Not Found",
+        errorCode: "PAGE_NOT_FOUND",
       }),
     );
     const error = await requestJson("http://127.0.0.1:8629/api/nope").catch(
@@ -74,7 +77,7 @@ describe("requestJson error mapping", () => {
     expect(apiError.message).toBe("page not found");
   });
 
-  it("falls back to a generic ApiError for non-envelope bodies", async () => {
+  it("falls back to a generic ApiError for non-JSON bodies", async () => {
     stubFetch(502, "bad gateway text");
     const error = (await requestJson(
       "http://127.0.0.1:8629/api/system/health",

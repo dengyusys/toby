@@ -10,7 +10,7 @@ Toby 是自托管个人助手(定位:像贴身书童,记录日程、笔记,管�
 
 ## 已确认决策
 
-- 技术栈沿用旧栈:Node 22 直跑 .ts(无构建)+ pnpm workspaces + Fastify 5 + better-sqlite3 + React 19/Vite 6/Tailwind v4/shadcn + vitest
+- 技术栈:Node 22 + pnpm workspaces + NestJS 12(Node HTTP 适配器)+ better-sqlite3 + React 19/Vite 6/Tailwind v4/shadcn + vitest
 - 数据库访问:自建适配 port,推荐 SQLite;MySQL 适配器出于作者学习目的,第三种数据库加入只需再加一个适配器(不引入 ORM/查询构建器,domain store 手写 SQL、类型安全自维护;见 docs/decisions/db-adapter.md;方案已定,实现为批次四)
 - 后端服务命名:**`server`**(目录 `apps/server`、包名 `@toby/server`、组合根 `src/main.ts`、文档术语"服务端 / Toby server"),不用旧项目的 gateway
 - 保留"对话→AI提案→确认→写入"模式,框架期仅做**架构预留**(ADR + 文档,不写代码)
@@ -58,7 +58,7 @@ toby/
 ├── apps/server/                 # @toby/server(后端单进程)
 │   └── src/
 │       ├── main.ts              # 组合根:resolveConfig → assembleSystem → createServer → listen
-│       ├── infrastructure/      # config(TOBY_* env)/http(createServer 工厂+错误包络+双SPA静态)/logging(pino)/db(适配 port:sqlite/mysql 适配器,可扩展)
+│       ├── infrastructure/      # config(TOBY_* env)/http(应用外壳+错误体+请求上下文+双SPA静态)/ai/actions/db(适配 port:sqlite/mysql 适配器,可扩展)
 │       └── domains/system/      # 走通域:module.ts router.ts(health/info) types.ts
 │   └── test/                    # app.inject 测试 + sqlite 临时目录测试 + mysql 门控测试(TOBY_TEST_MYSQL_URL)
 ├── apps/web/                    # @toby/web,PC 端入口 /
@@ -87,7 +87,7 @@ toby/
 ### 3. ESLint 边界纪律(数据驱动白名单,裁剪自旧项目)
 
 - `DOMAIN_ALLOWED` 表:域互不导入,新域登记一行自动生成规则
-- 基础设施禁导入域(装配只在 main.ts 与各域 module.ts);域内 types.ts 纯净(禁 fastify/infrastructure/node:)
+- 基础设施禁导入域(装配只在 main.ts 与 app.module.ts);域内 types.ts 纯净(禁 HTTP 适配器/infrastructure/node:)
 - 双 web 互不导入,共享仅经 `@toby/contract`;前端包禁导入 `@toby/server`
 
 ### 4. 工具链
@@ -112,7 +112,7 @@ toby/
 
 ### 7. 版本要点(沿用旧项目实测组合)
 
-fastify 5.12.7(精确钉,与 @nestjs/platform-fastify 同版)、@nestjs/common ^12.2.0、@nestjs/core ^12.2.0、@nestjs/platform-fastify ^12.2.0(见 docs/decisions/nestjs-server-stack.md)、@fastify/static ^10.1.3、better-sqlite3 ^13.0.3、mysql2 ^3.24.6(数据库驱动各配各的适配器、共用一个 port;mysql2 纯 JS、自带类型、无需 allowBuilds)、typebox 1.3.27(精确钉,与 pi-agent-core 同版)、@earendil-works/pi-ai 1.3.0、@earendil-works/pi-agent-core 1.3.0(两者精确钉:pi-agent-core 对 pi-ai 是精确依赖,用 ^ 会装出双副本类型分叉)、pino ^10.1.0、react 19、vite 6、@tailwindcss/vite ^4.3.3、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。版本单一真相关在 `pnpm-workspace.yaml` 的 `catalog`,各 package.json 以 `"catalog:"` 引用。**不引入**:openai 等厂商 SDK(应用代码不直接 import 厂商 SDK;LLM 接入统一经 @earendil-works/pi-ai,其传递依赖除外)、sqlite-vec、Python(随业务域提交进)
+@nestjs/common 12.3.2、@nestjs/core 12.3.2、@nestjs/platform-node 12.3.2(见 docs/decisions/nestjs-server-stack.md)、better-sqlite3 ^13.0.3、mysql2 ^3.24.6(数据库驱动各配各的适配器、共用一个 port;mysql2 纯 JS、自带类型、无需 allowBuilds)、zod ^4.6.7、@earendil-works/pi-ai 1.3.0、@earendil-works/pi-agent-core 1.3.0(两者精确钉:pi-agent-core 对 pi-ai 是精确依赖,用 ^ 会装出双副本类型分叉)、react 19、vite 6、@tailwindcss/vite ^4.3.3、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。版本单一真相关在 `pnpm-workspace.yaml` 的 `catalog`,各 package.json 以 `"catalog:"` 引用。**不引入**:openai 等厂商 SDK(应用代码不直接 import 厂商 SDK;LLM 接入统一经 @earendil-works/pi-ai,其传递依赖除外)、sqlite-vec、Python(随业务域提交进)
 
 ### 8. AGENTS.md(英文 + 中文)—— 已完成(不设 CLAUDE.md,AI 规则统一走 AGENTS.md)
 

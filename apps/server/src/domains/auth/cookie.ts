@@ -1,16 +1,14 @@
 /**
- * The session cookie: its name and how to read it from a request —
- * shared by the controller (logout, session query) and the route guard.
- * Hand-rolled on purpose: one cookie, no attributes to parse;
- * @fastify/cookie would be a dependency for two calls.
+ * The session cookie's name and its reader. A guard runs before parameter
+ * decorators, so it reads the header itself instead of using `@Cookies()`.
  */
 
-import type { FastifyRequest } from "fastify";
+import type { NodeRequest } from "@nestjs/platform-node";
 
 export const SESSION_COOKIE = "toby_session";
 
 export function readSessionCookie(
-  request: FastifyRequest,
+  request: NodeRequest,
   name: string = SESSION_COOKIE,
 ): string | undefined {
   const header = request.headers.cookie;

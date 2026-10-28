@@ -68,7 +68,12 @@ it("renders the unreachable state when the endpoints fail", async () => {
         status: 503,
         text: () =>
           Promise.resolve(
-            JSON.stringify({ error: { code: "INTERNAL", message: "boom" } }),
+            JSON.stringify({
+              statusCode: 503,
+              message: "boom",
+              error: "Service Unavailable",
+              errorCode: "INTERNAL",
+            }),
           ),
       } as Response),
     ),

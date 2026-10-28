@@ -6,7 +6,7 @@
  */
 
 import { Module } from "@nestjs/common";
-import { SystemService } from "./service.ts";
+import { SystemService } from "./system.service.ts";
 import { SystemController } from "./system.controller.ts";
 
 @Module({

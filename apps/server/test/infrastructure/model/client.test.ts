@@ -17,9 +17,9 @@ import {
   fauxProvider,
   fauxText,
 } from "@earendil-works/pi-ai/providers/faux";
-import { AiError } from "../../src/infrastructure/ai/errors.ts";
-import { caughtAiError } from "../helpers.ts";
-import { createPiAiClient } from "../../src/infrastructure/ai/pi-ai-client.ts";
+import { AiError } from "../../../src/infrastructure/model/errors.ts";
+import { caughtAiError } from "../../helpers.ts";
+import { createPiAiClient } from "../../../src/infrastructure/model/client.ts";
 
 const TIMEOUT_MS = 5_000;
 

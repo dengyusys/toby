@@ -21,7 +21,7 @@ Say "remember I don't eat cilantro" in the chat, get a memory proposal card (sav
 
 ## Interface
 
-All JSON (the context endpoint returns text/plain); errors follow the server's standard envelope.
+All JSON (the context endpoint returns text/plain); errors follow the server's standard error body.
 
 | Method and path                                      | Purpose                                                                                    |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |

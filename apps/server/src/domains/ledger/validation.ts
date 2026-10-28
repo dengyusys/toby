@@ -6,7 +6,7 @@
  * proposals and zero writes.
  *
  * Two layers, deliberately separate (docs/decisions/ai-pi-runtime.md):
- * - shape: the shared TypeBox draft schema (same definition the
+ * - shape: the shared Zod draft schema (same definition the
  *   submit_entries tool hands the model) rejects malformed payloads;
  * - semantics: below the shape gate, only meaning is checked — amounts
  *   parse digit-wise into integer cents, dates pass real calendar checks,
@@ -14,7 +14,6 @@
  *   money, and no model output is trusted past this file.
  */
 
-import { Check, Errors } from "typebox/value";
 import {
   AMOUNT_PATTERN,
   DATE_PATTERN,
@@ -48,14 +47,15 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 // Shape gate: the shared draft schema, with the first violation reported.
 function requireDraftShape(raw: unknown, label: string): LedgerEntryDraft {
-  if (!Check(LEDGER_ENTRY_DRAFT_SCHEMA, raw)) {
-    const [first] = Errors(LEDGER_ENTRY_DRAFT_SCHEMA, raw);
-    const where = first?.instancePath ? ` at "${first.instancePath}"` : "";
+  const parsed = LEDGER_ENTRY_DRAFT_SCHEMA.safeParse(raw);
+  if (!parsed.success) {
+    const [first] = parsed.error.issues;
+    const where = first?.path.length ? ` at "${first.path.join(".")}"` : "";
     throw inputError(
       `${label} violates the entry schema${where}: ${first?.message ?? "unknown mismatch"}`,
     );
   }
-  return raw as LedgerEntryDraft;
+  return parsed.data;
 }
 
 /**

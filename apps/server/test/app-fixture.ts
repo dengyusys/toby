@@ -1,30 +1,22 @@
 /**
- * The shared test app fixture: assembles the app through @nestjs/testing
- * — SharedProvidersModule carries per-case config/clock into the DI
- * container, domain modules (or module subsets) arrive as imports, and
- * per-case values (LEDGER_TIMING, LEDGER_EXTRACTOR, ...) arrive through
- * overrideProvider. The Fastify-level contract (filter, static roots,
- * init) is applied exactly like production via applyHttpContract.
+ * The shared test app fixture: the same modules production assembles, with
+ * per-case config/clock and `overrideProvider` for the rest. Requests go
+ * through supertest against a real server, so every assertion crosses the wire.
  */
 
 import "reflect-metadata";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { Test, type TestingModuleBuilder } from "@nestjs/testing";
-import type { CanActivate, DynamicModule, Type } from "@nestjs/common";
-import type { NestFastifyApplication } from "@nestjs/platform-fastify";
-import {
-  applyHttpContract,
-  createTobyAdapter,
-  type NestServer,
-} from "../src/infrastructure/http/nest-app.ts";
+import type { DynamicModule, Type } from "@nestjs/common";
+import { NodeAdapter, type NestNodeApplication } from "@nestjs/platform-node";
 import type { TobyConfig } from "../src/infrastructure/config/config.ts";
+import { HttpModule } from "../src/infrastructure/http/http.module.ts";
 import { SharedProvidersModule } from "../src/infrastructure/providers/shared-providers.module.ts";
-import type { Clock } from "../src/infrastructure/providers/shared-tokens.ts";
-
-// Static roots that never exist: static serving degrades to a warning,
-// exactly like a fresh clone without web builds.
-const missingStaticRoot = path.join(tmpdir(), "toby-test-static-missing");
+import {
+  CLOCK,
+  TOBY_CONFIG,
+  type Clock,
+} from "../src/infrastructure/providers/shared-tokens.ts";
+import { REQUEST_BODY_LIMIT_BYTES } from "../src/main.ts";
 
 export interface TestAppOptions {
   /** Per-case config (tests resolve their own env into temp data roots). */
@@ -35,41 +27,34 @@ export interface TestAppOptions {
   clock?: Clock;
   /** Per-case provider overrides (LEDGER_TIMING, LEDGER_EXTRACTOR, ...). */
   overrides?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
-  trustProxy?: boolean;
-  /**
-   * The global guard, or a resolver invoked before init — compile() has
-   * already instantiated providers, so `app.get(SomeGuard)` resolves
-   * there. This mirrors main.ts's composition-root guard wiring.
-   */
-  globalGuard?: CanActivate | ((app: NestFastifyApplication) => CanActivate);
 }
 
 export async function createTestApp(
   options: TestAppOptions,
-): Promise<NestServer> {
+): Promise<NestNodeApplication> {
   let builder = Test.createTestingModule({
-    imports: [
-      SharedProvidersModule.forRoot(options.config, {
-        clock: options.clock,
-      }),
-      ...options.modules,
-    ],
+    imports: [SharedProvidersModule.forRoot(), HttpModule, ...options.modules],
   });
+  // Every per-case value takes the same path: the config replaces the
+  // container's own resolution (so a test run never reads the process
+  // environment), and the clock joins it when a case needs to drive time.
+  builder = builder.overrideProvider(TOBY_CONFIG).useValue(options.config);
+  if (options.clock) {
+    builder = builder.overrideProvider(CLOCK).useValue(options.clock);
+  }
   if (options.overrides) {
     builder = options.overrides(builder);
   }
   const moduleRef = await builder.compile();
-  const app = moduleRef.createNestApplication<NestFastifyApplication>(
-    createTobyAdapter({ trustProxy: options.trustProxy }),
+  const app = moduleRef.createNestApplication<NestNodeApplication>(
+    new NodeAdapter(),
     { logger: false, abortOnError: false },
   );
-  const globalGuard =
-    typeof options.globalGuard === "function"
-      ? options.globalGuard(app)
-      : options.globalGuard;
-  return applyHttpContract(app, {
-    webRoot: path.join(missingStaticRoot, "web"),
-    mobileWebRoot: path.join(missingStaticRoot, "mobile"),
-    globalGuard,
-  });
+  // The only bootstrap-level default production also applies that the tests
+  // need; the no-store policy and the SPA roots come from HttpModule, and the
+  // latter mount from their own `onModuleInit`.
+  app.useBodyParser("json", { limit: REQUEST_BODY_LIMIT_BYTES });
+  app.useBodyParser("urlencoded", { limit: REQUEST_BODY_LIMIT_BYTES });
+  await app.init();
+  return app;
 }

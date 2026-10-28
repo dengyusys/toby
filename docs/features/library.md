@@ -21,7 +21,7 @@ Upload a novel on the PC library page; the server splits it into chapters and pr
 
 ## Interface
 
-Upload is multipart (one of the exceptions to "JSON only"); the rest JSON; errors follow the server's standard envelope.
+Upload is multipart (one of the exceptions to "JSON only"); the rest JSON; errors follow the server's standard error body.
 
 | Method and path                              | Purpose                                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------------------ |

@@ -3,7 +3,7 @@
  * code, zero runtime pull-in, usable from any suite.
  */
 
-import type { AiError } from "../src/infrastructure/ai/errors.ts";
+import type { AiError } from "../src/infrastructure/model/errors.ts";
 
 /**
  * Await a promise that should reject; returns the rejection. Assumes the

@@ -8,20 +8,30 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { Check } from "typebox/value";
+import { z } from "zod";
 import {
   createLedgerExtractor,
   type LedgerDraft,
 } from "../../src/domains/ledger/extraction.ts";
+import { LEDGER_ENTRIES_TOOL_SCHEMA } from "../../src/domains/ledger/schema.ts";
 import type {
   TobyAgent,
   TobyAgentFactory,
   TobyAgentRunResult,
   TobyAgentSpec,
   TobyTool,
-} from "../../src/infrastructure/ai/agent.ts";
-import { AiError } from "../../src/infrastructure/ai/errors.ts";
+} from "../../src/infrastructure/model/agent.ts";
+import { AiError } from "../../src/infrastructure/model/errors.ts";
 import { caughtAiError } from "../helpers.ts";
+
+/**
+ * The arguments each tool's schema accepts: the fake loop rejects a call the
+ * runtime would too, by checking the Zod schema that produced the JSON Schema.
+ */
+const TOOL_ARGUMENT_SCHEMAS: Record<string, z.ZodType> = {
+  submit_entries: LEDGER_ENTRIES_TOOL_SCHEMA,
+  ask_user: z.object({ question: z.string().min(1) }).strict(),
+};
 
 /** One scripted model action in the fake loop. */
 type Step =
@@ -68,8 +78,8 @@ function makeFakeFactory(steps: readonly Step[]) {
             throw new Error(`fake loop: unregistered tool ${step.tool}`);
           }
           // Mirrors the real runtime: schema-invalid arguments become a
-          // model-visible error tool result and execute never runs.
-          if (!Check(entry.tool.parameters, step.args)) {
+          // model-visible error and execute never runs.
+          if (!TOOL_ARGUMENT_SCHEMAS[step.tool]?.safeParse(step.args).success) {
             continue;
           }
           try {

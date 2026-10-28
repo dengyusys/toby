@@ -29,9 +29,9 @@ const infrastructureDir = path.join(serverSrc, "infrastructure");
 const utilsDir = path.join(serverSrc, "utils");
 const httpDir = path.join(infrastructureDir, "http");
 
-// HTTP assembly internals: the Nest app factory and static assets. Domains
-// build routes against the shared contract and response writer instead.
-const ASSEMBLY_MODULES = ["nest-app", "static-assets"];
+// HTTP assembly internals: the app shell and the error boundary. Domains
+// build routes against the shared error body instead.
+const ASSEMBLY_MODULES = ["exception-filter", "http.module"];
 
 // Domains each domain may depend on. Domains are discovered from the
 // filesystem, so a new domain is governed the moment it lands; only domains
@@ -141,7 +141,7 @@ const rules: BoundaryRule[] = [
     },
   },
   {
-    name: "domain types.ts stays pure (no fastify, infrastructure or node: imports)",
+    name: "domain types.ts stays pure (no HTTP adapter, infrastructure or node: imports)",
     check: ({ file, specifier, resolved }) => {
       const domain = domainOf(file);
       if (domain === null) return null;
@@ -150,11 +150,10 @@ const rules: BoundaryRule[] = [
       }
       const forbidden =
         specifier.startsWith("node:") ||
-        importsPackage(specifier, "fastify") ||
-        specifier.startsWith("@fastify/") ||
+        specifier.startsWith("@nestjs/platform-") ||
         (resolved !== null && inside(resolved, infrastructureDir));
       return forbidden
-        ? "domain types.ts must stay pure: no fastify, infrastructure or node: imports"
+        ? "domain types.ts must stay pure: no HTTP adapter, infrastructure or node: imports"
         : null;
     },
   },

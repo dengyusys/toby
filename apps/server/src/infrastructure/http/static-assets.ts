@@ -1,64 +1,33 @@
 /**
- * Static assets plugin: serves apps/web/dist (PC entry /) and
- * apps/web-mobile/dist (mobile entry /m/), all responses no-store.
- * A missing build root only warns and skips — a fresh clone without dist
- * still gets a working API server.
+ * Mounts the two SPA builds: `apps/web/dist` at `/`, `apps/web-mobile/dist` at
+ * `/m/`. No SPA fallback (both apps use hash routing) and no
+ * `@nestjs/serve-static`, which always registers a render route.
  */
 
+import { Inject, Injectable, type OnModuleInit } from "@nestjs/common";
+import { HttpAdapterHost } from "@nestjs/core";
+import type { NodeAdapter } from "@nestjs/platform-node";
 import { existsSync } from "node:fs";
-import fastifyStatic from "@fastify/static";
-import type { FastifyPluginAsync, FastifyReply } from "fastify";
+import type { TobyConfig } from "../config/config.ts";
+import { TOBY_CONFIG } from "../providers/shared-tokens.ts";
 
-export interface StaticAssetsOptions {
-  webRoot: string;
-  mobileWebRoot: string;
-  /** Warn through this logger when a build root is absent. */
-  warn: (message: string) => void;
-}
+@Injectable()
+export class StaticAssetsProvider implements OnModuleInit {
+  constructor(
+    private readonly adapterHost: HttpAdapterHost,
+    @Inject(TOBY_CONFIG) private readonly config: TobyConfig,
+  ) {}
 
-// @fastify/static deduplicates registrations by fp name: registering twice on
-// one app requires distinct names; the official types miss `name`, so the
-// plugin type is narrowed here.
-type StaticPlugin = FastifyPluginAsync<
-  fastifyStatic.FastifyStaticOptions & { name?: string }
->;
-
-function noStore(reply: FastifyReply): void {
-  reply.header("Cache-Control", "no-store");
-}
-
-export const staticAssetsPlugin: FastifyPluginAsync<
-  StaticAssetsOptions
-> = async (app, options) => {
-  const plugin = fastifyStatic as StaticPlugin;
-  if (existsSync(options.webRoot)) {
-    await app.register(plugin, {
-      name: "web-static",
-      root: options.webRoot,
-      setHeaders: noStore,
-    });
-  } else {
-    options.warn(
-      `web build root missing, skipping static serving: ${options.webRoot}`,
-    );
+  onModuleInit(): void {
+    const adapter = this.adapterHost.httpAdapter as NodeAdapter;
+    const { webRoot, mobileWebRoot } = this.config.paths;
+    if (existsSync(webRoot)) {
+      adapter.useStaticAssets(webRoot);
+    }
+    if (existsSync(mobileWebRoot)) {
+      // The bare mount answers 301 to the trailing-slash form, which the SPA's
+      // relative assets need.
+      adapter.useStaticAssets(mobileWebRoot, { prefix: "/m" });
+    }
   }
-  if (existsSync(options.mobileWebRoot)) {
-    await app.register(plugin, {
-      name: "mobile-web-static",
-      root: options.mobileWebRoot,
-      prefix: "/m/",
-      // sendFile is decorated by the first registration; skip the second.
-      decorateReply: false,
-      setHeaders: noStore,
-    });
-    // Prefix routes only match the trailing-slash form.
-    app.get("/m", async (_request, reply) => {
-      reply.header("Cache-Control", "no-store");
-      reply.redirect("/m/", 301);
-    });
-  } else {
-    options.warn(
-      `mobile web build root missing, skipping static serving: ${options.mobileWebRoot}`,
-    );
-  }
-};
+}

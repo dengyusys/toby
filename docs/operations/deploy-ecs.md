@@ -99,11 +99,12 @@ port mapping to `"8629:8629"`, still no security-group rule for 8629).
 
 ```bash
 docker logs -f toby
-docker exec toby node apps/server/dist/infrastructure/db/backup-cli.js   # backup
 docker compose stop / start / down
 ```
 
-Pull backups off the server regularly — an ECS disk is not a backup.
+Back up `data/` off the server regularly — an ECS disk is not a backup. Copy
+it with the container stopped, or through SQLite (`VACUUM INTO`) while it
+runs, never with a plain `cp`.
 
 ## Updating to a new version
 

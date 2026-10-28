@@ -25,15 +25,15 @@ as the agent loop. The guardrails below are part of the deal.
 ## What is fixed (unchanged red lines)
 
 1. **The trust boundary is deterministic server-side validation.** Tool
-   schemas (TypeBox) only constrain _shape_; semantic validation (amounts
+   schemas (Zod, converted to JSON Schema at the pi boundary) only constrain _shape_; semantic validation (amounts
    to integer cents, real calendar dates, entry bounds) stays hand-written
    in each domain. AI output — including tool arguments — is untrusted
    input, always.
 2. **Every real effect goes through proposal → user confirmation →
    transactional execution.** The shared actions kernel (the
-   proposal-confirmation state machine) lives
-   in `infrastructure/actions/`; agents never write directly and never
-   confirm on the user's behalf.
+   proposal-confirmation state machine) lives in `infrastructure/actions-kernel/`
+   (`registry.ts`); agents never write directly and never confirm on the
+   user's behalf.
 3. **Prohibited capabilities are absent, not blocked.** There is no shell
    tool, no file-system tool, no direct-database tool — they do not exist
    as tool definitions at all.
@@ -59,18 +59,22 @@ is anticipated but not introduced until a domain needs it.
 
 ## Structure
 
-- `infrastructure/ai/` and `infrastructure/actions/` hold the runtime (file
-  roles are documented in the files themselves). Two non-obvious decisions:
+- Two sibling layers, neither containing the other:
+  `infrastructure/model/` is the AI runtime (agent loop, single-shot
+  client, model catalog, and the error/type contract), and
+  `infrastructure/actions-kernel/` is the proposal-confirmation state
+  machine. File roles are documented in the files themselves. Two
+  non-obvious decisions:
   the single-shot `AiClient` keeps the tolerant-parse + one-retry JSON
   protocol and currently has no production caller (chat's intent
   classification is its expected first consumer); the actions kernel
   uses single-flight — concurrent confirms and the sweeper share one
   execution — with domains passing their executors at commit time.
 - Domains own prompts, tools, and schemas: ledger's draft schema is
-  defined once in TypeBox and is simultaneously the model-facing tool
+  defined once in Zod and is simultaneously the model-facing tool
   contract and the server's shape gate; validation.ts remains the
   semantic trust boundary.
-- Versioning: pi-ai / pi-agent-core / typebox are pinned exact in the
+- Versioning: pi-ai / pi-agent-core are pinned exact in the
   pnpm catalog (pnpm-workspace.yaml) — pi-agent-core depends on exact
   versions, and a caret would install a second pi-ai copy and split the
   types.

@@ -31,7 +31,7 @@
 
 ## 测试约定
 
-- 测试用临时数据目录与假的 AI / 日志实现,正式数据一个字节不碰。
+- 测试用临时数据目录与假的 AI 实现,正式数据一个字节不碰。
 - 自动化测试不调真实 AI、不远程部署、不写正式数据。真要跑这些,任务必须明确授权,结果与本地自动化分开报告。
 - 改了什么,就跑什么:
 
@@ -51,14 +51,14 @@
 - `apps/web/`(PC 端,`/`)与 `apps/web-mobile/`(移动端,`/m/`)——两个 React SPA,互不导入。
 - `packages/contract/`(纯逻辑)——唯一的跨端共享通道;组件与样式各端自持,永不共享。
 - 依赖方向永远 `apps → packages`:packages 不许 import apps;前端不许 import `@toby/server`。
-- 域互不导入;跨域接线只在组合根。`infrastructure/` 不导入业务域;域内 `types.ts` 保持纯净(禁 fastify / infrastructure / `node:`)。
+- 域互不导入;跨域接线只在组合根。`infrastructure/` 不导入业务域;域内 `types.ts` 保持纯净(禁 HTTP 适配器 / infrastructure / `node:`)。
 - 以上边界由 `test/boundaries.test.ts` 中的导入边界测试机器强制,违规即构建失败。
 - `data/` 存运行时 SQLite 数据库。
 
 ## 代码风格
 
 - `apps/web`、`apps/web-mobile`、`packages`:`.ts` 由 Node 22 直跑、无构建 —— 禁 `enum` / `namespace` / 类参数属性;类型导入用 `import type`(`erasableSyntaxOnly` 自动拦违规)。
-- `apps/server`:经 `nest build` 构建;允许装饰器、`emitDecoratorMetadata`、类参数属性与 Nest 惯用法。server 测试走 vitest 的 swc 转换(`apps/server/vitest.config.ts`),与构建一样产出装饰器元数据——服务写成带构造注入的 `@Injectable()` 类;`@Inject(token)` 只用于值型或可选依赖(`TOBY_CONFIG` / `CLOCK`,域 extractor / timing token),日志用内置 `new Logger(X.name)` 门面(见 `docs/decisions/idiomatic-nest-services.zh.md`)。
+- `apps/server`:经 `nest build` 构建;允许装饰器、`emitDecoratorMetadata`、类参数属性与 Nest 惯用法。server 测试走 vitest 的 swc 转换(`apps/server/vitest.config.ts`),与构建一样产出装饰器元数据——服务写成带构造注入的 `@Injectable()` 类;`@Inject(token)` 只用于值型或可选依赖(`TOBY_CONFIG` / `CLOCK`,域 extractor / timing token),且不自带日志——服务端不保留应用日志。
 - 禁 Python;引入前必须先有 ADR。
 
 ## Git 工作流

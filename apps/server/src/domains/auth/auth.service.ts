@@ -1,13 +1,12 @@
 /**
- * Auth service: single-user login over a configured password hash. The
- * clock is injected so tests drive expiry and the rate-limit window. No
- * plaintext passwords or tokens are retained or logged.
+ * Auth service: single-user login over a configured password hash. The clock is
+ * injected so tests drive expiry; no plaintext password or token is retained.
  */
 
 import {
   Inject,
+  HttpStatus,
   Injectable,
-  Logger,
   type OnModuleDestroy,
   type OnModuleInit,
 } from "@nestjs/common";
@@ -15,7 +14,6 @@ import type {
   AuthConfig,
   TobyConfig,
 } from "../../infrastructure/config/config.ts";
-import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
 import {
   CLOCK,
   TOBY_CONFIG,
@@ -23,7 +21,6 @@ import {
 } from "../../infrastructure/providers/shared-tokens.ts";
 import { AuthError } from "./errors.ts";
 import { verifyPassword } from "./password.ts";
-import { createLoginRateLimiter, type LoginRateLimiter } from "./rate-limit.ts";
 import {
   createSessionRegistry,
   type SessionHandle,
@@ -41,8 +38,6 @@ const SESSION_SWEEP_INTERVAL_MS = 60_000;
 export class AuthService implements OnModuleInit, OnModuleDestroy {
   private readonly config: AuthConfig;
   private readonly sessions: SessionRegistry;
-  private readonly limiter: LoginRateLimiter;
-  private readonly logger = new Logger(AuthService.name);
   private timer?: NodeJS.Timeout;
 
   constructor(
@@ -51,31 +46,15 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
   ) {
     this.config = config.auth;
     this.sessions = createSessionRegistry({ now: this.clock });
-    this.limiter = createLoginRateLimiter({
-      now: this.clock,
-      windowMs: config.auth.rateLimitWindowMs,
-      max: config.auth.rateLimitMax,
-    });
   }
 
-  /** Wrong password 401, over the limit 429, disabled 400. */
-  async login(password: string, ip: string): Promise<SessionGrant> {
+  /** Wrong password 401, disabled 400 (429 comes from the route's guard). */
+  async login(password: string): Promise<SessionGrant> {
     if (!this.config.enabled) {
       throw new AuthError(
         "AUTH_DISABLED",
-        HTTP_STATUS.badRequest,
+        HttpStatus.BAD_REQUEST,
         "authentication is not configured (TOBY_AUTH_PASSWORD_HASH is unset)",
-      );
-    }
-    const decision = this.limiter.attempt(ip);
-    if (!decision.allowed) {
-      // The IP (never the password) makes lockouts traceable in logs.
-      this.logger.warn("login rate limited", { ip });
-      throw new AuthError(
-        "RATE_LIMITED",
-        HTTP_STATUS.tooManyRequests,
-        "too many login attempts",
-        decision.retryAfterSeconds,
       );
     }
     if (
@@ -84,7 +63,7 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
     ) {
       throw new AuthError(
         "INVALID_CREDENTIALS",
-        HTTP_STATUS.unauthorized,
+        HttpStatus.UNAUTHORIZED,
         "wrong password",
       );
     }
@@ -127,7 +106,7 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
     if (token === undefined || !this.sessions.verify(token)) {
       throw new AuthError(
         "AUTH_REQUIRED",
-        HTTP_STATUS.unauthorized,
+        HttpStatus.UNAUTHORIZED,
         "login required",
       );
     }

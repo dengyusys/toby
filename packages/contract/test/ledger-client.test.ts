@@ -108,10 +108,10 @@ describe("createLedgerClient", () => {
         async () =>
           new Response(
             JSON.stringify({
-              error: {
-                code: "PROPOSAL_EXPIRED",
-                message: "proposal has expired",
-              },
+              statusCode: 410,
+              message: "proposal has expired",
+              error: "Gone",
+              errorCode: "PROPOSAL_EXPIRED",
             }),
             { status: 410 },
           ),

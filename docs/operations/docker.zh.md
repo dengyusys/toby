@@ -54,8 +54,8 @@ docker compose up -d
 ```
 
 - 端口:仅 `127.0.0.1:8629` —— 回环暴露,不对公网。
-- 数据:`./data` 挂载进容器;数据库文件留在宿主机,备份
-  (`pnpm run backup`)照常可用。
+- 数据:`./data` 挂载进容器;数据库文件留在宿主机,因此在宿主机上
+  备份 `./data` 就是一次完整备份。
 - 配置:存在 `.env` 则注入。注意:`TOBY_DATA_ROOT` 若是 **Windows
   绝对路径**,容器使用前必须删除 —— 容器内的数据根是 `/app/data`。
 
@@ -75,8 +75,8 @@ curl http://127.0.0.1:8629/api/system/health
 - **部署更新**:`git pull` 后 `docker compose up -d --build`(重建镜像
   并替换容器;`data/` 不受影响)。
 - **拆除**:`docker compose down`(保留 `data/` 与镜像)。
-- **备份**:不变 —— 宿主机 `pnpm run backup`,或容器内
-  `docker exec toby node apps/server/dist/infrastructure/db/backup-cli.js`。
+- **备份**:停止容器后拷贝 `data/` 即可。容器运行中改用 SQLite 的
+  `VACUUM INTO` 而不是 `cp`:已提交的写入可能还在 `-wal` 旁路文件里。
 
 ## 故障排查
 

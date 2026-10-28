@@ -28,7 +28,7 @@ import type {
   AiRuntimeConfig,
 } from "./types.ts";
 import { AiError } from "./errors.ts";
-import { resolveCatalogModel } from "./model-catalog.ts";
+import { resolveCatalogModel } from "./catalog.ts";
 
 /** The catalog-resolved model this client talks to. */
 type ResolvedModel = Model<string>;

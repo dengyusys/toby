@@ -1,57 +1,59 @@
-/**
- * Ledger domain routes as a Nest controller: a thin HTTP shell — every
- * handler is one service call plus the shared envelope; every failure is a
- * domain-shaped error caught by the global exception filter.
- */
+/** Ledger routes: a thin HTTP shell, one service call per handler. */
 
-import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common";
-import type { FastifyReply } from "fastify";
-import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
-import { sendJsonReply } from "../../infrastructure/http/response.ts";
-import { LedgerService } from "./service.ts";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+} from "@nestjs/common";
+import {
+  PROPOSAL_BODY_SCHEMA,
+  type ProposalBody,
+} from "./dto/create-proposal.dto.ts";
+import { LedgerService, type LedgerProposalResult } from "./ledger.service.ts";
+import type {
+  LedgerCancelResult,
+  LedgerCommitResult,
+  LedgerMonthReport,
+} from "./types.ts";
 
 @Controller("api/ledger")
 export class LedgerController {
   constructor(private readonly service: LedgerService) {}
 
   @Get("months")
-  async months(@Res() reply: FastifyReply): Promise<void> {
-    sendJsonReply(reply, HTTP_STATUS.ok, await this.service.months());
+  months(): Promise<{ months: readonly string[] }> {
+    return this.service.months();
   }
 
   @Get("transactions")
-  async transactions(
+  transactions(
     @Query("month") month: string | undefined,
-    @Res() reply: FastifyReply,
-  ): Promise<void> {
-    sendJsonReply(reply, HTTP_STATUS.ok, await this.service.monthReport(month));
+  ): Promise<LedgerMonthReport> {
+    return this.service.monthReport(month);
   }
 
   @Post("proposals")
-  async createProposal(
-    @Body() body: unknown,
-    @Res() reply: FastifyReply,
-  ): Promise<void> {
-    sendJsonReply(
-      reply,
-      HTTP_STATUS.ok,
-      await this.service.createProposal(body),
-    );
+  @HttpCode(HttpStatus.OK)
+  createProposal(
+    @Body({ schema: PROPOSAL_BODY_SCHEMA }) body: ProposalBody,
+  ): Promise<LedgerProposalResult> {
+    return this.service.createProposal(body);
   }
 
   @Post("proposals/:id/commit")
-  async commit(
-    @Param("id") id: string,
-    @Res() reply: FastifyReply,
-  ): Promise<void> {
-    sendJsonReply(reply, HTTP_STATUS.ok, await this.service.commit(id));
+  @HttpCode(HttpStatus.OK)
+  commit(@Param("id") id: string): Promise<LedgerCommitResult> {
+    return this.service.commit(id);
   }
 
   @Post("proposals/:id/cancel")
-  async cancel(
-    @Param("id") id: string,
-    @Res() reply: FastifyReply,
-  ): Promise<void> {
-    sendJsonReply(reply, HTTP_STATUS.ok, await this.service.cancel(id));
+  @HttpCode(HttpStatus.OK)
+  cancel(@Param("id") id: string): Promise<LedgerCancelResult> {
+    return this.service.cancel(id);
   }
 }

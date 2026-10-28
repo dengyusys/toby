@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   repositoryRoot,
   resolveConfig,
+  resolveListenTarget,
 } from "../../src/infrastructure/config/config.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,7 +22,7 @@ const testAnchorRoot = path.resolve(
 );
 
 describe("resolveConfig", () => {
-  it("defaults: loopback host, port 8629, repo data root, info logs", () => {
+  it("defaults: loopback host, port 8629, repo data root", () => {
     const config = resolveConfig({ env: {} });
     expect(config.server.host).toBe("127.0.0.1");
     expect(config.server.port).toBe(8629);
@@ -29,7 +30,6 @@ describe("resolveConfig", () => {
     expect(config.paths.webRoot).toBe(
       path.join(testAnchorRoot, "apps/web/dist"),
     );
-    expect(config.logLevel).toBe("info");
   });
 
   it("db defaults: sqlite dialect, loopback mysql target held in reserve", () => {
@@ -87,13 +87,11 @@ describe("resolveConfig", () => {
         TOBY_HOST: "localhost",
         TOBY_PORT: "9000",
         TOBY_DATA_ROOT: "./store",
-        TOBY_LOG_LEVEL: "debug",
       },
     });
     expect(config.server.host).toBe("localhost");
     expect(config.server.port).toBe(9000);
     expect(config.paths.dataRoot).toBe(path.join(repositoryRoot, "store"));
-    expect(config.logLevel).toBe("debug");
   });
 
   it("0.0.0.0 is allowed for containers, other public hosts rejected", () => {
@@ -132,14 +130,12 @@ describe("resolveConfig", () => {
     );
   });
 
-  it("auth defaults: disabled, 7-day sessions, 5 per minute", () => {
+  it("auth defaults: disabled, 7-day sessions", () => {
     const config = resolveConfig({ env: {} });
     expect(config.auth).toEqual({
       enabled: false,
       passwordHash: "",
       sessionTtlMs: 168 * 3_600_000,
-      rateLimitMax: 5,
-      rateLimitWindowMs: 60_000,
       secureCookie: false,
     });
   });
@@ -150,16 +146,12 @@ describe("resolveConfig", () => {
       env: {
         TOBY_AUTH_PASSWORD_HASH: hash,
         TOBY_AUTH_SESSION_TTL_HOURS: "24",
-        TOBY_AUTH_RATE_LIMIT_MAX: "10",
-        TOBY_AUTH_RATE_LIMIT_WINDOW_MS: "120000",
         TOBY_AUTH_SECURE_COOKIE: "true",
       },
     });
     expect(config.auth.enabled).toBe(true);
     expect(config.auth.passwordHash).toBe(hash);
     expect(config.auth.sessionTtlMs).toBe(24 * 3_600_000);
-    expect(config.auth.rateLimitMax).toBe(10);
-    expect(config.auth.rateLimitWindowMs).toBe(120_000);
     expect(config.auth.secureCookie).toBe(true);
   });
 
@@ -177,25 +169,32 @@ describe("resolveConfig", () => {
     expect(() =>
       resolveConfig({ env: { TOBY_AUTH_SESSION_TTL_HOURS: "0" } }),
     ).toThrow(/TOBY_AUTH_SESSION_TTL_HOURS/);
-    expect(() =>
-      resolveConfig({ env: { TOBY_AUTH_RATE_LIMIT_MAX: "0" } }),
-    ).toThrow(/TOBY_AUTH_RATE_LIMIT_MAX/);
   });
 
-  it("boolean flags accept only true/false; trustProxy defaults off", () => {
-    expect(resolveConfig({ env: {} }).trustProxy).toBe(false);
-    expect(
-      resolveConfig({ env: { TOBY_TRUST_PROXY: "true" } }).trustProxy,
-    ).toBe(true);
+  it("boolean flags accept only true/false", () => {
     expect(
       resolveConfig({ env: { TOBY_AUTH_SECURE_COOKIE: "false" } }).auth
         .secureCookie,
     ).toBe(false);
-    expect(() => resolveConfig({ env: { TOBY_TRUST_PROXY: "yes" } })).toThrow(
-      /TOBY_TRUST_PROXY/,
-    );
+    expect(
+      resolveConfig({ env: { TOBY_AUTH_SECURE_COOKIE: "true" } }).auth
+        .secureCookie,
+    ).toBe(true);
     expect(() =>
       resolveConfig({ env: { TOBY_AUTH_SECURE_COOKIE: "True" } }),
     ).toThrow(/TOBY_AUTH_SECURE_COOKIE/);
+  });
+
+  it("the listen target resolves the same way resolveConfig does", () => {
+    expect(resolveListenTarget({})).toEqual({ host: "127.0.0.1", port: 8629 });
+    expect(
+      resolveListenTarget({ TOBY_HOST: "0.0.0.0", TOBY_PORT: "9000" }),
+    ).toEqual({ host: "0.0.0.0", port: 9000 });
+    expect(() => resolveListenTarget({ TOBY_PORT: "abc" })).toThrow(
+      /TOBY_PORT/,
+    );
+    expect(() => resolveListenTarget({ TOBY_HOST: "10.0.0.1" })).toThrow(
+      /TOBY_HOST/,
+    );
   });
 });

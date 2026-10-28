@@ -1,16 +1,9 @@
-/**
- * System domain routes as a Nest controller: a pure HTTP shell — every
- * handler is one service call plus the shared envelope, written through
- * the same reply writer so response bytes stay identical. Health is
- * @Public: it is the Docker healthcheck target and carries no data.
- */
+/** System routes: a pure HTTP shell; health is `@Public`. */
 
-import { Controller, Get, Res } from "@nestjs/common";
-import type { FastifyReply } from "fastify";
-import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
+import { Controller, Get } from "@nestjs/common";
 import { Public } from "../../infrastructure/http/public.decorator.ts";
-import { sendJsonReply } from "../../infrastructure/http/response.ts";
-import { SystemService } from "./service.ts";
+import { SystemService } from "./system.service.ts";
+import type { SystemHealth, SystemInfo } from "./types.ts";
 
 @Controller("api/system")
 export class SystemController {
@@ -18,12 +11,12 @@ export class SystemController {
 
   @Public()
   @Get("health")
-  health(@Res() reply: FastifyReply): void {
-    sendJsonReply(reply, HTTP_STATUS.ok, this.service.health());
+  health(): SystemHealth {
+    return this.service.health();
   }
 
   @Get("info")
-  info(@Res() reply: FastifyReply): void {
-    sendJsonReply(reply, HTTP_STATUS.ok, this.service.info());
+  info(): SystemInfo {
+    return this.service.info();
   }
 }

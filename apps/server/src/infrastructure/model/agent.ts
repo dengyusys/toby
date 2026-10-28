@@ -3,9 +3,9 @@
  * every tool is registered with a safety kind, and the agent's gate hook
  * enforces the policy derived from those kinds — a tool that is not
  * registered, or whose kind the agent's policy does not allow, never
- * executes. Runs are turn-capped and time-capped; usage lands in the
- * structured log. No business logic lives here: domains bring their own
- * tools.
+ * executes. Runs are turn-capped and time-capped; the run's usage (tokens,
+ * cost) is returned on its result. No business logic lives here: domains
+ * bring their own tools.
  *
  * Kind semantics:
  * - "read-only":    no state change of any kind (queries, math, asking the
@@ -31,12 +31,12 @@ import type {
   StopReason,
   Usage,
 } from "@earendil-works/pi-ai";
-import type { TSchema } from "typebox";
+import type { z } from "zod";
+import { toolSchema } from "./tool-schema.ts";
 import type { AiRuntimeConfig } from "./types.ts";
 import { AiError } from "./errors.ts";
-import { resolveCatalogModel } from "./model-catalog.ts";
-import { textOf } from "./pi-ai-client.ts";
-import type { Logger } from "@nestjs/common";
+import { resolveCatalogModel } from "./catalog.ts";
+import { textOf } from "./client.ts";
 
 /** Safety classification every Toby tool must carry. */
 export type ToolKind = "read-only" | "write-intent";
@@ -47,11 +47,36 @@ export interface TobyTool {
   readonly tool: AgentTool;
 }
 
-/** Wrap a tool with its mandatory safety kind. */
-export function defineTool<T extends TSchema>(
+/**
+ * A tool as authored here: the parameters are a Zod schema, so `execute` sees
+ * the inferred argument type instead of `unknown`.
+ */
+export type TobyToolDefinition<S extends z.ZodType> = Omit<
+  AgentTool,
+  "parameters" | "execute"
+> & {
+  readonly parameters: S;
+  execute: (
+    toolCallId: string,
+    params: z.infer<S>,
+    signal?: AbortSignal,
+  ) => ReturnType<AgentTool["execute"]>;
+};
+
+/**
+ * Wrap a tool with its mandatory safety kind, converting the Zod parameters
+ * to the JSON Schema pi-ai expects. The cast is the single seam between the
+ * two schema worlds (see tool-schema.ts).
+ */
+export function defineTool<S extends z.ZodType>(
   kind: ToolKind,
-  tool: AgentTool<T>,
+  definition: TobyToolDefinition<S>,
 ): TobyTool {
+  const { parameters, ...rest } = definition;
+  const tool = {
+    ...rest,
+    parameters: toolSchema(parameters),
+  } as unknown as AgentTool;
   return { kind, tool };
 }
 
@@ -96,10 +121,7 @@ type ToolGateHook = NonNullable<AgentOptions["beforeToolCall"]>;
  * Unknown names are rejected by pi-agent-core before this hook runs, so
  * the registration branch is an invariant, not the real defense.
  */
-function createToolGate(
-  spec: TobyAgentSpec,
-  logger: Logger | undefined,
-): ToolGateHook {
+function createToolGate(spec: TobyAgentSpec): ToolGateHook {
   const toolByName = new Map(
     spec.tools.map((entry) => [entry.tool.name, entry] as const),
   );
@@ -107,20 +129,14 @@ function createToolGate(
     const name = context.toolCall.name;
     const entry = toolByName.get(name);
     if (!entry) {
-      logger?.warn("ai tool call blocked: not registered", { tool: name });
       return { block: true, reason: `unknown tool: ${name}` };
     }
     if (!spec.policy.allowedKinds.includes(entry.kind)) {
-      logger?.warn("ai tool call blocked: kind not allowed by policy", {
-        tool: name,
-        kind: entry.kind,
-      });
       return {
         block: true,
         reason: `tool ${name} is not allowed in this agent`,
       };
     }
-    logger?.log("ai tool call allowed", { tool: name, kind: entry.kind });
     return undefined;
   };
 }
@@ -159,7 +175,6 @@ export interface TobyAgentFactoryOptions {
    * (its scripted fake provider); defaults to the shared builtin catalog.
    */
   readonly models?: Models;
-  readonly logger?: Logger;
 }
 
 function createTobyAgent(
@@ -178,7 +193,6 @@ function createTobyAgent(
 
   return {
     async run(prompt: string): Promise<TobyAgentRunResult> {
-      const logger = injected.logger;
       let turns = 0;
       let turnCapped = false;
 
@@ -199,7 +213,7 @@ function createTobyAgent(
                 ? { maxTokens: spec.maxTokens }
                 : {}),
             })),
-        beforeToolCall: createToolGate(spec, logger),
+        beforeToolCall: createToolGate(spec),
         finishTurn: () => {
           turns += 1;
           if (turns >= spec.policy.maxTurns) {
@@ -236,16 +250,6 @@ function createTobyAgent(
       }
 
       const usage = assistant?.usage;
-      if (usage) {
-        logger?.log("ai agent run usage", {
-          model: model.id,
-          provider: model.provider,
-          turns,
-          inTokens: usage.input,
-          outTokens: usage.output,
-          costUsd: usage.cost.total,
-        });
-      }
       return {
         text: textOf(assistant),
         turns,

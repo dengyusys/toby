@@ -64,11 +64,14 @@ describe("createAuthClient", () => {
     });
   });
 
-  it("maps wrong-password envelopes into ApiError", async () => {
+  it("maps a wrong-password body into ApiError", async () => {
     stubFetch(
       401,
       JSON.stringify({
-        error: { code: "INVALID_CREDENTIALS", message: "wrong password" },
+        statusCode: 401,
+        message: "wrong password",
+        error: "Unauthorized",
+        errorCode: "INVALID_CREDENTIALS",
       }),
     );
     const client = createAuthClient("");

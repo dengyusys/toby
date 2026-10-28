@@ -1,5 +1,5 @@
 /**
- * Ledger domain HTTP contract through app.inject against the fully
+ * Ledger domain HTTP contract, driven through supertest against the fully
  * assembled domain (real sqlite in a fresh temporary directory per case,
  * injected clock). Pins the public shapes: proposal views, commit
  * idempotency, cancel/expiry status codes, month reports, empty states.
@@ -9,6 +9,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import request from "supertest";
+import type { NestNodeApplication } from "@nestjs/platform-node";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
 import { LedgerModule } from "../../src/domains/ledger/ledger.module.ts";
 import {
@@ -20,7 +22,6 @@ import type {
   LedgerExtractor,
 } from "../../src/domains/ledger/extraction.ts";
 import { createTestApp } from "../app-fixture.ts";
-import type { NestServer } from "../../src/infrastructure/http/nest-app.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-ledger-api-"));
 
@@ -32,7 +33,7 @@ const AUTO_WRITE_MS = 30_000;
 const TTL_MS = 600_000;
 const BASE_MS = Date.parse("2026-10-20T08:00:00.000Z");
 
-let app: NestServer;
+let app: NestNodeApplication;
 let nowMs: number;
 let caseCounter = 0;
 
@@ -67,13 +68,13 @@ afterEach(async () => {
 });
 
 function inject(
-  method: string,
+  method: "GET" | "POST",
   url: string,
   payload?: Record<string, unknown>,
 ) {
-  const options =
-    payload === undefined ? { method, url } : { method, url, payload };
-  return app.inject(options);
+  const agent = request(app.getHttpServer());
+  const call = method === "GET" ? agent.get(url) : agent.post(url);
+  return payload === undefined ? call : call.send(payload);
 }
 
 function structuredEntry(overrides: Record<string, unknown> = {}) {
@@ -97,8 +98,8 @@ describe("ledger api: proposals", () => {
       "/api/ledger/proposals",
       structuredEntry(),
     );
-    expect(response.statusCode).toBe(200);
-    const body = response.json();
+    expect(response.status).toBe(200);
+    const body = response.body;
     expect(body.status).toBe("pending");
     expect(typeof body.proposal_id).toBe("string");
     expect(body.entries).toEqual([
@@ -118,6 +119,8 @@ describe("ledger api: proposals", () => {
   });
 
   it("rejects bad amounts and dates with zero writes and zero proposals", async () => {
+    // Well-formed bodies whose values are nonsense: the domain's semantic
+    // gate answers, not the route schema.
     for (const overrides of [
       { amount: "12.345" },
       { amount: -5 },
@@ -125,26 +128,59 @@ describe("ledger api: proposals", () => {
       { date: "2026-02-30" },
       { date: "2026/10/20" },
       { category: "  " },
-      { type: "花销" },
     ]) {
       const response = await inject(
         "POST",
         "/api/ledger/proposals",
         structuredEntry(overrides),
       );
-      expect(response.statusCode).toBe(400);
-      expect(response.json().error.code).toBe("INVALID_ENTRY");
+      expect(response.status).toBe(400);
+      expect(response.body.errorCode).toBe("INVALID_ENTRY");
     }
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.json()).toEqual({ months: [] });
+    expect(months.body).toEqual({ months: [] });
+  });
+
+  it("a body with no intake path is rejected by the route schema", async () => {
+    // The route schema owns the envelope only: which of the two paths is
+    // this, and is `text` a string. Everything inside `entry` is the domain's.
+    for (const body of [
+      {}, // neither path
+      { text: 5 },
+      { entry: undefined }, // present-but-undefined is not a path
+      { text: "x", extra: 1 }, // unknown keys are not silently accepted
+    ]) {
+      const response = await inject("POST", "/api/ledger/proposals", body);
+      expect(response.status).toBe(400);
+      expect(response.body.errorCode).toBe("BAD_REQUEST");
+    }
+    const months = await inject("GET", "/api/ledger/months");
+    expect(months.body).toEqual({ months: [] });
+  });
+
+  it("a malformed entry is the domain's call once the envelope is right", async () => {
+    // One definition of an entry shape (schema.ts) — the same one the model's
+    // tool contract uses — so these all answer the domain code.
+    for (const entry of [
+      5,
+      { ...structuredEntry().entry, type: "花销" },
+      { ...structuredEntry().entry, amount: true },
+      { ...structuredEntry().entry, account: 42 },
+    ]) {
+      const response = await inject("POST", "/api/ledger/proposals", { entry });
+      expect(response.status).toBe(400);
+      expect(response.body.errorCode).toBe("INVALID_ENTRY");
+    }
+    const months = await inject("GET", "/api/ledger/months");
+    expect(months.body).toEqual({ months: [] });
   });
 
   it("the one-sentence text path answers 501 when the extractor is absent", async () => {
     const response = await inject("POST", "/api/ledger/proposals", {
       text: "午饭花了25",
     });
-    expect(response.statusCode).toBe(501);
-    expect(response.json().error.code).toBe("AI_UNAVAILABLE");
+    expect(response.status).toBe(501);
+    expect(response.body.errorCode).toBe("AI_UNAVAILABLE");
   });
 
   it("the one-sentence AI path returns a proposal or a follow-up question", async () => {
@@ -172,64 +208,64 @@ describe("ledger api: proposals", () => {
     const proposed = await inject("POST", "/api/ledger/proposals", {
       text: "午饭花了25",
     });
-    expect(proposed.statusCode).toBe(200);
-    expect(proposed.json().status).toBe("pending");
-    expect(proposed.json().entries[0].amount).toBe(2500);
+    expect(proposed.status).toBe(200);
+    expect(proposed.body.status).toBe("pending");
+    expect(proposed.body.entries[0].amount).toBe(2500);
 
     const asked = await inject("POST", "/api/ledger/proposals", {
       text: "再来一杯咖啡",
     });
-    expect(asked.statusCode).toBe(200);
-    expect(asked.json()).toEqual({ question: "这笔用的哪个账户?" });
+    expect(asked.status).toBe(200);
+    expect(asked.body).toEqual({ question: "这笔用的哪个账户?" });
 
     const committed = await inject(
       "POST",
-      `/api/ledger/proposals/${proposed.json().proposal_id}/commit`,
+      `/api/ledger/proposals/${proposed.body.proposal_id}/commit`,
     );
-    expect(committed.statusCode).toBe(200);
+    expect(committed.status).toBe(200);
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.json()).toEqual({ months: ["2026-10"] });
+    expect(months.body).toEqual({ months: ["2026-10"] });
   });
 
   it("commit writes the batch once and is idempotent", async () => {
     const created = (
       await inject("POST", "/api/ledger/proposals", structuredEntry())
-    ).json();
+    ).body;
     const first = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(first.statusCode).toBe(200);
-    expect(first.json()).toEqual({
+    expect(first.status).toBe(200);
+    expect(first.body).toEqual({
       proposal_id: created.proposal_id,
       status: "committed",
       written: 1,
       transaction_ids: [1],
-      committed_at: first.json().committed_at,
+      committed_at: first.body.committed_at,
     });
     const again = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(again.statusCode).toBe(200);
-    expect(again.json()).toEqual(first.json());
+    expect(again.status).toBe(200);
+    expect(again.body).toEqual(first.body);
 
     const report = (
       await inject("GET", "/api/ledger/transactions?month=2026-10")
-    ).json();
+    ).body;
     expect(report.transactions).toHaveLength(1); // no duplicate rows
   });
 
   it("cancel prevents the write; a later commit is PROPOSAL_CANCELLED", async () => {
     const created = (
       await inject("POST", "/api/ledger/proposals", structuredEntry())
-    ).json();
+    ).body;
     const cancelled = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/cancel`,
     );
-    expect(cancelled.statusCode).toBe(200);
-    expect(cancelled.json()).toEqual({
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body).toEqual({
       proposal_id: created.proposal_id,
       status: "cancelled",
     });
@@ -237,27 +273,27 @@ describe("ledger api: proposals", () => {
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(commit.statusCode).toBe(409);
-    expect(commit.json().error.code).toBe("PROPOSAL_CANCELLED");
+    expect(commit.status).toBe(409);
+    expect(commit.body.errorCode).toBe("PROPOSAL_CANCELLED");
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.json()).toEqual({ months: [] }); // zero writes
+    expect(months.body).toEqual({ months: [] }); // zero writes
   });
 
   it("expired proposals answer 410; unknown ids answer 404", async () => {
     const created = (
       await inject("POST", "/api/ledger/proposals", structuredEntry())
-    ).json();
+    ).body;
     nowMs += TTL_MS + 1;
     const commit = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(commit.statusCode).toBe(410);
-    expect(commit.json().error.code).toBe("PROPOSAL_EXPIRED");
+    expect(commit.status).toBe(410);
+    expect(commit.body.errorCode).toBe("PROPOSAL_EXPIRED");
 
     const missing = await inject("POST", "/api/ledger/proposals/nope/commit");
-    expect(missing.statusCode).toBe(404);
-    expect(missing.json().error.code).toBe("PROPOSAL_NOT_FOUND");
+    expect(missing.status).toBe(404);
+    expect(missing.body.errorCode).toBe("PROPOSAL_NOT_FOUND");
   });
 });
 
@@ -265,12 +301,12 @@ describe("ledger api: months and reports", () => {
   async function commitEntry(overrides: Record<string, unknown>) {
     const created = (
       await inject("POST", "/api/ledger/proposals", structuredEntry(overrides))
-    ).json();
+    ).body;
     const committed = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(committed.statusCode).toBe(200);
+    expect(committed.status).toBe(200);
   }
 
   it("aggregates a month: totals, category subtotals, ordering", async () => {
@@ -287,11 +323,11 @@ describe("ledger api: months and reports", () => {
     await commitEntry({ date: "2026-09-30", category: "餐饮", amount: "10" });
 
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.json()).toEqual({ months: ["2026-10", "2026-09"] });
+    expect(months.body).toEqual({ months: ["2026-10", "2026-09"] });
 
     const report = (
       await inject("GET", "/api/ledger/transactions?month=2026-10")
-    ).json();
+    ).body;
     expect(report.month).toBe("2026-10");
     expect(report.transactions).toHaveLength(4); // no September bleed
     expect(report.transactions.map((t: { date: string }) => t.date)).toEqual([
@@ -311,8 +347,8 @@ describe("ledger api: months and reports", () => {
 
   it("empty months report zeros; the month parameter is validated", async () => {
     const empty = await inject("GET", "/api/ledger/transactions?month=2026-10");
-    expect(empty.statusCode).toBe(200);
-    expect(empty.json()).toEqual({
+    expect(empty.status).toBe(200);
+    expect(empty.body).toEqual({
       month: "2026-10",
       transactions: [],
       income_total: 0,
@@ -326,14 +362,14 @@ describe("ledger api: months and reports", () => {
       "/api/ledger/transactions?month=2026-1",
     ]) {
       const response = await inject("GET", url);
-      expect(response.statusCode).toBe(400);
-      expect(response.json().error.code).toBe("INVALID_MONTH");
+      expect(response.status).toBe(400);
+      expect(response.body.errorCode).toBe("INVALID_MONTH");
     }
   });
 
-  it("GET on proposal endpoints discriminates as 405", async () => {
+  it("GET on a POST-only endpoint is a not-found, like any other", async () => {
     const response = await inject("GET", "/api/ledger/proposals");
-    expect(response.statusCode).toBe(405);
-    expect(response.json().error.code).toBe("METHOD_NOT_ALLOWED");
+    expect(response.status).toBe(404);
+    expect(response.body.errorCode).toBe("PAGE_NOT_FOUND");
   });
 });

@@ -4,6 +4,7 @@
 
 import { endpoint, requestJson } from "./request-json.ts";
 
+/** Liveness answer: the process is up and serving. */
 export interface SystemHealth {
   status: "ok";
 }

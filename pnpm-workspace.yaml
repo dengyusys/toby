@@ -81,38 +81,40 @@ catalog:
 
   # Server runtime — @toby/server only.
   # 服务端运行时 —— 仅 @toby/server 使用。
-  # Exact-pinned to the copy @nestjs/platform-fastify resolves (5.12.7);
-  # any other resolution splits Fastify types/instances in two.
-  # 精确钉到 @nestjs/platform-fastify 解析的同一版本(5.12.7);
-  # 任何其他解析都会让 Fastify 的类型与实例分裂成两份。
-  fastify: 5.12.7
-  "@fastify/static": ^10.1.3
   better-sqlite3: ^13.0.3
   mysql2: ^3.24.6
+  zod: ^4.6.7
 
   # AI runtime (pi ecosystem) — pinned exact: pi-agent-core depends on exact
-  # pi-ai 1.3.0 / typebox 1.3.27; a caret here would install a second copy of
-  # pi-ai and split the Message/Context types across versions.
-  # AI 运行时（pi 生态）—— 精确钉版:pi-agent-core 精确依赖 pi-ai 1.3.0 /
-  # typebox 1.3.27;这里若用 ^ 会装出第二份 pi-ai,类型跨版本分叉。
+  # pi-ai 1.3.0; a caret here would install a second copy of pi-ai and split
+  # the Message/Context types across versions. The server has no direct
+  # TypeBox dependency: tool schemas are Zod, and pi-ai's own `TSchema`
+  # signatures resolve from its module graph.
+  # AI 运行时（pi 生态）—— 精确钉版:pi-agent-core 精确依赖 pi-ai 1.3.0;
+  # 这里若用 ^ 会装出第二份 pi-ai,类型跨版本分叉。服务端不再直接依赖
+  # TypeBox:工具 schema 用 Zod,pi-ai 签名里的 `TSchema` 由它自己的模块图解析。
   "@earendil-works/pi-ai": 1.3.0
   "@earendil-works/pi-agent-core": 1.3.0
-  typebox: 1.3.27
 
-  # Nest runtime — the server stack, over the same Fastify 5 engine.
+  # Nest runtime — the server stack, on the Node HTTP adapter.
   # Exact-pinned: a caret range resolves to the newest 12.x, which pnpm's
   # minimumReleaseAge gate rejects on release day (it auto-writes a
   # minimumReleaseAgeExclude bypass); upgrades are deliberate catalog edits.
-  # Nest 运行时 —— 服务端技术栈,仍跑在 Fastify 5 引擎上。
+  # The adapter is pinned to the same release as @nestjs/core: it imports
+  # @nestjs/common/internal, whose shape belongs to one release, not to a
+  # semver range.
+  # Nest 运行时 —— 服务端技术栈,跑在 Node HTTP 适配器上。
   # 精确钉版:caret 范围会解析到最新的 12.x,发布当天被 pnpm 的
   # minimumReleaseAge 闸门拒绝(否则会自动写入 minimumReleaseAgeExclude
   # 绕过);升级时应有意地修改本表。
-  "@nestjs/common": 12.2.0
-  "@nestjs/core": 12.2.0
-  "@nestjs/platform-fastify": 12.2.0
+  # 适配器与 @nestjs/core 同版本:它 import @nestjs/common/internal,
+  # 那套内部形状属于某个具体版本,不属于 semver 范围。
+  "@nestjs/common": 12.3.2
+  "@nestjs/core": 12.3.2
+  "@nestjs/platform-node": 12.3.2
   reflect-metadata: ^0.2.2
   rxjs: ^7.8.0
-  "@nestjs/testing": 12.2.0
+  "@nestjs/testing": 12.3.2
   "@nestjs/cli": ^12.0.10
 
   # Testing — vitest everywhere, DOM stack for the web apps.
@@ -122,6 +124,8 @@ catalog:
   unplugin-swc: ^2.0.0
   "@swc/core": ^1.16.20
   happy-dom: ^20.14.5
+  supertest: ^7.3.1
+  "@types/supertest": ^7.2.1
   "@testing-library/react": ^16.3.3
   "@testing-library/jest-dom": ^7.0.1
   "@testing-library/user-event": ^14.6.7
@@ -133,3 +137,9 @@ catalog:
   "@types/react": ~19.3.0
   "@types/react-dom": ^19.2.4
   "@types/better-sqlite3": ^9.6.0
+
+minimumReleaseAgeExclude:
+  - "@nestjs/common@12.3.2"
+  - "@nestjs/core@12.3.2"
+  - "@nestjs/platform-node@12.3.2"
+  - "@nestjs/testing@12.3.2"

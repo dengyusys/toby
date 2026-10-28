@@ -15,8 +15,6 @@ function describeError(error: unknown): string {
     switch (error.code) {
       case "INVALID_CREDENTIALS":
         return "密码不对";
-      case "RATE_LIMITED":
-        return "尝试太频繁,请稍后再试";
       case "AUTH_DISABLED":
         return "登录未配置";
       default:

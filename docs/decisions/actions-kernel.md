@@ -3,7 +3,7 @@
 English | [简体中文](actions-kernel.zh.md)
 
 Every write-intent AI action in this repository passes through one shared
-state machine: the **actions kernel** in `infrastructure/actions/`. The
+state machine: the **actions kernel** in `infrastructure/actions-kernel/` (`registry.ts`). The
 ledger's proposal registry is its first consumer adapter; chat, schedule,
 and every later domain reuse it instead of growing their own.
 
@@ -59,7 +59,5 @@ All four are defaults, overridable per domain.
 ## Reference
 
 Formalized 2026-10-24: the rules above lived in code comments and the
-ledger implementation until this record. Related documents: the backup
-procedure ([docs/operations/backup.md](../operations/backup.md)) draws
-its restart boundary from the in-memory semantics above; the tool-kind
-gate is defined in [ai-pi-runtime.md](ai-pi-runtime.md).
+ledger implementation until this record. The tool-kind gate is defined in
+[ai-pi-runtime.md](ai-pi-runtime.md).

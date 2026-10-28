@@ -1,13 +1,13 @@
 /**
- * System service unit tests: no HTTP, no Fastify — the injectable clock
+ * System service unit tests: no HTTP, no adapter — the injectable clock
  * pins started_at and drives uptime deterministically.
  */
 
 import { describe, expect, it } from "vitest";
-import { SystemService } from "../../src/domains/system/service.ts";
+import { SystemService } from "../../src/domains/system/system.service.ts";
 
 describe("system service", () => {
-  it("health is always ok", () => {
+  it("health is a constant liveness answer", () => {
     expect(new SystemService(Date.now).health()).toEqual({ status: "ok" });
   });
 

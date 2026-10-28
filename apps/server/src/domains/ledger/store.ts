@@ -1,22 +1,13 @@
 /**
- * Ledger store: hand-written SQL over the domain database. One
- * transactions table per the feature contract; money stays integer
- * cents, dates are local "YYYY-MM-DD" strings, created_at is a UTC ISO
- * string for stable ordering. The store owns its database lifecycle:
- * opens the file and applies migrations lazily (memoized — first caller
- * pays, everyone shares), closes it on shutdown. DDL differs per dialect
- * exactly where it must; everything else sticks to the portable SQL
- * subset.
+ * Ledger store: hand-written SQL over the domain database (integer cents, local
+ * `YYYY-MM-DD` dates, UTC `created_at`). It owns the database lifecycle: open,
+ * apply the schema, close on shutdown, memoized per process.
  */
 
 import { Inject, Injectable, type OnModuleDestroy } from "@nestjs/common";
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
 import { createDomainDb } from "../../infrastructure/db/create-db.ts";
-import {
-  applyMigrations,
-  type DomainMigrations,
-} from "../../infrastructure/db/migrate.ts";
-import type { DomainDb } from "../../infrastructure/db/types.ts";
+import type { DbDialect, DomainDb } from "../../infrastructure/db/types.ts";
 import {
   CLOCK,
   TOBY_CONFIG,
@@ -24,37 +15,37 @@ import {
 } from "../../infrastructure/providers/shared-tokens.ts";
 import type { LedgerEntry, LedgerTransactionRow } from "./types.ts";
 
-export const LEDGER_MIGRATIONS: DomainMigrations = {
-  steps: [
-    {
-      version: 1,
-      sqlite: [
-        `CREATE TABLE transactions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          date TEXT NOT NULL,
-          type TEXT NOT NULL,
-          category TEXT NOT NULL,
-          account TEXT NOT NULL,
-          amount INTEGER NOT NULL,
-          note TEXT NOT NULL,
-          created_at TEXT NOT NULL
-        )`,
-        "CREATE INDEX idx_transactions_date ON transactions (date)",
-      ],
-      mysql: [
-        `CREATE TABLE transactions (
-          id INT PRIMARY KEY AUTO_INCREMENT,
-          date CHAR(10) NOT NULL,
-          type VARCHAR(7) NOT NULL,
-          category VARCHAR(24) NOT NULL,
-          account VARCHAR(24) NOT NULL,
-          amount BIGINT NOT NULL,
-          note VARCHAR(200) NOT NULL,
-          created_at VARCHAR(32) NOT NULL
-        )`,
-        "CREATE INDEX idx_transactions_date ON transactions (date)",
-      ],
-    },
+/**
+ * Idempotent DDL, applied on every open. SQLite needs a separate index
+ * statement; MySQL declares the key inside the table (`CREATE INDEX` has no
+ * `IF NOT EXISTS` there).
+ */
+const LEDGER_SCHEMA: Record<DbDialect, readonly string[]> = {
+  sqlite: [
+    `CREATE TABLE IF NOT EXISTS transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      type TEXT NOT NULL,
+      category TEXT NOT NULL,
+      account TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      note TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions (date)",
+  ],
+  mysql: [
+    `CREATE TABLE IF NOT EXISTS transactions (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      date CHAR(10) NOT NULL,
+      type VARCHAR(7) NOT NULL,
+      category VARCHAR(24) NOT NULL,
+      account VARCHAR(24) NOT NULL,
+      amount BIGINT NOT NULL,
+      note VARCHAR(200) NOT NULL,
+      created_at VARCHAR(32) NOT NULL,
+      KEY idx_transactions_date (date)
+    )`,
   ],
 };
 
@@ -78,14 +69,15 @@ export class LedgerStore implements OnModuleDestroy {
   ) {}
 
   /**
-   * The opened database; opening (with migrations) happens once. A failed
-   * open forgets the memo, so a transient failure (mysql unreachable)
-   * retries on the next call instead of bricking the domain until restart.
+   * The opened database, opened once. A failed open forgets the memo, so a
+   * transient failure retries instead of bricking the domain.
    */
   private db(): Promise<DomainDb> {
     this.opening ??= (async () => {
       const handle = await createDomainDb(this.config, "ledger");
-      await applyMigrations(handle, LEDGER_MIGRATIONS);
+      for (const statement of LEDGER_SCHEMA[handle.dialect]) {
+        await handle.exec(statement);
+      }
       return handle;
     })().catch((error: unknown) => {
       this.opening = undefined;

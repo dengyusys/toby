@@ -9,12 +9,12 @@
  * question instead of a guess.
  */
 
-import { Type } from "typebox";
+import { z } from "zod";
 import {
   defineTool,
   type TobyAgentFactory,
-} from "../../infrastructure/ai/agent.ts";
-import { AiError } from "../../infrastructure/ai/errors.ts";
+} from "../../infrastructure/model/agent.ts";
+import { AiError } from "../../infrastructure/model/errors.ts";
 import { LEDGER_ENTRIES_TOOL_SCHEMA } from "./schema.ts";
 import type { LedgerEntry } from "./types.ts";
 import { LedgerInputError, normalizeEntries } from "./validation.ts";
@@ -94,10 +94,7 @@ export function createLedgerExtractor(deps: {
         name: "ask_user",
         label: "向用户追问",
         description: "日期、类型或金额不确定时,向用户提出一个澄清问题。",
-        parameters: Type.Object(
-          { question: Type.String({ minLength: 1 }) },
-          { additionalProperties: false },
-        ),
+        parameters: z.object({ question: z.string().min(1) }).strict(),
         execute: async (_toolCallId, params) => {
           const question = params.question.trim();
           // The schema only enforces minLength on the raw string; a blank

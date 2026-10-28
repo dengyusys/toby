@@ -5,12 +5,12 @@
  * the service then answers the one-sentence path with 501.
  */
 
-import { Logger, Module } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
-import { createTobyAgentFactory } from "../../infrastructure/ai/agent.ts";
+import { createTobyAgentFactory } from "../../infrastructure/model/agent.ts";
 import { TOBY_CONFIG } from "../../infrastructure/providers/shared-tokens.ts";
 import { LedgerStore } from "./store.ts";
-import { LedgerService, type LedgerTiming } from "./service.ts";
+import { LedgerService, type LedgerTiming } from "./ledger.service.ts";
 import { createLedgerExtractor } from "./extraction.ts";
 import { LedgerController } from "./ledger.controller.ts";
 import { LEDGER_EXTRACTOR, LEDGER_TIMING } from "./tokens.ts";
@@ -26,9 +26,7 @@ import { LEDGER_EXTRACTOR, LEDGER_TIMING } from "./tokens.ts";
       useFactory: (config: TobyConfig) =>
         config.ai
           ? createLedgerExtractor({
-              agentFactory: createTobyAgentFactory(config.ai, {
-                logger: new Logger("AiAgent"),
-              }),
+              agentFactory: createTobyAgentFactory(config.ai, {}),
             })
           : undefined,
       inject: [TOBY_CONFIG],

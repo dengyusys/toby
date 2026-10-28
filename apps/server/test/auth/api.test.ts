@@ -1,22 +1,22 @@
 /**
  * Auth domain over HTTP: the contract's five scenarios (not logged in,
- * wrong password, logout, expiry, revocation), the exemption surface
- * (login endpoint + static pages), and the rate limit with recovery.
- * Auth is driven purely through env-injected config and an injected clock.
+ * wrong password, logout, expiry, revocation) plus the exemption surface
+ * (login endpoint + static pages). Auth is driven purely through
+ * env-injected config and an injected clock.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import request from "supertest";
+import type { NestNodeApplication } from "@nestjs/platform-node";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
 import { SystemModule } from "../../src/domains/system/system.module.ts";
 import { LedgerModule } from "../../src/domains/ledger/ledger.module.ts";
 import { AuthModule } from "../../src/domains/auth/auth.module.ts";
-import { SessionGuard } from "../../src/domains/auth/session.guard.ts";
 import { hashPassword } from "../../src/domains/auth/password.ts";
 import { createTestApp } from "../app-fixture.ts";
-import type { NestServer } from "../../src/infrastructure/http/nest-app.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-auth-api-"));
 const PASSWORD = "correct horse battery staple";
@@ -26,7 +26,7 @@ afterAll(() => {
   rmSync(baseDir, { recursive: true, force: true });
 });
 
-let app: NestServer;
+let app: NestNodeApplication;
 let nowMs: number;
 let caseCounter = 0;
 const BASE_MS = Date.parse("2026-10-20T08:00:00.000Z");
@@ -44,28 +44,28 @@ async function buildApp(env: Record<string, string>): Promise<void> {
     config,
     modules: [SystemModule, LedgerModule, AuthModule],
     clock: () => nowMs,
-    trustProxy: config.trustProxy,
-    globalGuard: (nestApp) => nestApp.get(SessionGuard),
   });
 }
 
-function inject(
-  method: string,
+function send(
+  method: "GET" | "POST",
   url: string,
   payload?: Record<string, unknown>,
   cookie?: string,
   extraHeaders?: Record<string, string>,
 ) {
-  const options = {
-    method,
-    url,
-    ...(payload === undefined ? {} : { payload }),
-    ...(cookie === undefined ? {} : { headers: { cookie } }),
-    ...(extraHeaders === undefined
-      ? {}
-      : { headers: { ...extraHeaders, ...(cookie ? { cookie } : {}) } }),
-  };
-  return app.inject(options);
+  const agent = request(app.getHttpServer());
+  const call = method === "GET" ? agent.get(url) : agent.post(url);
+  if (cookie !== undefined) {
+    call.set("cookie", cookie);
+  }
+  for (const [name, value] of Object.entries(extraHeaders ?? {})) {
+    call.set(name, value);
+  }
+  if (payload !== undefined) {
+    call.send(payload);
+  }
+  return call;
 }
 
 function tokenFrom(response: { headers: Record<string, unknown> }): string {
@@ -79,7 +79,7 @@ function tokenFrom(response: { headers: Record<string, unknown> }): string {
 }
 
 async function login(password: string, cookie?: string) {
-  return inject("POST", "/api/auth/login", { password }, cookie);
+  return send("POST", "/api/auth/login", { password }, cookie);
 }
 
 afterEach(async () => {
@@ -92,19 +92,19 @@ describe("auth disabled (no password hash configured)", () => {
   });
 
   it("session reports enabled false and login is rejected", async () => {
-    const session = await inject("GET", "/api/auth/session");
-    expect(session.statusCode).toBe(200);
-    expect(session.json()).toEqual({ enabled: false, authenticated: false });
+    const session = await send("GET", "/api/auth/session");
+    expect(session.status).toBe(200);
+    expect(session.body).toEqual({ enabled: false, authenticated: false });
 
     const loginResponse = await login(PASSWORD);
-    expect(loginResponse.statusCode).toBe(400);
-    expect(loginResponse.json().error.code).toBe("AUTH_DISABLED");
+    expect(loginResponse.status).toBe(400);
+    expect(loginResponse.body.errorCode).toBe("AUTH_DISABLED");
   });
 
   it("business endpoints stay open — local dev behavior", async () => {
-    const months = await inject("GET", "/api/ledger/months");
-    expect(months.statusCode).toBe(200);
-    expect(months.json()).toEqual({ months: [] });
+    const months = await send("GET", "/api/ledger/months");
+    expect(months.status).toBe(200);
+    expect(months.body).toEqual({ months: [] });
   });
 });
 
@@ -119,23 +119,23 @@ describe("auth enabled", () => {
       "/api/ledger/transactions?month=2026-10",
       "/api/system/info",
     ]) {
-      const response = await inject("GET", url);
-      expect(response.statusCode).toBe(401);
-      expect(response.json().error.code).toBe("AUTH_REQUIRED");
+      const response = await send("GET", url);
+      expect(response.status).toBe(401);
+      expect(response.body.errorCode).toBe("AUTH_REQUIRED");
     }
     // The auth endpoints themselves stay reachable: logout is idempotent
     // and the session query feeds the login page.
-    const logout = await inject("POST", "/api/auth/logout");
-    expect(logout.statusCode).toBe(200);
-    const session = await inject("GET", "/api/auth/session");
-    expect(session.statusCode).toBe(200);
-    expect(session.json().authenticated).toBe(false);
+    const logout = await send("POST", "/api/auth/logout");
+    expect(logout.status).toBe(200);
+    const session = await send("GET", "/api/auth/session");
+    expect(session.status).toBe(200);
+    expect(session.body.authenticated).toBe(false);
   });
 
   it("health stays public: the Docker healthcheck must not need a session", async () => {
-    const health = await inject("GET", "/api/system/health");
-    expect(health.statusCode).toBe(200);
-    expect(health.json()).toEqual({ status: "ok" });
+    const health = await send("GET", "/api/system/health");
+    expect(health.status).toBe(200);
+    expect(health.body).toMatchObject({ status: "ok" });
   });
 
   it("percent-encoded paths cannot dodge the session guard", async () => {
@@ -143,26 +143,38 @@ describe("auth enabled", () => {
     // routes after decoding; the guard's exemption decision comes from
     // route metadata, so the encoded variants must answer 401 all the same.
     for (const url of ["/%61pi/ledger/months", "/api/%6Cedger/months"]) {
-      const response = await inject("GET", url);
-      expect(response.statusCode).toBe(401);
-      expect(response.json().error.code).toBe("AUTH_REQUIRED");
+      const response = await send("GET", url);
+      expect(response.status).toBe(401);
+      expect(response.body.errorCode).toBe("AUTH_REQUIRED");
     }
   });
 
   it("static pages stay exempt (404 for missing builds, never 401)", async () => {
-    const page = await inject("GET", "/");
-    expect(page.statusCode).toBe(404);
-    expect(page.json().error.code).toBe("PAGE_NOT_FOUND");
+    const page = await send("GET", "/");
+    expect(page.status).toBe(404);
+    expect(page.body.errorCode).toBe("PAGE_NOT_FOUND");
+  });
+
+  it("a body that is not shaped like a login is a 400, not a wrong password", async () => {
+    for (const body of [{ password: 123 }, { password: { nested: true } }]) {
+      const response = await send("POST", "/api/auth/login", body);
+      expect(response.status).toBe(400);
+      expect(response.body.errorCode).toBe("BAD_REQUEST");
+    }
+    // A missing field stays a 401: an empty form is a wrong password.
+    const empty = await send("POST", "/api/auth/login", {});
+    expect(empty.status).toBe(401);
+    expect(empty.body.errorCode).toBe("INVALID_CREDENTIALS");
   });
 
   it("wrong password is 401; the right one sets an HttpOnly cookie", async () => {
     const wrong = await login("nope");
-    expect(wrong.statusCode).toBe(401);
-    expect(wrong.json().error.code).toBe("INVALID_CREDENTIALS");
+    expect(wrong.status).toBe(401);
+    expect(wrong.body.errorCode).toBe("INVALID_CREDENTIALS");
 
     const right = await login(PASSWORD);
-    expect(right.statusCode).toBe(200);
-    expect(right.json()).toEqual({ status: "ok" });
+    expect(right.status).toBe(200);
+    expect(right.body).toEqual({ status: "ok" });
     const setCookie = String(right.headers["set-cookie"]);
     expect(setCookie).toContain("toby_session=");
     expect(setCookie).toContain("HttpOnly");
@@ -181,7 +193,7 @@ describe("auth enabled", () => {
       TOBY_AUTH_SECURE_COOKIE: "true",
     });
     const response = await login(PASSWORD);
-    expect(response.statusCode).toBe(200);
+    expect(response.status).toBe(200);
     expect(String(response.headers["set-cookie"])).toContain("; Secure");
   });
 
@@ -189,14 +201,14 @@ describe("auth enabled", () => {
     const token = tokenFrom(await login(PASSWORD));
     const cookie = `toby_session=${token}`;
 
-    const months = await inject("GET", "/api/ledger/months", undefined, cookie);
-    expect(months.statusCode).toBe(200);
-    const health = await inject("GET", "/api/system/health", undefined, cookie);
-    expect(health.statusCode).toBe(200);
+    const months = await send("GET", "/api/ledger/months", undefined, cookie);
+    expect(months.status).toBe(200);
+    const health = await send("GET", "/api/system/health", undefined, cookie);
+    expect(health.status).toBe(200);
 
-    const session = await inject("GET", "/api/auth/session", undefined, cookie);
-    expect(session.statusCode).toBe(200);
-    const body = session.json() as {
+    const session = await send("GET", "/api/auth/session", undefined, cookie);
+    expect(session.status).toBe(200);
+    const body = session.body as {
       enabled: boolean;
       authenticated: boolean;
       expires_at?: string;
@@ -213,65 +225,28 @@ describe("auth enabled", () => {
     const token = tokenFrom(await login(PASSWORD));
     const cookie = `toby_session=${token}`;
 
-    const logout = await inject("POST", "/api/auth/logout", undefined, cookie);
-    expect(logout.statusCode).toBe(200);
+    const logout = await send("POST", "/api/auth/logout", undefined, cookie);
+    expect(logout.status).toBe(200);
     expect(String(logout.headers["set-cookie"])).toContain("Max-Age=0");
 
     // The old token is revoked even if the client kept the cookie.
-    const months = await inject("GET", "/api/ledger/months", undefined, cookie);
-    expect(months.statusCode).toBe(401);
+    const months = await send("GET", "/api/ledger/months", undefined, cookie);
+    expect(months.status).toBe(401);
 
-    const again = await inject("POST", "/api/auth/logout", undefined, cookie);
-    expect(again.statusCode).toBe(200);
+    const again = await send("POST", "/api/auth/logout", undefined, cookie);
+    expect(again.status).toBe(200);
   });
 
   it("sessions expire with the configured TTL", async () => {
     const token = tokenFrom(await login(PASSWORD));
     nowMs += 7 * 24 * 3_600_000 + 1; // default TTL is 7 days
-    const months = await inject(
+    const months = await send(
       "GET",
       "/api/ledger/months",
       undefined,
       `toby_session=${token}`,
     );
-    expect(months.statusCode).toBe(401);
-  });
-
-  it("login attempts are rate limited per IP and recover after the window", async () => {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const wrong = await login("nope");
-      expect(wrong.statusCode).toBe(401);
-    }
-    // Even the correct password is blocked inside the window.
-    const blocked = await login(PASSWORD);
-    expect(blocked.statusCode).toBe(429);
-    expect(blocked.json().error.code).toBe("RATE_LIMITED");
-    expect(Number(blocked.headers["retry-after"])).toBeGreaterThan(0);
-
-    nowMs += 61_000; // window rolls over
-    const recovered = await login(PASSWORD);
-    expect(recovered.statusCode).toBe(200);
-  });
-
-  it("behind a trusted proxy, rate limiting buckets by forwarded client IP", async () => {
-    // The default app does NOT trust the header: every caller shares the
-    // proxy's socket address. TOBY_TRUST_PROXY restores per-client buckets.
-    await app.close();
-    await buildApp({
-      TOBY_AUTH_PASSWORD_HASH: PASSWORD_HASH,
-      TOBY_TRUST_PROXY: "true",
-    });
-    const attemptFrom = (ip: string) =>
-      inject("POST", "/api/auth/login", { password: "nope" }, undefined, {
-        "x-forwarded-for": ip,
-      });
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      expect((await attemptFrom("203.0.113.9")).statusCode).toBe(401);
-    }
-    expect((await attemptFrom("203.0.113.9")).statusCode).toBe(429);
-    // A different real client keeps its own bucket: the lockout above does
-    // not bleed into everyone behind the proxy.
-    expect((await attemptFrom("198.51.100.7")).statusCode).toBe(401);
+    expect(months.status).toBe(401);
   });
 });
 

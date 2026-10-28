@@ -18,8 +18,9 @@ Traditional layering organizes directories by technical responsibility (`control
 src/
 ├── domains/
 │   ├── schedule/
-│   │   ├── controller.ts
-│   │   ├── service.ts
+│   │   ├── schedule.controller.ts
+│   │   ├── schedule.service.ts
+│   │   ├── schedule.module.ts
 │   │   ├── store.ts
 │   │   └── types.ts
 │   └── ledger/
@@ -27,6 +28,12 @@ src/
 ├── infrastructure/
 └── main.ts
 ```
+
+Nest role files carry the domain name (`<domain>.controller.ts`, `<domain>.service.ts`,
+`<domain>.module.ts`) — that is what `nest g` emits, and it keeps three
+`service.ts` files from looking identical in an editor. Domain vocabulary
+(`types.ts`, `errors.ts`, `store.ts`, `schema.ts`) stays unprefixed: it is
+scoped by the folder and appears once.
 
 For example, when modifying the ledger feature, the routes, business logic, and storage all sit in `domains/ledger/` — no hunting through multiple technical directories.
 

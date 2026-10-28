@@ -902,7 +902,7 @@
               body: "--from=build 是多阶段构建的传送门:把根 node_modules、apps/server 的依赖、三个 dist 产物、packages/contract 整包从 Stage 1 搬进 Stage 2。",
               bullets: [
                 "packages/contract 是纯逻辑包:无构建步骤、无构建产物,整目录搬运 —— src、node_modules 连同 test/tsconfig 一起进入运行时;它只被两个 web 应用以 workspace:* 依赖(构建时已打进 dist),服务端并不直接引用",
-                "apps/server/dist 里保留 infrastructure/db/backup-cli.js,容器内备份命令继续可用",
+                "apps/server/dist 只含服务端运行所需的一切:main.js 与它导入的模块;备份不依赖任何携带的脚本(停机拷贝 data/,或运行中用 VACUUM INTO)",
               ],
             },
             {

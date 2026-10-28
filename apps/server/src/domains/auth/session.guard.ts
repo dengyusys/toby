@@ -13,10 +13,10 @@ import {
   type ExecutionContext,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import type { FastifyRequest } from "fastify";
+import type { NodeRequest } from "@nestjs/platform-node";
 import { IS_PUBLIC_KEY } from "../../infrastructure/http/public.decorator.ts";
 import { readSessionCookie } from "./cookie.ts";
-import { AuthService } from "./service.ts";
+import { AuthService } from "./auth.service.ts";
 
 @Injectable()
 export class SessionGuard implements CanActivate {
@@ -33,7 +33,7 @@ export class SessionGuard implements CanActivate {
     if (isPublic) {
       return true;
     }
-    const request = context.switchToHttp().getRequest<FastifyRequest>();
+    const request = context.switchToHttp().getRequest<NodeRequest>();
     this.auth.requireSession(readSessionCookie(request));
     return true;
   }

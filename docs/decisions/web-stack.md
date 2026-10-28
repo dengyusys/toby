@@ -11,7 +11,7 @@ One criterion: **mainstream ecosystem, minimal config — and every choice must 
 - **React 19**: the largest ecosystem; whatever you need exists
 - **Vite 6**: fast dev, minimal config; two apps with nearly identical configs are cheap to maintain
 
-No Next-style full-stack framework: the single server process (NestJS over Fastify) already serves both the API and static pages, and the frontend only needs pure static output.
+No Next-style full-stack framework: the single server process (NestJS) already serves both the API and the static builds, and the frontend only needs pure static output.
 
 ## Tailwind v4 + shadcn
 

@@ -29,27 +29,23 @@ Known limitation: the health gate reads `TOBY_PORT` from exported environment va
 
 Loaded from the repository-root `.env` when present (copy `.env.example` to start). Relative `TOBY_DATA_ROOT` resolves against the repository root, not the current directory.
 
-| Variable                         | Default       | Meaning                                                                                                                                   |
-| -------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `TOBY_HOST`                      | `127.0.0.1`   | Bind address; loopback or `0.0.0.0` (container) only                                                                                      |
-| `TOBY_PORT`                      | `8629`        | Server port (dev and production share it)                                                                                                 |
-| `TOBY_DATA_ROOT`                 | `<repo>/data` | Domain database directory (SQLite dialect)                                                                                                |
-| `TOBY_DB_DIALECT`                | `sqlite`      | Database dialect for all domain databases; `mysql` switches to per-domain schemas `toby_<domain>`                                         |
-| `TOBY_DB_MYSQL_HOST`             | `127.0.0.1`   | MySQL host (mysql dialect only)                                                                                                           |
-| `TOBY_DB_MYSQL_PORT`             | `3306`        | MySQL port (mysql dialect only)                                                                                                           |
-| `TOBY_DB_MYSQL_USER`             | `toby`        | MySQL user (mysql dialect only)                                                                                                           |
-| `TOBY_DB_MYSQL_PASSWORD`         | _(empty)_     | MySQL password (mysql dialect only)                                                                                                       |
-| `TOBY_DB_MYSQL_DATABASE_PREFIX`  | `toby_`       | MySQL schema name prefix (mysql dialect only)                                                                                             |
-| `TOBY_AI_MODEL`                  | _(empty)_     | pi-ai `provider/model` pair (e.g. `deepseek/deepseek-flash`); empty keeps the one-sentence AI path at 501                                 |
-| `DEEPSEEK_API_KEY`               | _(empty)_     | Provider credential read by pi-ai (per provider, never a TOBY_ variable)                                                                  |
-| `TOBY_AI_TIMEOUT_MS`             | `30000`       | AI request timeout (1000–120000 ms)                                                                                                       |
-| `TOBY_AUTH_PASSWORD_HASH`        | _(empty)_     | scrypt hash from `scripts/hash-password.js` (generate: `node scripts/hash-password.js "your password"`); setting it enables login         |
-| `TOBY_AUTH_SESSION_TTL_HOURS`    | `168`         | Session lifetime (1–8760 hours)                                                                                                           |
-| `TOBY_AUTH_RATE_LIMIT_MAX`       | `5`           | Login attempts per IP per window                                                                                                          |
-| `TOBY_AUTH_RATE_LIMIT_WINDOW_MS` | `60000`       | Login rate-limit window (1000–3600000 ms)                                                                                                 |
-| `TOBY_AUTH_SECURE_COOKIE`        | `false`       | `true` appends `Secure` to the session cookie (HTTPS deployments)                                                                         |
-| `TOBY_TRUST_PROXY`               | `false`       | Trust X-Forwarded-For behind a reverse proxy you control (per-client login rate limiting); directly exposed servers allow header spoofing |
-| `TOBY_LOG_LEVEL`                 | `info`        | drives both the app log (built-in Nest logger, JSON lines) and Fastify's access log (`warn` quiets dev output)                            |
+| Variable                        | Default       | Meaning                                                                                                                           |
+| ------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `TOBY_HOST`                     | `127.0.0.1`   | Bind address; loopback or `0.0.0.0` (container) only                                                                              |
+| `TOBY_PORT`                     | `8629`        | Server port (dev and production share it)                                                                                         |
+| `TOBY_DATA_ROOT`                | `<repo>/data` | Domain database directory (SQLite dialect)                                                                                        |
+| `TOBY_DB_DIALECT`               | `sqlite`      | Database dialect for all domain databases; `mysql` switches to per-domain schemas `toby_<domain>`                                 |
+| `TOBY_DB_MYSQL_HOST`            | `127.0.0.1`   | MySQL host (mysql dialect only)                                                                                                   |
+| `TOBY_DB_MYSQL_PORT`            | `3306`        | MySQL port (mysql dialect only)                                                                                                   |
+| `TOBY_DB_MYSQL_USER`            | `toby`        | MySQL user (mysql dialect only)                                                                                                   |
+| `TOBY_DB_MYSQL_PASSWORD`        | _(empty)_     | MySQL password (mysql dialect only)                                                                                               |
+| `TOBY_DB_MYSQL_DATABASE_PREFIX` | `toby_`       | MySQL schema name prefix (mysql dialect only)                                                                                     |
+| `TOBY_AI_MODEL`                 | _(empty)_     | pi-ai `provider/model` pair (e.g. `deepseek/deepseek-flash`); empty keeps the one-sentence AI path at 501                         |
+| `DEEPSEEK_API_KEY`              | _(empty)_     | Provider credential read by pi-ai (per provider, never a TOBY_ variable)                                                          |
+| `TOBY_AI_TIMEOUT_MS`            | `30000`       | AI request timeout (1000–120000 ms)                                                                                               |
+| `TOBY_AUTH_PASSWORD_HASH`       | _(empty)_     | scrypt hash from `scripts/hash-password.js` (generate: `node scripts/hash-password.js "your password"`); setting it enables login |
+| `TOBY_AUTH_SESSION_TTL_HOURS`   | `168`         | Session lifetime (1–8760 hours)                                                                                                   |
+| `TOBY_AUTH_SECURE_COOKIE`       | `false`       | `true` appends `Secure` to the session cookie (HTTPS deployments)                                                                 |
 
 The MySQL adapter is optional (see the [db adapter decision](../decisions/db-adapter.md)); SQLite is the recommended default and `pnpm run test` never needs a MySQL daemon — MySQL adapter tests run only when `TOBY_TEST_MYSQL_URL` is set. Provider credentials stay out of the repository. Relative dates in one-sentence bookkeeping ("昨天" and the like) resolve against the server's own local time — run the server in the user's timezone.
 

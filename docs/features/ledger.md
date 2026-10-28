@@ -18,7 +18,11 @@ English | [简体中文](ledger.zh.md)
 
 ## Interface
 
-All JSON; errors follow the server's standard envelope.
+All JSON; errors follow the server's standard error body. A body that violates the
+request _shape_ (a missing intake path, a non-string `text`, an unknown entry type)
+is answered by the route schema as `BAD_REQUEST`; a well-formed body whose values are
+nonsense (bad amount, impossible date, blank category) is answered by the domain as
+`INVALID_ENTRY`.
 
 | Method and path                              | Purpose                                                                                                           |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |

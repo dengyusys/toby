@@ -6,20 +6,21 @@ English | [简体中文](system.zh.md)
 
 ## Responsibilities and boundaries
 
-The server's first domain: two minimal read-only endpoints that walk the whole chain (composition root → domain self-assembly → mount → routing → error envelope), plus the operational probes. Business domains grow in its three-file shape.
+The server's first domain: two minimal read-only endpoints that walk the whole chain (composition root → domain self-assembly → mount → routing → error body), plus the operational probes. Business domains grow in its three-file shape.
 
 - **Owns**: the two endpoints `/api/system/health` and `/api/system/info`.
 - **Does not own**: any business data, any write, any state storage; never touches `data/`.
 
 ## Core concepts
 
-- `health` is the liveness probe: the Docker healthcheck target, always `{"status":"ok"}`.
+- `health` is the liveness probe: the container healthcheck target, always `{"status":"ok"}`. It probes nothing — a readiness check (disk, heap, dependency reachability) is added when a deployment has to act on it.
 - `info` is the runtime identity: version, Node version, start time, uptime — the first thing to check when debugging a deployed instance.
-- Domain template: `types.ts` (pure) + `router.ts` + `module.ts` (self-assembly), one line in `main.ts`.
+- Domain template: `types.ts` (pure) + `<domain>.controller.ts` + `<domain>.module.ts` (self-assembly), one line in `app.module.ts`.
 
 ## Interface
 
-All JSON, read-only, no parameters; errors follow the server's standard envelope.
+All JSON, read-only, no parameters; errors use the server's one error body — Nest's
+`{ statusCode, message, error }` plus a machine-readable `errorCode`.
 
 | Method and path          | Purpose                                                               |
 | ------------------------ | --------------------------------------------------------------------- |
@@ -29,6 +30,6 @@ All JSON, read-only, no parameters; errors follow the server's standard envelope
 ## Key rules
 
 - Stateless: neither endpoint reads or writes storage; `started_at` is process start time.
-- Every response carries `Cache-Control: no-store`.
-- 404/405 match the server-wide shape: unknown paths `PAGE_NOT_FOUND`, method mismatches `METHOD_NOT_ALLOWED`.
+- Every response carries `Cache-Control: no-store` — API, static file, and the `/m` → `/m/` redirect alike.
+- Unmatched requests — unknown paths and method mismatches alike — answer `404` with `errorCode: "PAGE_NOT_FOUND"`.
 - The endpoint paths are stable long-term — the Docker healthcheck depends on them.

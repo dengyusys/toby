@@ -1,7 +1,6 @@
 /**
- * System domain service: the tiny use-case layer. Health needs nothing;
- * info assembles the runtime identity (version + start time + uptime).
- * The clock is injected by token so tests pin and advance time.
+ * System use cases: a liveness constant and the runtime identity (version,
+ * start time, uptime). The clock is injected so tests pin time.
  */
 
 import { Inject, Injectable } from "@nestjs/common";
@@ -22,6 +21,7 @@ export class SystemService {
     this.startedAtMs = this.clock();
   }
 
+  /** Liveness: the process answers. Nothing is probed any further. */
   health(): SystemHealth {
     return { status: "ok" };
   }

@@ -8,7 +8,7 @@
 import {
   createActionRegistry,
   type ActionRecord,
-} from "../../infrastructure/actions/registry.ts";
+} from "../../infrastructure/actions-kernel/registry.ts";
 import type {
   LedgerCancelResult,
   LedgerCommitResult,

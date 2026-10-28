@@ -8,14 +8,14 @@ Say one sentence — your money, schedule, and notes fall into place. The AI tur
 
 ```text
       ┌─ You ──────────────────────────────────────────┐
-      │ 昨天午饭花了 30                                │
+      │ Yesterday's lunch cost 30                      │
       └────────────────────────────────────────────────┘
 
       ┌─ Toby · proposal draft ────────────────────────┐
-      │ 支出 · 餐饮 · ¥30.00                           │
-      │ 日期 2026-10-22 · 账户 未关联                  │
+      │ Expense · Dining · ¥30.00                      │
+      │ Date 2026-10-22 · Account not linked           │
       │                                                │
-      │ [ 确 认 ]      [ 取 消 ]                       │
+      │ [ Confirm ]      [ Cancel ]                    │
       └────────────────────────────────────────────────┘
 ```
 

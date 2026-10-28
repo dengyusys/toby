@@ -7,7 +7,7 @@
 import path from "node:path";
 import { repositoryRoot } from "../../utils/paths/index.ts";
 import type { DbDialect } from "../db/types.ts";
-import type { AiRuntimeConfig } from "../ai/types.ts";
+import type { AiRuntimeConfig } from "../model/types.ts";
 
 export { repositoryRoot };
 
@@ -43,8 +43,6 @@ export interface AuthConfig {
   enabled: boolean;
   passwordHash: string;
   sessionTtlMs: number;
-  rateLimitMax: number;
-  rateLimitWindowMs: number;
   secureCookie: boolean;
 }
 
@@ -55,14 +53,6 @@ export interface TobyConfig {
   /** Absent = AI paths disabled (the one-sentence ledger path answers 501). */
   ai?: AiRuntimeConfig;
   auth: AuthConfig;
-  /**
-   * Trust X-Forwarded-For from a reverse proxy in front of the server, so
-   * request.ip (and the login rate limiter) see real client addresses.
-   * Enable only behind a proxy you control — a directly exposed server
-   * would let clients spoof the header and bypass per-IP limits.
-   */
-  trustProxy: boolean;
-  logLevel: string;
 }
 
 function resolveBoolean(
@@ -148,32 +138,6 @@ function resolveRelative(value: string | undefined, fallback: string): string {
   return value ? path.resolve(repositoryRoot, value) : fallback;
 }
 
-/**
- * Fastify's access log (pino internally) rejects unknown levels with a
- * library-internal error; validate here so a typo in TOBY_LOG_LEVEL fails
- * with a config-shaped message instead. The same value drives the built-in
- * Nest logger through infrastructure/logging/nest-logger.ts.
- */
-const LOG_LEVELS = new Set([
-  "trace",
-  "debug",
-  "info",
-  "warn",
-  "error",
-  "fatal",
-  "silent",
-]);
-
-function resolveLogLevel(value: string | undefined): string {
-  const level = value || "info";
-  if (!LOG_LEVELS.has(level)) {
-    throw new Error(
-      `TOBY_LOG_LEVEL must be one of: ${[...LOG_LEVELS].join(", ")}`,
-    );
-  }
-  return level;
-}
-
 function resolveTimeout(
   value: string | undefined,
   name: string,
@@ -243,27 +207,10 @@ function resolveAuthConfig(env: Env): AuthConfig {
       "TOBY_AUTH_SESSION_TTL_HOURS must be an integer between 1 and 8760",
     );
   }
-  const rateLimitMax = Number(env.TOBY_AUTH_RATE_LIMIT_MAX ?? "5");
-  if (
-    !Number.isInteger(rateLimitMax) ||
-    rateLimitMax < 1 ||
-    rateLimitMax > 100
-  ) {
-    throw new Error(
-      "TOBY_AUTH_RATE_LIMIT_MAX must be an integer between 1 and 100",
-    );
-  }
   return {
     enabled: passwordHash !== "",
     passwordHash,
     sessionTtlMs: ttlHours * 3_600_000,
-    rateLimitMax,
-    rateLimitWindowMs: resolveTimeout(
-      env.TOBY_AUTH_RATE_LIMIT_WINDOW_MS,
-      "TOBY_AUTH_RATE_LIMIT_WINDOW_MS",
-      60_000,
-      { min: 1_000, max: 3_600_000 },
-    ),
     secureCookie: resolveBoolean(
       env.TOBY_AUTH_SECURE_COOKIE,
       "TOBY_AUTH_SECURE_COOKIE",
@@ -275,10 +222,7 @@ function resolveAuthConfig(env: Env): AuthConfig {
 export function resolveConfig(options: { env?: Env } = {}): TobyConfig {
   const env = options.env ?? process.env;
   return {
-    server: {
-      host: resolveHost(env.TOBY_HOST),
-      port: resolvePort(env.TOBY_PORT, "TOBY_PORT", 8629),
-    },
+    server: resolveListenTarget(env),
     paths: {
       dataRoot: resolveRelative(
         env.TOBY_DATA_ROOT,
@@ -290,7 +234,16 @@ export function resolveConfig(options: { env?: Env } = {}): TobyConfig {
     db: resolveDatabaseConfig(env),
     ai: resolveAiConfig(env),
     auth: resolveAuthConfig(env),
-    trustProxy: resolveBoolean(env.TOBY_TRUST_PROXY, "TOBY_TRUST_PROXY", false),
-    logLevel: resolveLogLevel(env.TOBY_LOG_LEVEL),
+  };
+}
+
+/**
+ * The listen target alone: what `main.ts` needs before the container exists.
+ * Same validators as `resolveConfig`, so a bad port still fails the start.
+ */
+export function resolveListenTarget(env: Env = process.env): ServerConfig {
+  return {
+    host: resolveHost(env.TOBY_HOST),
+    port: resolvePort(env.TOBY_PORT, "TOBY_PORT", 8629),
   };
 }

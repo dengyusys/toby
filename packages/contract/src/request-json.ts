@@ -1,7 +1,7 @@
 /**
- * Shared request helper: plain fetch with the server's isomorphic error
- * envelope decoded into a typed exception. Pure logic — no DOM, no node:
- * imports; runs identically in the browser and on Node.
+ * Shared request helper: plain fetch with the server's error body decoded
+ * into a typed exception. Pure logic — no DOM, no node: imports; runs
+ * identically in the browser and on Node.
  */
 
 /** Error thrown for any non-2xx response. */
@@ -17,15 +17,16 @@ export class ApiError extends Error {
   }
 }
 
-interface ErrorEnvelope {
-  error?: { code?: unknown; message?: unknown };
+interface ErrorBody {
+  errorCode?: unknown;
+  message?: unknown;
 }
 
 function decodeErrorBody(status: number, text: string): ApiError {
   try {
-    const parsed = JSON.parse(text) as ErrorEnvelope;
-    const code = parsed.error?.code;
-    const message = parsed.error?.message;
+    const parsed = JSON.parse(text) as ErrorBody;
+    const code = parsed.errorCode;
+    const message = parsed.message;
     if (typeof code === "string" && typeof message === "string") {
       return new ApiError(status, code, message);
     }

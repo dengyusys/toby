@@ -20,7 +20,7 @@ Natural language in the chat becomes a constrained, verifiable schedule-modifica
 
 ## Interface
 
-All JSON; errors follow the server's standard envelope.
+All JSON; errors follow the server's standard error body.
 
 | Method and path                           | Purpose                                                |
 | ----------------------------------------- | ------------------------------------------------------ |

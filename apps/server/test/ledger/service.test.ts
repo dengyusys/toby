@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { Logger } from "@nestjs/common";
-import { LedgerService } from "../../src/domains/ledger/service.ts";
+import type { ProposalBody } from "../../src/domains/ledger/dto/create-proposal.dto.ts";
+import { LedgerService } from "../../src/domains/ledger/ledger.service.ts";
 import { LedgerStore } from "../../src/domains/ledger/store.ts";
 import type {
   LedgerDraft,
@@ -16,11 +16,7 @@ import type {
   LedgerEntry,
   LedgerProposalView,
 } from "../../src/domains/ledger/types.ts";
-import { AiError } from "../../src/infrastructure/ai/errors.ts";
-
-// The service logs through the `new Logger` facade; silence it for the
-// whole file (individual tests override with a collector).
-Logger.overrideLogger(false);
+import { AiError } from "../../src/infrastructure/model/errors.ts";
 
 // The store methods the service actually calls — the class's private
 // fields exist only for DI, so fakes satisfy the structural shape.
@@ -93,7 +89,7 @@ function makeService(store: LedgerStoreLike, extractor?: LedgerExtractor) {
   };
 }
 
-const structuredBody = {
+const structuredBody: ProposalBody = {
   entry: {
     date: "2026-10-20",
     type: "expense",
@@ -201,36 +197,6 @@ describe("ledger service proposal lifecycle", () => {
     await service.sweep(); // retry 2: succeeds
     expect(calls).toHaveLength(1);
     expect((await service.commit(view.proposal_id)).written).toBe(1);
-  });
-
-  it("a failing auto-write logs a warning on every sweep", async () => {
-    const { store } = fakeStore({ failFirstWrites: 99 });
-    const warnings: unknown[][] = [];
-    Logger.overrideLogger({
-      log: () => {},
-      error: () => {},
-      warn: (...args: unknown[]) => warnings.push(args),
-    });
-    try {
-      let nowMs = Date.parse("2026-10-20T08:00:00.000Z");
-      const service = new LedgerService(
-        store as unknown as LedgerStore,
-        () => nowMs,
-        {
-          autoWriteDelayMs: AUTO_WRITE_MS,
-          ttlMs: TTL_MS,
-          retentionMs: RETENTION_MS,
-        },
-        undefined,
-      );
-      await service.createProposal(structuredBody);
-      nowMs += AUTO_WRITE_MS;
-      await service.sweep();
-      await service.sweep();
-      expect(warnings).toHaveLength(2);
-    } finally {
-      Logger.overrideLogger(false);
-    }
   });
 
   it("expired proposals answer 410 on commit and cancel", async () => {

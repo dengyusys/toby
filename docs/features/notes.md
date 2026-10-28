@@ -20,7 +20,7 @@ Passing thoughts, resolutions, and memos said in the chat become Markdown notes 
 
 ## Interface
 
-All JSON; errors follow the server's standard envelope.
+All JSON; errors follow the server's standard error body.
 
 | Method and path                                   | Purpose                                              |
 | ------------------------------------------------- | ---------------------------------------------------- |

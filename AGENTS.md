@@ -31,7 +31,7 @@ Ports, processes, and deployment details live in `docs/operations/` — not repe
 
 ## Testing conventions
 
-- Tests use temporary data directories and fake AI / logger implementations; production data is never touched, not one byte.
+- Tests use temporary data directories and fake AI implementations; production data is never touched, not one byte.
 - Automated tests never call real AI, never deploy remotely, never write production data. Running any of those requires explicit authorization in the task, and their results are reported separately from local automation.
 - What you changed is what you run:
 
@@ -51,14 +51,14 @@ If one change touches several rows, run all the checks those rows list.
 - `apps/web/` (PC, served at `/`) and `apps/web-mobile/` (mobile, `/m/`) — two React SPAs; they never import each other.
 - `packages/contract/` (pure logic) — the only cross-app sharing path; components and styles are owned by each app and never shared.
 - Dependency direction is always `apps → packages`: packages never import apps; the web apps never import `@toby/server`.
-- Domains never import each other; cross-domain wiring happens only in the composition root. `infrastructure/` never imports business domains; a domain's `types.ts` stays pure (no fastify / infrastructure / `node:` imports).
+- Domains never import each other; cross-domain wiring happens only in the composition root. `infrastructure/` never imports business domains; a domain's `types.ts` stays pure (no HTTP adapter / infrastructure / `node:` imports).
 - These boundaries are machine-enforced by the import-boundary tests in `test/boundaries.test.ts`; a violation fails the build.
 - `data/` holds the runtime SQLite databases.
 
 ## Code style
 
 - `apps/web`, `apps/web-mobile`, `packages`: `.ts` runs on Node 22 with no build step — no `enum` / `namespace` / constructor parameter properties; use `import type` (`erasableSyntaxOnly` enforces this).
-- `apps/server`: built with `nest build`; decorators, `emitDecoratorMetadata`, constructor parameter properties and Nest idioms are allowed there. Server tests run through vitest with the swc transform (`apps/server/vitest.config.ts`), which emits decorator metadata like the build — write services as `@Injectable()` classes with constructor injection; use `@Inject(token)` only for value-shaped or optional dependencies (`TOBY_CONFIG` / `CLOCK`, domain extractor / timing tokens) and the built-in `new Logger(X.name)` facade for logging (see `docs/decisions/idiomatic-nest-services.md`).
+- `apps/server`: built with `nest build`; decorators, `emitDecoratorMetadata`, constructor parameter properties and Nest idioms are allowed there. Server tests run through vitest with the swc transform (`apps/server/vitest.config.ts`), which emits decorator metadata like the build — write services as `@Injectable()` classes with constructor injection; use `@Inject(token)` only for value-shaped or optional dependencies (`TOBY_CONFIG` / `CLOCK`, domain extractor / timing tokens) and no logging of its own — the server keeps no application log.
 - No Python; introducing it requires an ADR first.
 
 ## Git workflow

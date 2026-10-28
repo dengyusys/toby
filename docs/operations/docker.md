@@ -58,7 +58,7 @@ docker compose up -d
 
 - Port: `127.0.0.1:8629` only — loopback exposure, nothing public.
 - Data: `./data` is mounted into the container; the database files stay
-  on your host, backups (`pnpm run backup`) keep working unchanged.
+  on your host, so backing up `./data` there is all a backup needs.
 - Config: `.env` is injected if present. Note: a `TOBY_DATA_ROOT` with a
   **Windows absolute path** must be removed for container use — inside
   the container the data root is `/app/data`.
@@ -79,9 +79,9 @@ container. Logs: `docker compose logs -f server`.
 - **Deploy an update**: `git pull`, then `docker compose up -d --build`
   (rebuilds the image and replaces the container; `data/` survives).
 - **Teardown**: `docker compose down` (keeps `data/` and the image).
-- **Backup**: unchanged — `pnpm run backup` on the host, or
-  `docker exec toby node apps/server/dist/infrastructure/db/backup-cli.js`
-  inside the container.
+- **Backup**: stop the container and copy `data/`. While it runs, copy
+  through SQLite (`VACUUM INTO`) rather than `cp`: committed writes may
+  still sit in the `-wal` sidecar.
 
 ## Troubleshooting
 

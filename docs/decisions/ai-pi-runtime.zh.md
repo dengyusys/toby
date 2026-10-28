@@ -21,11 +21,12 @@
 
 ## 不变的部分(红线)
 
-1. **信任边界是服务端确定性校验。** 工具 schema(TypeBox)只约束*形状*;
+1. **信任边界是服务端确定性校验。** 工具 schema(Zod,在 pi 边界转成 JSON Schema)只约束*形状*;
    语义校验(金额换算为整数分、真实日历日期、条目上限)保留在各域手写。
    AI 输出——包括工具参数——永远是非受信输入。
 2. **一切真实效果走 proposal → 用户确认 → 事务执行。** 共享的提案确认
-   状态机在 `infrastructure/actions/`;agent 永不直写、永不替用户确认。
+   状态机在 `infrastructure/actions-kernel/` (`registry.ts`);
+   agent 永不直写、永不替用户确认。
 3. **禁区能力是缺位,不是被拦。** 没有 shell 工具、没有文件系统工具、
    没有直连数据库工具——它们作为工具定义根本不存在。
 
@@ -46,15 +47,16 @@ kind(联网搜索、生图)已有预案,待有域需要时再引入。
 
 ## 结构
 
-- `infrastructure/ai/` 与 `infrastructure/actions/` 承载运行时(各文件
-  角色见文件头注释)。两个非显然决策:单发 `AiClient` 保留"宽容解析+
+- 两个并列层,互不包含:`infrastructure/model/` 是 AI 运行时(agent 循环、
+  单发客户端、模型目录、错误与类型契约),`infrastructure/actions-kernel/`
+  是提案确认状态机。各文件角色见文件头注释。两个非显然决策:单发 `AiClient` 保留"宽容解析+
   一次重试"的 JSON 协议,且当前没有生产调用方(chat 域的意图分类是其
   预期的首个消费者);提案确认内核采用单飞(single-flight:并发确认与
   过期清扫任务合并为同一次执行),各域在 commit 时传入自己的执行器。
-- 提示词、工具与 schema 归各域:ledger 的草稿 schema 以 TypeBox 只定义
+- 提示词、工具与 schema 归各域:ledger 的草稿 schema 以 Zod 只定义
   一次,同时是面向模型的工具契约与服务端的形状门控;validation.ts 仍是
   语义信任边界。
-- 版本:pi-ai / pi-agent-core / typebox 在 pnpm catalog
+- 版本:pi-ai / pi-agent-core 在 pnpm catalog
   (pnpm-workspace.yaml)中精确锁定版本——pi-agent-core 精确依赖它们,
   用 `^` 会装出第二份 pi-ai、类型跨版本分叉。
 

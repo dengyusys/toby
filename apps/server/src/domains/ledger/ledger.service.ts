@@ -8,18 +8,18 @@
 import { randomUUID } from "node:crypto";
 import {
   Inject,
+  HttpStatus,
   Injectable,
-  Logger,
   type OnModuleDestroy,
   type OnModuleInit,
 } from "@nestjs/common";
-import { AiError } from "../../infrastructure/ai/errors.ts";
-import { HTTP_STATUS } from "../../infrastructure/http/contract.ts";
+import { AiError } from "../../infrastructure/model/errors.ts";
 import {
   CLOCK,
   type Clock,
 } from "../../infrastructure/providers/shared-tokens.ts";
 import { LedgerStore } from "./store.ts";
+import type { ProposalBody } from "./dto/create-proposal.dto.ts";
 import { LedgerRequestError } from "./errors.ts";
 import { createProposalRegistry, type ProposalRegistry } from "./proposals.ts";
 import {
@@ -27,7 +27,7 @@ import {
   type LedgerExtractor,
   type LedgerFollowUp,
 } from "./extraction.ts";
-import { isRecord, normalizeEntry } from "./validation.ts";
+import { normalizeEntry } from "./validation.ts";
 import { LEDGER_EXTRACTOR, LEDGER_TIMING } from "./tokens.ts";
 import type {
   LedgerCancelResult,
@@ -103,13 +103,13 @@ function aiHttpError(error: AiError): LedgerRequestError {
   if (error.code === "unconfigured") {
     return new LedgerRequestError(
       "AI_UNAVAILABLE",
-      HTTP_STATUS.notImplemented,
+      HttpStatus.NOT_IMPLEMENTED,
       AI_UNCONFIGURED_MESSAGE,
     );
   }
   return new LedgerRequestError(
     "AI_REQUEST_FAILED",
-    HTTP_STATUS.badGateway,
+    HttpStatus.BAD_GATEWAY,
     error.message,
   );
 }
@@ -117,7 +117,6 @@ function aiHttpError(error: AiError): LedgerRequestError {
 @Injectable()
 export class LedgerService implements OnModuleInit, OnModuleDestroy {
   private readonly registry: ProposalRegistry;
-  private readonly logger = new Logger(LedgerService.name);
   private timer?: NodeJS.Timeout;
 
   constructor(
@@ -142,9 +141,7 @@ export class LedgerService implements OnModuleInit, OnModuleDestroy {
       // sweep swallows commit failures internally; this catch only guards
       // future edits that let something else throw — Node 22 kills the
       // process on an unhandled rejection.
-      this.sweep().catch((error: unknown) => {
-        this.logger.error("ledger sweep failed", { err: error });
-      });
+      this.sweep().catch(() => undefined);
     }, SWEEP_INTERVAL_MS);
     this.timer.unref();
   }
@@ -157,15 +154,9 @@ export class LedgerService implements OnModuleInit, OnModuleDestroy {
     clearInterval(this.timer);
   }
 
-  async createProposal(body: unknown): Promise<LedgerProposalResult> {
-    if (!isRecord(body)) {
-      throw new LedgerRequestError(
-        "INVALID_ENTRY",
-        HTTP_STATUS.badRequest,
-        "request body must be a JSON object",
-      );
-    }
-    if (typeof body.text === "string") {
+  /** `body` has already passed the route's shape schema (dto/). */
+  async createProposal(body: ProposalBody): Promise<LedgerProposalResult> {
+    if ("text" in body) {
       return this.createFromText(body.text);
     }
     const entry = normalizeEntry(body.entry);
@@ -179,14 +170,14 @@ export class LedgerService implements OnModuleInit, OnModuleDestroy {
     if (!text) {
       throw new LedgerRequestError(
         "INVALID_ENTRY",
-        HTTP_STATUS.badRequest,
+        HttpStatus.BAD_REQUEST,
         "text must not be empty",
       );
     }
     if (!this.extractor) {
       throw new LedgerRequestError(
         "AI_UNAVAILABLE",
-        HTTP_STATUS.notImplemented,
+        HttpStatus.NOT_IMPLEMENTED,
         AI_UNCONFIGURED_MESSAGE,
       );
     }
@@ -226,7 +217,7 @@ export class LedgerService implements OnModuleInit, OnModuleDestroy {
     if (month === undefined || !MONTH_PATTERN.test(month)) {
       throw new LedgerRequestError(
         "INVALID_MONTH",
-        HTTP_STATUS.badRequest,
+        HttpStatus.BAD_REQUEST,
         'month query parameter is required as "YYYY-MM"',
       );
     }
@@ -237,18 +228,8 @@ export class LedgerService implements OnModuleInit, OnModuleDestroy {
   async sweep(): Promise<void> {
     for (const id of this.registry.dueForAutoWrite()) {
       // A failing write leaves the proposal pending; the next sweep
-      // retries it until the TTL backstop expires the proposal. The
-      // failure is logged so a persistently failing store never eats
-      // data silently.
-      await this.commit(id).catch((error: unknown) => {
-        this.logger.warn(
-          "auto-write failed; retrying until the proposal expires",
-          {
-            proposalId: id,
-            err: error,
-          },
-        );
-      });
+      // retries it until the TTL backstop expires the proposal.
+      await this.commit(id).catch(() => undefined);
     }
     this.registry.sweep();
   }

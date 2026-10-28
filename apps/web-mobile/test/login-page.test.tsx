@@ -26,7 +26,10 @@ function routeFetch(session: unknown, loginStatus = 200): void {
         : loginStatus === 200
           ? { status: "ok" }
           : {
-              error: { code: "INVALID_CREDENTIALS", message: "wrong password" },
+              statusCode: loginStatus,
+              message: "wrong password",
+              error: "Unauthorized",
+              errorCode: "INVALID_CREDENTIALS",
             };
       return Promise.resolve(
         new Response(JSON.stringify(body), {

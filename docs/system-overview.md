@@ -10,26 +10,26 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 
 ## Stack
 
-| Layer    | Choice                                                                                                                                                                                               |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime  | Node 22.23.2; server built with `nest build`, webs with Vite                                                                                                                                         |
-| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                                                                                                    |
-| Server   | NestJS 12 over Fastify 5 + own db adapter port — "port" as in ports-and-adapters, not a network port — (SQLite default, MySQL optional) + built-in Nest logger + typebox (AI: pi-ai + pi-agent-core) |
-| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                                                                                            |
-| Tests    | vitest + happy-dom + @testing-library                                                                                                                                                                |
+| Layer    | Choice                                                                                                                                                                              |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime  | Node 22.23.2; server built with `nest build`, webs with Vite                                                                                                                        |
+| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                                                                                   |
+| Server   | NestJS 12 on the Node HTTP adapter + own db adapter port — "port" as in ports-and-adapters, not a network port — (SQLite default, MySQL optional) + zod (AI: pi-ai + pi-agent-core) |
+| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                                                                           |
+| Tests    | vitest + happy-dom + @testing-library                                                                                                                                               |
 
 ## System context
 
 ```mermaid
 flowchart LR
     U(("User")) --> W["Two web apps (React SPAs:<br/>PC at / and mobile at /m/)"]
-    W -->|"read-only APIs / proposals (HTTP)"| S["Toby server · single process (NestJS over Fastify)<br/>vertical domains · proposal lifecycle (actions kernel)"]
+    W -->|"read-only APIs / proposals (HTTP)"| S["Toby server · single process (NestJS · Node HTTP adapter)<br/>vertical domains · proposal lifecycle (actions kernel)"]
     S --> DB[("Databases via the adapter port<br/>SQLite (default) · MySQL (optional)<br/>only the server writes")]
     S -->|"kind-gated tools; writes only via proposals"| AI(("AI via pi-ai / pi-agent-core"))
 ```
 
 - The web apps reach data only through server APIs; they never touch the file system.
-- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** — run by the shared **actions kernel** in `infrastructure/actions/` (one state machine: create / confirm / expire; ledger is live on it; semantics: [actions-kernel.md](decisions/actions-kernel.md)).
+- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** — run by the shared **actions kernel** in `infrastructure/actions-kernel/` (`registry.ts`) (one state machine: create / confirm / expire; ledger is live on it; semantics: [actions-kernel.md](decisions/actions-kernel.md)).
 - AI tools carry a safety kind (read-only / write-intent) and run behind a policy gate; real effects still require proposal confirmation (docs/decisions/ai-pi-runtime.md).
 - Root `scripts/` only orchestrates dev and multi-process startup; it never touches data.
 - The remaining business domains (chat, greeting, schedule, notes, todo, memory, library) land one at a time; each establishes its contract doc in `docs/features/` on arrival. Proposal confirmation is already a shared kernel (see above), not a domain.
@@ -114,7 +114,7 @@ Two non-inferable details: the AI's draft passes shape, domain, and semantic val
 ```mermaid
 flowchart TB
     BOOT["main.ts (composition root)<br/>one line per domain; all cross-domain wiring lives here"]
-    INFRA["infrastructure/<br/>config (TOBY_*) · http (Nest app factory / error envelope / dual-SPA static)<br/>logging (Nest built-in logger · Fastify access log) · db (adapter port: sqlite / mysql)"]
+    INFRA["infrastructure/<br/>config (TOBY_*) · http (body limits / error body / no-store / dual-SPA static)<br/>model (AI runtime) · actions-kernel (proposal kernel) · db (adapter port: sqlite / mysql)"]
     DOM["domains/*<br/>business domains, landing one by one"]
     BOOT --> INFRA
     BOOT --> DOM
@@ -123,13 +123,13 @@ flowchart TB
 Domain organization discipline:
 
 - Every domain under `domains/` contains its own module (Nest module factory), controller, services, stores, and pure business files; **domains never import each other** — cross-domain wiring happens only in the composition root `apps/server/src/main.ts`.
-- A domain's `types.ts` stays pure: no fastify, no infrastructure, no `node:` imports.
+- A domain's `types.ts` stays pure: no HTTP adapter, no infrastructure, no `node:` imports.
 - `infrastructure/` never imports business domains; database opening is provided by `infrastructure/db` and consumed by domain stores.
 - Adding a business domain needs no rule registration — the boundary tests in `test/boundaries.test.ts` discover domains from the filesystem.
 
 Security boundaries:
 
-- HTTP write paths must go through proposal confirmation; any write endpoint bypassing it is a defect. Ledger is live on it; later domains reuse the same actions kernel (`infrastructure/actions/`).
+- HTTP write paths must go through proposal confirmation; any write endpoint bypassing it is a defect. Ledger is live on it; later domains reuse the same actions kernel (`infrastructure/actions-kernel/` (`registry.ts`)).
 - The AI gets no file paths, no data contents, and no shell; its tools are kind-gated, and write-intent tools only produce proposals (docs/decisions/ai-pi-runtime.md). Secrets live only in local environment config, never inside web bundles.
 - Introducing new runtimes (Python etc.) requires an ADR first.
 - These import disciplines are machine-enforced by `test/boundaries.test.ts`.
@@ -145,17 +145,17 @@ Security boundaries:
 
 Terms this repository uses with a specific meaning; one line each — the authoritative definition lives where the term is introduced.
 
-| Term                           | Meaning                                                                                                                                           |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| proposal / proposal card       | A short-lived, user-confirmable write suggestion; nothing is written until confirmed                                                              |
-| actions kernel                 | The shared proposal-confirmation state machine in `infrastructure/actions/` (30 s tacit-approval window, TTL backstop, single-flight commit)      |
-| safety kind                    | A tool's registered class: `read-only` (no state change) or `write-intent` (effect only via proposal); a `costly` kind is reserved for the future |
-| gate (policy / shape / health) | Enforcement points: policy = tool kinds an agent may call; shape = TypeBox schema check; health = dev startup readiness                           |
-| trust boundary                 | Deterministic server-side validation — the AI's output (and every other foreign input) is untrusted until it passes                               |
-| adapter port                   | "Port" as in ports-and-adapters: the interface behind which SQLite / MySQL swap                                                                   |
-| composition root               | `apps/server/src/main.ts` — the only place cross-domain wiring happens                                                                            |
-| vertical domain slice          | One business = one directory owning its controller, service, store, and rules                                                                     |
-| modular monolith               | Modules isolated in code, assembled and run by one process                                                                                        |
-| single-flight                  | Concurrent confirms and the sweeper share one execution                                                                                           |
-| error envelope                 | The unified `{ error: { code, message } }` response structure                                                                                     |
-| sweeper                        | The periodic task that auto-writes due proposals and prunes expired ones                                                                          |
+| Term                           | Meaning                                                                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| proposal / proposal card       | A short-lived, user-confirmable write suggestion; nothing is written until confirmed                                                                                |
+| actions kernel                 | The shared proposal-confirmation state machine in `infrastructure/actions-kernel/` (`registry.ts`) (30 s tacit-approval window, TTL backstop, single-flight commit) |
+| safety kind                    | A tool's registered class: `read-only` (no state change) or `write-intent` (effect only via proposal); a `costly` kind is reserved for the future                   |
+| gate (policy / shape / health) | Enforcement points: policy = tool kinds an agent may call; shape = Zod schema check; health = dev startup readiness                                                 |
+| trust boundary                 | Deterministic server-side validation — the AI's output (and every other foreign input) is untrusted until it passes                                                 |
+| adapter port                   | "Port" as in ports-and-adapters: the interface behind which SQLite / MySQL swap                                                                                     |
+| composition root               | `apps/server/src/main.ts` — the only place cross-domain wiring happens                                                                                              |
+| vertical domain slice          | One business = one directory owning its controller, service, store, and rules                                                                                       |
+| modular monolith               | Modules isolated in code, assembled and run by one process                                                                                                          |
+| single-flight                  | Concurrent confirms and the sweeper share one execution                                                                                                             |
+| error body                     | The one error shape: Nest's `{ statusCode, message, error }` plus a machine-readable `errorCode`                                                                    |
+| sweeper                        | The periodic task that auto-writes due proposals and prunes expired ones                                                                                            |

@@ -97,11 +97,11 @@ ssh -N -L 8629:127.0.0.1:8629 root@<IP>
 
 ```bash
 docker logs -f toby
-docker exec toby node apps/server/dist/infrastructure/db/backup-cli.js   # 备份
 docker compose stop / start / down
 ```
 
-定期把备份拉回本地 —— ECS 磁盘不是备份。
+定期把 `data/` 备份拉回本地 —— ECS 磁盘不是备份。停机拷贝,或在运行中经
+SQLite 的 `VACUUM INTO` 拷贝,绝不用裸 `cp`。
 
 ## 更新版本
 
