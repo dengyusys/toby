@@ -16,12 +16,12 @@ import { createTestApp } from "../app-fixture.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-static-"));
 const webRoot = path.join(baseDir, "web-dist");
-const mobileRoot = path.join(baseDir, "mobile-dist");
+const mobileWebRoot = path.join(baseDir, "mobile-dist");
 
 mkdirSync(webRoot, { recursive: true });
 writeFileSync(path.join(webRoot, "index.html"), "<html>pc</html>");
-mkdirSync(mobileRoot, { recursive: true });
-writeFileSync(path.join(mobileRoot, "index.html"), "<html>mobile</html>");
+mkdirSync(mobileWebRoot, { recursive: true });
+writeFileSync(path.join(mobileWebRoot, "index.html"), "<html>mobile</html>");
 
 afterAll(() => {
   rmSync(baseDir, { recursive: true, force: true });
@@ -30,13 +30,9 @@ afterAll(() => {
 let app: NestNodeApplication;
 
 beforeEach(async () => {
-  // The SPA roots come from the config, exactly as they do in production.
-  const config = resolveConfig({ env: { TOBY_DATA_ROOT: baseDir } });
   app = await createTestApp({
-    config: {
-      ...config,
-      paths: { ...config.paths, webRoot, mobileWebRoot: mobileRoot },
-    },
+    config: resolveConfig({ env: { TOBY_DATA_ROOT: baseDir } }),
+    staticRoots: { webRoot, mobileWebRoot },
     modules: [SystemModule],
   });
 });

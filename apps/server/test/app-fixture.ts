@@ -5,10 +5,15 @@
  */
 
 import "reflect-metadata";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { Test, type TestingModuleBuilder } from "@nestjs/testing";
 import type { DynamicModule, Type } from "@nestjs/common";
 import { NodeAdapter, type NestNodeApplication } from "@nestjs/platform-node";
-import type { TobyConfig } from "../src/infrastructure/config/config.ts";
+import type {
+  PathConfig,
+  TobyConfig,
+} from "../src/infrastructure/config/config.ts";
 import { HttpModule } from "../src/infrastructure/http/http.module.ts";
 import { SharedProvidersModule } from "../src/infrastructure/providers/shared-providers.module.ts";
 import {
@@ -16,11 +21,23 @@ import {
   TOBY_CONFIG,
   type Clock,
 } from "../src/infrastructure/providers/shared-tokens.ts";
-import { REQUEST_BODY_LIMIT_BYTES } from "../src/main.ts";
+import { REQUEST_BODY_LIMIT_BYTES } from "../src/infrastructure/http/body-limit.ts";
+
+// Static roots that never exist: every fixture app looks like a fresh clone
+// without web builds, whatever the developer machine has built.
+const missingStaticRoots = {
+  webRoot: path.join(tmpdir(), "toby-test-static-missing", "web"),
+  mobileWebRoot: path.join(tmpdir(), "toby-test-static-missing", "mobile"),
+};
 
 export interface TestAppOptions {
   /** Per-case config (tests resolve their own env into temp data roots). */
   config: TobyConfig;
+  /**
+   * Real SPA roots for the tests that exercise static serving; every other
+   * test gets roots that never exist, so static serving stays out of the way.
+   */
+  staticRoots?: Pick<PathConfig, "webRoot" | "mobileWebRoot">;
   /** The modules under test; the fixture adds the shared providers. */
   modules: Array<Type<unknown> | DynamicModule>;
   /** Injectable clock; tests typically pass a mutable closure. */
@@ -38,7 +55,12 @@ export async function createTestApp(
   // Every per-case value takes the same path: the config replaces the
   // container's own resolution (so a test run never reads the process
   // environment), and the clock joins it when a case needs to drive time.
-  builder = builder.overrideProvider(TOBY_CONFIG).useValue(options.config);
+  const staticRoots = options.staticRoots ?? missingStaticRoots;
+  const config: TobyConfig = {
+    ...options.config,
+    paths: { ...options.config.paths, ...staticRoots },
+  };
+  builder = builder.overrideProvider(TOBY_CONFIG).useValue(config);
   if (options.clock) {
     builder = builder.overrideProvider(CLOCK).useValue(options.clock);
   }

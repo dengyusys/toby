@@ -4,13 +4,12 @@
  * logger is configured — the server keeps no application log.
  */
 
+import { pathToFileURL } from "node:url";
 import { NestFactory } from "@nestjs/core";
 import { NodeAdapter, type NestNodeApplication } from "@nestjs/platform-node";
 import { AppModule } from "./app.module.ts";
 import { resolveListenTarget } from "./infrastructure/config/config.ts";
-
-/** Request body cap for every parser (16 KiB: one sentence, one entry). */
-export const REQUEST_BODY_LIMIT_BYTES = 16 * 1024;
+import { REQUEST_BODY_LIMIT_BYTES } from "./infrastructure/http/body-limit.ts";
 
 async function bootstrap(): Promise<void> {
   const target = resolveListenTarget();
@@ -42,9 +41,19 @@ async function bootstrap(): Promise<void> {
   }
 }
 
-try {
-  await bootstrap();
-} catch (error) {
-  process.exitCode = 1;
-  console.error("toby server failed to start", error);
+// Run only as the process entry (`node dist/main.js`): importing this module
+// must not boot a server. Two spellings count — `pnpm run start` and the
+// Dockerfile pass the file with `.js`, while `nest start` spawns it
+// extensionless (`node dist/main`), which Node resolves to the same file.
+const entryUrl = process.argv[1] && pathToFileURL(process.argv[1]).href;
+if (
+  entryUrl === import.meta.url ||
+  (entryUrl !== undefined && `${entryUrl}.js` === import.meta.url)
+) {
+  try {
+    await bootstrap();
+  } catch (error) {
+    process.exitCode = 1;
+    console.error("toby server failed to start", error);
+  }
 }
