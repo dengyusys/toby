@@ -1,17 +1,15 @@
 /**
- * Ledger page shell: the conversational recording panel (LedgerChat)
- * above the replicated ai-steward calendar area. This file owns the month
- * and selection react-query state feeding the calendar (the shown month
- * follows arrived data, placeholder data keeps the previous view) and
- * stays the only calendar-side file importing @tanstack/react-query —
- * the chat panel owns its own mutations.
+ * Ledger route ("/ledger"): the replicated ai-steward calendar area — the
+ * month grid plus the day panel. Recording happens in the chat on "/"; the
+ * calendar state (shown month follows arrived data, placeholder data keeps
+ * the previous view) lives here and stays the only calendar-side file
+ * importing @tanstack/react-query.
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { LedgerTransactionRow } from "@toby/contract";
 import { ledgerClient } from "@/lib/api.ts";
-import { LedgerChat } from "./LedgerChat.tsx";
 import { LedgerDayPanel } from "./LedgerDayPanel.tsx";
 import { MonthLedger } from "./MonthLedger.tsx";
 import { describeError, todayLocal } from "./ledger-view.ts";
@@ -69,31 +67,32 @@ export function LedgerPage() {
     ) ?? [];
 
   return (
-    <div className="flex flex-col gap-6 py-8">
-      <LedgerChat />
-
-      {calendarError ? (
-        // First load failed: the calendar area turns into an error card;
-        // the chat above stays usable for recording.
-        <div className="rounded-lg border border-border bg-surface p-5">
-          <p className="text-13 leading-normal text-muted-foreground">
-            无法显示账目:{describeError(calendarError)}
-          </p>
-        </div>
-      ) : (
-        <div className="grid w-full min-w-0 flex-1 items-start gap-4 max-[1100px]:grid-cols-1 lg:grid-cols-[minmax(0,1fr)_336px]">
-          <MonthLedger
-            months={months}
-            currentMonth={shownMonth ?? fallbackMonth()}
-            data={settledData}
-            loading={!data}
-            onNavigate={setCurrentMonth}
-            selectedDate={selectedDate}
-            onSelect={setSelectedDate}
-          />
-          <LedgerDayPanel date={selectedDate} transactions={dayTransactions} />
-        </div>
-      )}
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-8">
+        {calendarError ? (
+          <div className="rounded-lg border border-border bg-surface p-5">
+            <p className="text-13 leading-normal text-muted-foreground">
+              无法显示账目:{describeError(calendarError)}
+            </p>
+          </div>
+        ) : (
+          <div className="grid w-full min-w-0 flex-1 items-start gap-4 max-[1100px]:grid-cols-1 lg:grid-cols-[minmax(0,1fr)_336px]">
+            <MonthLedger
+              months={months}
+              currentMonth={shownMonth ?? fallbackMonth()}
+              data={settledData}
+              loading={!data}
+              onNavigate={setCurrentMonth}
+              selectedDate={selectedDate}
+              onSelect={setSelectedDate}
+            />
+            <LedgerDayPanel
+              date={selectedDate}
+              transactions={dayTransactions}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
