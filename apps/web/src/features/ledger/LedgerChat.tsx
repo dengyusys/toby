@@ -280,7 +280,7 @@ export function LedgerChat() {
               disabled
               aria-label="添加附件（即将支持）"
               title="添加附件（即将支持）"
-              className="flex size-[34px] shrink-0 cursor-not-allowed items-center justify-center rounded-lg text-muted-foreground opacity-45"
+              className="flex size-[34px] shrink-0 cursor-not-allowed items-center justify-center rounded-md text-muted-foreground opacity-45"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -300,7 +300,7 @@ export function LedgerChat() {
               disabled={sendPending || draft.trim().length === 0}
               aria-label="发送"
               title="发送（Enter）"
-              className="flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-[0.92] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45"
+              className="flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-[0.92] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -309,10 +309,11 @@ export function LedgerChat() {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="size-[15px]"
+                className="size-[16px]"
                 aria-hidden="true"
               >
-                <path d="m5 12 14-7-7 14-2.1-5.9L5 12Z" />
+                <path d="M12 19V5" />
+                <path d="m5 12 7-7 7 7" />
               </svg>
             </button>
           </div>

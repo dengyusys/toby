@@ -49,7 +49,7 @@ export function ProposalCard({
   return (
     <section className="rounded-xl border bg-card p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-medium">提案确认</h2>
+        <h2 className="text-base font-medium">提案确认</h2>
         {outcome === null && (
           <p className="text-xs text-muted-foreground tabular-nums">
             {formatCountdown(autoWriteInMs)} 后自动记入

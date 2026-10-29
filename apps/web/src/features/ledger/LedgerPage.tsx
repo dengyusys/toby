@@ -71,7 +71,7 @@ export function LedgerPage() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-8">
         {calendarError ? (
           <div className="rounded-lg border border-border bg-surface p-5">
-            <p className="text-13 leading-normal text-muted-foreground">
+            <p className="text-sm leading-normal text-muted-foreground">
               无法显示账目:{describeError(calendarError)}
             </p>
           </div>
