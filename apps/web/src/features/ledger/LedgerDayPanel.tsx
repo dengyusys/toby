@@ -61,7 +61,7 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
         <span className="font-mono text-lg font-semibold tracking-tight tabular-nums">
           {date}
         </span>
-        <span className="rounded-sm bg-surface-hover px-1.75 py-px text-11 leading-relaxed text-subtle">
+        <span className="rounded-sm bg-surface-hover px-1.75 py-px text-xs leading-relaxed text-subtle">
           {weekday}
         </span>
       </div>
@@ -77,20 +77,18 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                 className={`flex items-baseline justify-between gap-3 py-2.5 ${index > 0 ? "border-t border-border" : ""}`}
               >
                 <div className="min-w-0">
-                  <div className="text-13 font-medium text-foreground">
+                  <div className="text-sm font-medium text-foreground">
                     {transaction.category}
                   </div>
-                  {transaction.note && (
-                    <div className="mt-0.5 text-xs text-faint [overflow-wrap:anywhere]">
-                      {transaction.note}
-                      {transaction.account !== "未关联" &&
-                        ` · ${transaction.account}`}
+                  {transaction.account !== "未关联" && (
+                    <div className="mt-0.5 text-xs text-faint">
+                      {transaction.account}
                     </div>
                   )}
                 </div>
                 <div className="flex shrink-0 items-baseline gap-2.5">
                   <span
-                    className={`font-mono text-13 font-semibold tabular-nums ${transaction.type === "expense" ? "text-danger" : "text-success"}`}
+                    className={`font-mono text-sm font-semibold tabular-nums ${transaction.type === "expense" ? "text-danger" : "text-success"}`}
                   >
                     {transaction.type === "expense" ? "−" : "+"}
                     {formatCents(transaction.amount)}
@@ -101,14 +99,14 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                         type="button"
                         disabled={deleteMutation.isPending}
                         onClick={() => deleteMutation.mutate(transaction.id)}
-                        className="cursor-pointer rounded-sm bg-destructive px-2 py-0.5 text-11 text-destructive-foreground transition-opacity duration-150 hover:opacity-85 disabled:cursor-default disabled:opacity-50"
+                        className="cursor-pointer rounded-sm bg-destructive px-2 py-0.5 text-xs text-destructive-foreground transition-opacity duration-150 hover:opacity-85 disabled:cursor-default disabled:opacity-50"
                       >
                         {deleteMutation.isPending ? "删除中…" : "确认删除"}
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmingId(null)}
-                        className="cursor-pointer text-11 text-faint transition-colors duration-150 hover:text-foreground"
+                        className="cursor-pointer text-xs text-muted-foreground transition-colors duration-150 hover:text-foreground"
                       >
                         取消
                       </button>
@@ -118,7 +116,7 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                       type="button"
                       aria-label={`删除 ${transaction.category} ¥${formatCents(transaction.amount)}`}
                       onClick={() => setConfirmingId(transaction.id)}
-                      className="cursor-pointer text-11 text-faint transition-colors duration-150 hover:text-danger"
+                      className="cursor-pointer text-xs text-muted-foreground transition-colors duration-150 hover:text-danger"
                     >
                       删除
                     </button>
@@ -127,7 +125,7 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
               </div>
             ))}
           </div>
-          <div className="mt-2 flex justify-between gap-3 border-t border-border pt-2.5 font-mono text-11 text-faint tabular-nums">
+          <div className="mt-2 flex justify-between gap-3 border-t border-border pt-2.5 font-mono text-xs text-muted-foreground tabular-nums">
             <span>
               支出 <span className="text-danger">¥{formatCents(expense)}</span>
               {" · "}收入{" "}
@@ -136,7 +134,7 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
             <span>{transactions.length} 笔</span>
           </div>
           {deleteError && (
-            <p className="mt-1.5 text-11 text-danger">{deleteError}</p>
+            <p className="mt-1.5 text-xs text-danger">{deleteError}</p>
           )}
         </>
       )}

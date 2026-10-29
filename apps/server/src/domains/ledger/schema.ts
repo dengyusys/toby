@@ -46,7 +46,9 @@ export const LEDGER_ENTRY_DRAFT_SCHEMA = z
       .string()
       .max(MAX_NOTE_LENGTH)
       .optional()
-      .describe("Free-text note; keep the user's own words"),
+      .describe(
+        "Free-text note; usually omit — never copy the user's sentence into it",
+      ),
   })
   .strict();
 
