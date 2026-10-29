@@ -1,8 +1,8 @@
 /**
- * Ledger page flow with fetch stubbed to the ledger endpoints: month
- * calendar + day panel rendering, structured proposal creation, the
- * countdown card with its terminal states, and the sentence follow-up.
- * No real network, no server.
+ * Ledger page flow with fetch stubbed to the ledger endpoints: the
+ * conversational recording panel (sentence → follow-up / proposal card →
+ * commit / tacit approval) plus the month calendar and day panel. No real
+ * network, no server.
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -44,46 +44,53 @@ const REPORT = {
     { type: "income", category: "工资", total: 500000 },
   ],
 };
-// Future timestamps: the countdown must not reach zero inside a test.
-const NOW_MS = Date.now();
-const PROPOSAL = {
-  proposal_id: "lp-test-1",
-  status: "pending",
-  created_at: new Date(NOW_MS).toISOString(),
-  auto_write_at: new Date(NOW_MS + 30_000).toISOString(),
-  expires_at: new Date(NOW_MS + 600_000).toISOString(),
-  entries: [
-    {
-      date: "2026-10-20",
-      type: "expense",
-      category: "餐饮",
-      account: "微信",
-      amount: 2550,
-      note: "午饭",
-    },
-    {
-      date: "2026-10-20",
-      type: "income",
-      category: "退款",
-      account: "支付宝",
-      amount: 1250,
-      note: "",
-    },
-  ],
-};
-const COMMITTED = {
-  proposal_id: "lp-test-1",
-  status: "committed",
-  written: 2,
-  transaction_ids: [3, 4],
-  committed_at: new Date(NOW_MS).toISOString(),
-};
 const FOLLOW_UP = { question: "这笔用的哪个账户?" };
+
+// Fresh proposals get unique ids and future timestamps (the countdown must
+// not reach zero inside a test); commit/cancel echo the id from the URL.
+let proposalCounter = 0;
+
+function proposalStub() {
+  proposalCounter += 1;
+  const now = Date.now();
+  return {
+    proposal_id: `lp-test-${proposalCounter}`,
+    status: "pending",
+    created_at: new Date(now).toISOString(),
+    auto_write_at: new Date(now + 30_000).toISOString(),
+    expires_at: new Date(now + 600_000).toISOString(),
+    entries: [
+      {
+        date: "2026-10-20",
+        type: "expense",
+        category: "餐饮",
+        account: "微信",
+        amount: 2550,
+        note: "午饭",
+      },
+      {
+        date: "2026-10-20",
+        type: "income",
+        category: "退款",
+        account: "支付宝",
+        amount: 1250,
+        note: "",
+      },
+    ],
+  };
+}
+
+function proposalIdFromUrl(url: string): string {
+  return url.match(/proposals\/([^/?]+)/)?.[1] ?? "lp-unknown";
+}
 
 const calls: { url: string; init?: RequestInit }[] = [];
 
-function routeFetch(): void {
+function routeFetch({
+  textResult = "follow-up",
+}: { textResult?: "follow-up" | "proposal" } = {}): void {
   calls.length = 0;
+  proposalCounter = 0;
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -95,12 +102,20 @@ function routeFetch(): void {
         : url.startsWith("/api/ledger/transactions")
           ? REPORT
           : url.endsWith("/commit")
-            ? COMMITTED
+            ? {
+                proposal_id: proposalIdFromUrl(url),
+                status: "committed",
+                written: 2,
+                transaction_ids: [3, 4],
+                committed_at: new Date().toISOString(),
+              }
             : url.endsWith("/cancel")
-              ? { proposal_id: "lp-test-1", status: "cancelled" }
+              ? { proposal_id: proposalIdFromUrl(url), status: "cancelled" }
               : typeof requestBody.text === "string"
-                ? FOLLOW_UP
-                : PROPOSAL;
+                ? textResult === "follow-up"
+                  ? FOLLOW_UP
+                  : proposalStub()
+                : proposalStub();
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -122,28 +137,95 @@ function renderPage() {
   );
 }
 
+async function sendSentence(
+  user: ReturnType<typeof userEvent.setup>,
+  text: string,
+) {
+  await user.type(screen.getByLabelText("对话输入"), text);
+  await user.click(screen.getByRole("button", { name: "发送" }));
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 
-it("submits a sentence and shows the AI follow-up question", async () => {
+it("sends a sentence and shows the AI follow-up question in the stream", async () => {
   routeFetch();
   const user = userEvent.setup();
   renderPage();
 
-  await screen.findByText("2026 年 10 月");
-
-  await user.type(screen.getByLabelText("一句话记账"), "午饭花了25");
-  await user.click(screen.getByRole("button", { name: "解析" }));
+  await sendSentence(user, "午饭花了25");
 
   const sent = calls.find(({ url }) => url.endsWith("/api/ledger/proposals"));
   expect(JSON.parse(String(sent?.init?.body))).toEqual({
     text: "午饭花了25",
   });
+  // The user's sentence bubbles on the right, the question replies below.
+  expect(await screen.findByText("午饭花了25")).toBeInTheDocument();
+  expect(await screen.findByText("这笔用的哪个账户?")).toBeInTheDocument();
+});
+
+it("turns a sentence into a proposal card that commits and dismisses", async () => {
+  routeFetch({ textResult: "proposal" });
+  const user = userEvent.setup();
+  renderPage();
+
+  await sendSentence(user, "昨天午饭25,退款12.5");
+  await screen.findByText("提案确认");
+
+  // Countdown text and the multi-entry total row.
+  expect(await screen.findByText(/后自动记入/)).toBeInTheDocument();
+  expect(screen.getByText(/共 2 笔 · 合计 -¥13\.00/)).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "确认记入" }));
+  expect(await screen.findByText("已确认写入")).toBeInTheDocument();
   expect(
-    await screen.findByText("补充一下:这笔用的哪个账户?"),
-  ).toBeInTheDocument();
+    calls.some(({ url }) =>
+      url.endsWith("/api/ledger/proposals/lp-test-1/commit"),
+    ),
+  ).toBe(true);
+
+  // The card stays until dismissed.
+  expect(screen.getByText("提案确认")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "知道了" }));
+  expect(screen.queryByText("提案确认")).not.toBeInTheDocument();
+});
+
+it("cancelling the proposal shows the cancelled terminal state", async () => {
+  routeFetch({ textResult: "proposal" });
+  const user = userEvent.setup();
+  renderPage();
+
+  await sendSentence(user, "昨天午饭25");
+  await screen.findByText(/后自动记入/);
+
+  await user.click(screen.getByRole("button", { name: "取消" }));
+  expect(await screen.findByText("已取消,未写入")).toBeInTheDocument();
+  expect(
+    calls.some(({ url }) =>
+      url.endsWith("/api/ledger/proposals/lp-test-1/cancel"),
+    ),
+  ).toBe(true);
+});
+
+it("sending the next sentence tacitly commits the pending proposal", async () => {
+  routeFetch({ textResult: "proposal" });
+  const user = userEvent.setup();
+  renderPage();
+
+  await sendSentence(user, "昨天午饭25");
+  await screen.findByText("提案确认");
+
+  await sendSentence(user, "今天打车8块");
+  // The second card arrives pending; the first has been committed.
+  expect(await screen.findAllByText("提案确认")).toHaveLength(2);
+  expect(await screen.findByText("已确认写入")).toBeInTheDocument();
+  expect(
+    calls.some(({ url }) =>
+      url.endsWith("/api/ledger/proposals/lp-test-1/commit"),
+    ),
+  ).toBe(true);
 });
 
 it("renders the month ledger with day subtotals and a day panel", async () => {
@@ -189,72 +271,6 @@ it("pages to the previous month that has records", async () => {
   expect(
     calls.some(({ url }) =>
       url.includes("/api/ledger/transactions?month=2026-09"),
-    ),
-  ).toBe(true);
-});
-
-it("creates a proposal from the form; the card counts down, totals, and lands in a terminal state", async () => {
-  routeFetch();
-  const user = userEvent.setup();
-  renderPage();
-
-  await screen.findByText("2026 年 10 月");
-
-  await user.type(screen.getByLabelText("分类"), "餐饮");
-  await user.type(screen.getByLabelText("账户"), "微信");
-  await user.type(screen.getByLabelText("金额"), "25.5");
-  await user.type(screen.getByLabelText("备注"), "午饭");
-  await user.click(screen.getByRole("button", { name: "生成提案" }));
-
-  const created = calls.find(({ url }) =>
-    url.endsWith("/api/ledger/proposals"),
-  );
-  expect(created?.init?.method).toBe("POST");
-  expect(JSON.parse(String(created?.init?.body))).toEqual({
-    entry: {
-      date: expect.stringMatching(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
-      type: "expense",
-      category: "餐饮",
-      account: "微信",
-      amount: "25.5",
-      note: "午饭",
-    },
-  });
-
-  // Countdown text and the multi-entry total row.
-  expect(await screen.findByText(/后自动记入/)).toBeInTheDocument();
-  expect(screen.getByText(/共 2 笔 · 合计 -¥13\.00/)).toBeInTheDocument();
-
-  await user.click(screen.getByRole("button", { name: "确认记入" }));
-  expect(await screen.findByText("已确认写入")).toBeInTheDocument();
-  expect(
-    calls.some(({ url }) =>
-      url.endsWith("/api/ledger/proposals/lp-test-1/commit"),
-    ),
-  ).toBe(true);
-
-  // The card stays until dismissed.
-  expect(screen.getByText("提案确认")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "知道了" }));
-  expect(screen.queryByText("提案确认")).not.toBeInTheDocument();
-});
-
-it("cancelling the proposal shows the cancelled terminal state", async () => {
-  routeFetch();
-  const user = userEvent.setup();
-  renderPage();
-
-  await screen.findByText("2026 年 10 月");
-  await user.type(screen.getByLabelText("分类"), "餐饮");
-  await user.type(screen.getByLabelText("金额"), "25.5");
-  await user.click(screen.getByRole("button", { name: "生成提案" }));
-  await screen.findByText(/后自动记入/);
-
-  await user.click(screen.getByRole("button", { name: "取消" }));
-  expect(await screen.findByText("已取消,未写入")).toBeInTheDocument();
-  expect(
-    calls.some(({ url }) =>
-      url.endsWith("/api/ledger/proposals/lp-test-1/cancel"),
     ),
   ).toBe(true);
 });

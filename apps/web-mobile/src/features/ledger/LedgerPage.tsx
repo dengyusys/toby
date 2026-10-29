@@ -1,54 +1,26 @@
 /**
- * Ledger page shell (mobile): owns the form / sentence / proposal state,
- * the react-query hooks, the proposal-pipeline mutations (including the
- * countdown auto-commit effect), and the month and selection state feeding
- * the calendar (the ai-steward calendar-page flow: the shown month follows
- * arrived data, placeholder data keeps the previous view). Rendering is
- * delegated to the EntryForm, ProposalCard, MonthLedger, and
- * LedgerDayPanel components; this stays the only file in the feature that
- * imports @tanstack/react-query. Mobile owns its own layout and styles —
- * nothing is shared with the PC app.
+ * Ledger page shell (mobile): the conversational recording panel
+ * (LedgerChat) above the replicated ai-steward calendar area. This file
+ * owns the month and selection react-query state feeding the calendar
+ * (the shown month follows arrived data, placeholder data keeps the
+ * previous view). Mobile owns its own layout and styles — nothing is
+ * shared with the PC app.
  */
 
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import {
-  ApiError,
-  type LedgerEntryInput,
-  type LedgerProposalView,
-  type LedgerTransactionRow,
-} from "@toby/contract";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import type { LedgerTransactionRow } from "@toby/contract";
 import { ledgerClient } from "@/lib/api.ts";
-import { EntryForm } from "./EntryForm.tsx";
+import { LedgerChat } from "./LedgerChat.tsx";
 import { LedgerDayPanel } from "./LedgerDayPanel.tsx";
 import { MonthLedger } from "./MonthLedger.tsx";
-import { ProposalCard } from "./ProposalCard.tsx";
-import {
-  describeError,
-  initialForm,
-  todayLocal,
-  type EntryFormState,
-  type ProposalOutcome,
-} from "./ledger-view.ts";
+import { describeError, todayLocal } from "./ledger-view.ts";
 
 export function LedgerPage() {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState<EntryFormState>(initialForm);
-  const [sentence, setSentence] = useState("");
-  const [followUp, setFollowUp] = useState<string | null>(null);
-  const [proposal, setProposal] = useState<LedgerProposalView | null>(null);
-  const [outcome, setOutcome] = useState<ProposalOutcome | null>(null);
   // The requested month; the shown month follows arrived data (placeholder
   // data keeps the previous month's full view while fetching).
   const [currentMonth, setCurrentMonth] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [nowTick, setNowTick] = useState(() => Date.now());
-  const autoFiredFor = useRef<string | null>(null);
 
   const monthsQuery = useQuery({
     queryKey: ["ledger", "months"],
@@ -89,102 +61,6 @@ export function LedgerPage() {
     );
   }, [shownMonth, settledData]);
 
-  // One tick per second while a proposal awaits its auto-write moment.
-  useEffect(() => {
-    if (!proposal || outcome) {
-      return;
-    }
-    const timer = setInterval(() => setNowTick(Date.now()), 1_000);
-    return () => clearInterval(timer);
-  }, [proposal, outcome]);
-
-  function refreshLedger(): void {
-    void queryClient.invalidateQueries({ queryKey: ["ledger"] });
-  }
-
-  const commitMutation = useMutation({
-    mutationFn: (id: string) => ledgerClient.commitProposal(id),
-    onSuccess: () => {
-      setOutcome("committed");
-      refreshLedger();
-    },
-  });
-  const cancelMutation = useMutation({
-    mutationFn: (id: string) => ledgerClient.cancelProposal(id),
-    onSuccess: () => {
-      setOutcome("cancelled");
-      refreshLedger();
-    },
-    onError: (error) => {
-      // The server auto-writes at the 30-second mark; a late cancel just
-      // means the entries already landed — treat it as committed.
-      if (error instanceof ApiError && error.code === "PROPOSAL_COMMITTED") {
-        setOutcome("committed");
-        refreshLedger();
-      }
-    },
-  });
-  const createMutation = useMutation({
-    mutationFn: (entry: LedgerEntryInput) =>
-      ledgerClient.createStructuredProposal(entry),
-    onSuccess: (view) => {
-      setProposal(view);
-      setOutcome(null);
-      autoFiredFor.current = null;
-      setForm(initialForm());
-    },
-  });
-  const sentenceMutation = useMutation({
-    mutationFn: (text: string) => ledgerClient.createTextProposal(text),
-    onSuccess: (result) => {
-      setSentence("");
-      if ("question" in result) {
-        setFollowUp(result.question);
-        return;
-      }
-      setFollowUp(null);
-      setProposal(result);
-      setOutcome(null);
-      autoFiredFor.current = null;
-    },
-  });
-
-  // Countdown to the server's auto-write moment; hitting zero commits here
-  // too — the endpoint is idempotent, so this races the sweeper safely.
-  const autoWriteInMs = proposal
-    ? Date.parse(proposal.auto_write_at) - nowTick
-    : Number.POSITIVE_INFINITY;
-  const commitMutate = commitMutation.mutate;
-  useEffect(() => {
-    if (!proposal || outcome || autoWriteInMs > 0) {
-      return;
-    }
-    if (autoFiredFor.current === proposal.proposal_id) {
-      return;
-    }
-    autoFiredFor.current = proposal.proposal_id;
-    commitMutate(proposal.proposal_id);
-  }, [autoWriteInMs, proposal, outcome, commitMutate]);
-
-  function updateField<K extends keyof EntryFormState>(
-    field: K,
-    value: EntryFormState[K],
-  ): void {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
-
-  function submitEntry(event: React.FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    createMutation.mutate({
-      date: form.date,
-      type: form.type,
-      category: form.category.trim(),
-      account: form.account.trim(),
-      amount: form.amount.trim(),
-      note: form.note.trim(),
-    });
-  }
-
   const calendarError =
     monthsQuery.error ?? (data ? null : monthQuery.error) ?? null;
   const dayTransactions =
@@ -194,40 +70,11 @@ export function LedgerPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <EntryForm
-        sentence={sentence}
-        onSentenceChange={setSentence}
-        onParseSentence={(text) => sentenceMutation.mutate(text)}
-        sentencePending={sentenceMutation.isPending}
-        sentenceError={sentenceMutation.error}
-        followUp={followUp}
-        form={form}
-        onFieldChange={updateField}
-        onSubmitEntry={submitEntry}
-        createPending={createMutation.isPending}
-        createError={createMutation.error}
-      />
-
-      {proposal && (
-        <ProposalCard
-          proposal={proposal}
-          outcome={outcome}
-          autoWriteInMs={autoWriteInMs}
-          commitPending={commitMutation.isPending}
-          commitError={commitMutation.error}
-          cancelPending={cancelMutation.isPending}
-          onCommit={(proposalId) => commitMutation.mutate(proposalId)}
-          onCancel={(proposalId) => cancelMutation.mutate(proposalId)}
-          onDismiss={() => {
-            setProposal(null);
-            setOutcome(null);
-          }}
-        />
-      )}
+      <LedgerChat />
 
       {calendarError ? (
         // First load failed: the calendar area turns into an error card;
-        // the form above stays usable for recording.
+        // the chat above stays usable for recording.
         <div className="rounded-lg border border-border bg-surface p-5">
           <p className="text-13 leading-normal text-muted-foreground">
             无法显示账目:{describeError(calendarError)}

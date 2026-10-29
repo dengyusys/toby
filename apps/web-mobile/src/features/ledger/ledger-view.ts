@@ -1,22 +1,12 @@
 /**
  * Pure view helpers shared by the ledger feature components of the mobile
- * app: date and month math, the calendar grid builder, money and countdown
- * formatting, proposal-error wording, the structured-form state, and the
- * mobile input/button class strings. Per docs/decisions/web-split-dual-
- * apps.md the PC app keeps its own copy of this module; nothing is shared
- * across the two apps from here.
+ * app: date and month math, money and countdown formatting, proposal-error
+ * wording, and the mobile card button class strings. Per
+ * docs/decisions/web-split-dual-apps.md the PC app keeps its own copy of
+ * this module; nothing is shared across the two apps from here.
  */
 
 import { ApiError } from "@toby/contract";
-
-export interface EntryFormState {
-  date: string;
-  type: "expense" | "income";
-  category: string;
-  account: string;
-  amount: string;
-  note: string;
-}
 
 export type ProposalOutcome = "committed" | "cancelled";
 
@@ -26,17 +16,6 @@ function toLocalIso(date: Date): string {
 
 export function todayLocal(): string {
   return toLocalIso(new Date());
-}
-
-export function initialForm(): EntryFormState {
-  return {
-    date: todayLocal(),
-    type: "expense",
-    category: "",
-    account: "",
-    amount: "",
-    note: "",
-  };
 }
 
 /** Cents are the wire format; the page shows decimal yuan. */
@@ -86,8 +65,6 @@ export function describeError(error: unknown): string {
   return "请求失败,请稍后重试";
 }
 
-export const inputClass =
-  "mt-1.5 w-full rounded-lg border bg-background px-3 py-2.5 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring";
 export const primaryButtonClass =
   "inline-flex h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground active:opacity-80 disabled:opacity-50";
 export const secondaryButtonClass =
