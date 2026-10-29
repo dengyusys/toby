@@ -40,6 +40,10 @@ export default defineConfig(
       "**/coverage/**",
       "data/**",
       "**/.git/**",
+      // Third-party agent skills installed into the workspace (not our code).
+      // 安装进仓库的第三方 agent skill(非本项目代码)。
+      ".agents/**",
+      ".claude/**",
     ],
   },
   js.configs.recommended,

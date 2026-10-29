@@ -4,3 +4,8 @@ pnpm-lock.yaml
 data/
 dist/
 coverage/
+
+# Third-party agent skills installed into the workspace
+# 安装进仓库的第三方 agent skill
+.agents/
+.claude/
