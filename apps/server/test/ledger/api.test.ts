@@ -68,12 +68,17 @@ afterEach(async () => {
 });
 
 function inject(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "DELETE",
   url: string,
   payload?: Record<string, unknown>,
 ) {
   const agent = request(app.getHttpServer());
-  const call = method === "GET" ? agent.get(url) : agent.post(url);
+  const call =
+    method === "GET"
+      ? agent.get(url)
+      : method === "DELETE"
+        ? agent.delete(url)
+        : agent.post(url);
   return payload === undefined ? call : call.send(payload);
 }
 
@@ -371,5 +376,68 @@ describe("ledger api: months and reports", () => {
     const response = await inject("GET", "/api/ledger/proposals");
     expect(response.status).toBe(404);
     expect(response.body.errorCode).toBe("PAGE_NOT_FOUND");
+  });
+});
+
+describe("ledger api: deletion", () => {
+  /** Commit one entry and return the written transaction id. */
+  async function commitEntryAndGetId(): Promise<number> {
+    const created = (
+      await inject("POST", "/api/ledger/proposals", structuredEntry())
+    ).body;
+    const committed = await inject(
+      "POST",
+      `/api/ledger/proposals/${created.proposal_id}/commit`,
+    );
+    expect(committed.status).toBe(200);
+    return committed.body.transaction_ids[0];
+  }
+
+  it("deletes one stored transaction and the month follows", async () => {
+    const id = await commitEntryAndGetId();
+
+    const deleted = await inject("DELETE", `/api/ledger/transactions/${id}`);
+    expect(deleted.status).toBe(200);
+    expect(deleted.body).toEqual({
+      transaction_id: id,
+      status: "deleted",
+      deleted_at: new Date(BASE_MS).toISOString(),
+    });
+
+    const report = await inject(
+      "GET",
+      "/api/ledger/transactions?month=2026-10",
+    );
+    expect(report.body.transactions).toHaveLength(0);
+    expect(report.body.expense_total).toBe(0);
+    const months = await inject("GET", "/api/ledger/months");
+    expect(months.body).toEqual({ months: [] });
+  });
+
+  it("a delete of one of two rows leaves the other intact", async () => {
+    const first = await commitEntryAndGetId();
+    const second = await commitEntryAndGetId();
+
+    const deleted = await inject("DELETE", `/api/ledger/transactions/${first}`);
+    expect(deleted.status).toBe(200);
+
+    const report = await inject(
+      "GET",
+      "/api/ledger/transactions?month=2026-10",
+    );
+    expect(report.body.transactions).toHaveLength(1);
+    expect(report.body.transactions[0].id).toBe(second);
+  });
+
+  it("unknown ids answer 404 TRANSACTION_NOT_FOUND; malformed ids 400", async () => {
+    const missing = await inject("DELETE", "/api/ledger/transactions/999");
+    expect(missing.status).toBe(404);
+    expect(missing.body.errorCode).toBe("TRANSACTION_NOT_FOUND");
+
+    for (const id of ["0", "-1", "abc"]) {
+      const response = await inject("DELETE", `/api/ledger/transactions/${id}`);
+      expect(response.status).toBe(400);
+      expect(response.body.errorCode).toBe("INVALID_ENTRY");
+    }
   });
 });

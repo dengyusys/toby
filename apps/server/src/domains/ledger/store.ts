@@ -144,4 +144,11 @@ export class LedgerStore implements OnModuleDestroy {
       [start, end],
     );
   }
+
+  /** Delete one row by id; true when the row existed. */
+  async deleteTransaction(id: number): Promise<boolean> {
+    const db = await this.db();
+    const result = await db.run("DELETE FROM transactions WHERE id = ?", [id]);
+    return result.changes > 0;
+  }
 }

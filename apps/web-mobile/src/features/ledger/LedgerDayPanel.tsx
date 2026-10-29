@@ -1,12 +1,18 @@
 /**
- * Selected-day panel (replicated from the ai-steward design): the mono
- * date heading with its weekday chip, the day's transaction list
- * (category, note · account, signed amount), and the expense/income
- * footer totals. Sits beside the month grid (sticky on wide viewports).
+ * Selected-day panel (replicated from the ai-steward design, plus a toby
+ * delete affordance): the mono date heading with its weekday chip, the
+ * day's transaction list (category, note · account, signed amount), and
+ * the expense/income footer totals. Each row carries a delete button with
+ * an inline two-step confirm — the sole user-initiated direct write —
+ * owned here as a mutation that invalidates the ledger queries. Sits
+ * beside the month grid (sticky on wide viewports).
  */
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import type { LedgerTransactionRow } from "@toby/contract";
-import { formatCents, weekdayOf } from "./ledger-view.ts";
+import { ledgerClient } from "@/lib/api.ts";
+import { describeError, formatCents, weekdayOf } from "./ledger-view.ts";
 
 interface LedgerDayPanelProps {
   date: string | null;
@@ -14,6 +20,29 @@ interface LedgerDayPanelProps {
 }
 
 export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
+  const queryClient = useQueryClient();
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Switching days folds any half-armed confirm and stale error.
+  useEffect(() => {
+    setConfirmingId(null);
+    setDeleteError(null);
+  }, [date]);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => ledgerClient.deleteTransaction(id),
+    onSuccess: () => {
+      setConfirmingId(null);
+      setDeleteError(null);
+      void queryClient.invalidateQueries({ queryKey: ["ledger"] });
+    },
+    onError: (error) => {
+      setConfirmingId(null);
+      setDeleteError(describeError(error));
+    },
+  });
+
   const weekday = date ? weekdayOf(date) : "";
   const expense = transactions
     .filter((transaction) => transaction.type === "expense")
@@ -59,12 +88,42 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                     </div>
                   )}
                 </div>
-                <span
-                  className={`shrink-0 font-mono text-13 font-semibold tabular-nums ${transaction.type === "expense" ? "text-danger" : "text-success"}`}
-                >
-                  {transaction.type === "expense" ? "−" : "+"}
-                  {formatCents(transaction.amount)}
-                </span>
+                <div className="flex shrink-0 items-baseline gap-2.5">
+                  <span
+                    className={`font-mono text-13 font-semibold tabular-nums ${transaction.type === "expense" ? "text-danger" : "text-success"}`}
+                  >
+                    {transaction.type === "expense" ? "−" : "+"}
+                    {formatCents(transaction.amount)}
+                  </span>
+                  {confirmingId === transaction.id ? (
+                    <span className="flex items-baseline gap-1.5">
+                      <button
+                        type="button"
+                        disabled={deleteMutation.isPending}
+                        onClick={() => deleteMutation.mutate(transaction.id)}
+                        className="cursor-pointer rounded-sm bg-destructive px-2 py-0.5 text-11 text-destructive-foreground transition-opacity duration-150 hover:opacity-85 disabled:cursor-default disabled:opacity-50"
+                      >
+                        {deleteMutation.isPending ? "删除中…" : "确认删除"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingId(null)}
+                        className="cursor-pointer text-11 text-faint transition-colors duration-150 hover:text-foreground"
+                      >
+                        取消
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={`删除 ${transaction.category} ¥${formatCents(transaction.amount)}`}
+                      onClick={() => setConfirmingId(transaction.id)}
+                      className="cursor-pointer text-11 text-faint transition-colors duration-150 hover:text-danger"
+                    >
+                      删除
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -76,6 +135,9 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
             </span>
             <span>{transactions.length} 笔</span>
           </div>
+          {deleteError && (
+            <p className="mt-1.5 text-11 text-danger">{deleteError}</p>
+          )}
         </>
       )}
     </aside>

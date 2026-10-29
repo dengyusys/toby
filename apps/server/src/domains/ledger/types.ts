@@ -57,6 +57,17 @@ export interface LedgerCancelResult {
   readonly status: "cancelled";
 }
 
+/**
+ * Result of a user-initiated delete — the domain's sole write that does
+ * not travel the proposal pipeline (the explicit UI confirmation stands in
+ * for the user-confirmation stage).
+ */
+export interface LedgerDeleteResult {
+  readonly transaction_id: number;
+  readonly status: "deleted";
+  readonly deleted_at: string;
+}
+
 /** Category subtotal inside a month report. */
 export interface LedgerCategorySummary {
   readonly type: LedgerEntryType;

@@ -8,8 +8,9 @@ English | [简体中文](ledger.zh.md)
 
 - Recording: one sentence in the chat (multiple entries allowed) becomes a proposal; confirmation writes into the ledger database (`data/ledger.db` on SQLite; MySQL schema `toby_ledger`).
 - Viewing: per-day subtotals and monthly summaries, category totals, by month.
+- Deletion: a user-initiated, explicitly confirmed delete of one stored transaction — the domain's only write outside the proposal pipeline.
 - Amounts are stored as **integer cents** end to end — no floating-point drift.
-- **Does not own**: editing or deleting records, budgets and report charts, multi-account systems, multi-currency.
+- **Does not own**: editing records, budgets and report charts, multi-account systems, multi-currency.
 
 ## Core concepts
 
@@ -31,6 +32,7 @@ nonsense (bad amount, impossible date, blank category) is answered by the domain
 | `POST /api/ledger/proposals`                 | One sentence (AI, multi-entry) or a structured single entry (deterministic path); uncertainty returns a follow-up |
 | `POST /api/ledger/proposals/:id/commit`      | Confirm: atomic batch write (idempotent)                                                                          |
 | `POST /api/ledger/proposals/:id/cancel`      | Cancel the proposal                                                                                               |
+| `DELETE /api/ledger/transactions/:id`        | Delete one stored transaction (user-initiated; unknown ids answer 404 `TRANSACTION_NOT_FOUND`)                    |
 
 ## Key rules
 
@@ -39,3 +41,4 @@ nonsense (bad amount, impossible date, blank category) is answered by the domain
 - Uncertain fields return a follow-up question, never a guess; the user retries with more detail.
 - Proposal TTL 10 minutes; uncancelled after 30 seconds the server auto-writes; commit is idempotent — no duplicate rows; cancelled proposals refuse commit, expired ones answer 410; records pruned one hour past expiry answer 404.
 - One failed entry rolls back the batch.
+- Deletion removes one row by id in a single transaction; ids must be positive integers (else `INVALID_ENTRY`), unknown ids answer 404 `TRANSACTION_NOT_FOUND` (a repeated delete takes this path).

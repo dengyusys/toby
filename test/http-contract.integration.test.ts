@@ -198,12 +198,38 @@ describe("http contract (ledger flow)", () => {
       `${baseUrl}/api/ledger/transactions?month=2026-10`,
     );
     const body = (await report.json()) as {
-      transactions: unknown[];
+      transactions: { id: number }[];
       expense_total: number;
     };
     expect(report.status).toBe(200);
     expect(body.transactions).toHaveLength(1);
     expect(body.expense_total).toBe(2500);
+
+    // User-initiated delete removes the row; a repeated delete 404s.
+    const transactionId = body.transactions[0]!.id;
+    const deleted = await fetch(
+      `${baseUrl}/api/ledger/transactions/${transactionId}`,
+      { method: "DELETE" },
+    );
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toMatchObject({
+      transaction_id: transactionId,
+      status: "deleted",
+    });
+
+    const afterDelete = await fetch(
+      `${baseUrl}/api/ledger/transactions?month=2026-10`,
+    );
+    const afterBody = (await afterDelete.json()) as {
+      transactions: unknown[];
+    };
+    expect(afterBody.transactions).toHaveLength(0);
+
+    const repeat = await fetch(
+      `${baseUrl}/api/ledger/transactions/${transactionId}`,
+      { method: "DELETE" },
+    );
+    expect(repeat.status).toBe(404);
   });
 });
 

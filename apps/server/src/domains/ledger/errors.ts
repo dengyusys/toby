@@ -4,7 +4,11 @@ import { HttpStatus } from "@nestjs/common";
 import { DomainHttpError } from "../../infrastructure/http/http-error.ts";
 
 export type LedgerErrorCode =
-  "INVALID_ENTRY" | "INVALID_MONTH" | "AI_UNAVAILABLE" | "AI_REQUEST_FAILED";
+  | "INVALID_ENTRY"
+  | "INVALID_MONTH"
+  | "TRANSACTION_NOT_FOUND"
+  | "AI_UNAVAILABLE"
+  | "AI_REQUEST_FAILED";
 
 /** Use-case failure (bad month, AI transport trouble, bad AI draft). */
 export class LedgerRequestError extends DomainHttpError {

@@ -3,6 +3,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -18,6 +19,7 @@ import { LedgerService, type LedgerProposalResult } from "./ledger.service.ts";
 import type {
   LedgerCancelResult,
   LedgerCommitResult,
+  LedgerDeleteResult,
   LedgerMonthReport,
 } from "./types.ts";
 
@@ -55,5 +57,11 @@ export class LedgerController {
   @HttpCode(HttpStatus.OK)
   cancel(@Param("id") id: string): Promise<LedgerCancelResult> {
     return this.service.cancel(id);
+  }
+
+  @Delete("transactions/:id")
+  @HttpCode(HttpStatus.OK)
+  delete(@Param("id") id: string): Promise<LedgerDeleteResult> {
+    return this.service.deleteTransaction(id);
   }
 }

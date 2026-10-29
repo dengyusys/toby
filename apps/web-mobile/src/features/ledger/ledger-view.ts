@@ -54,6 +54,8 @@ export function describeError(error: unknown): string {
         return "提案已过期,请重新录入";
       case "PROPOSAL_NOT_FOUND":
         return "提案不存在或已被清理";
+      case "TRANSACTION_NOT_FOUND":
+        return "账目不存在,可能已被删除";
       case "AI_UNAVAILABLE":
         return "AI 未配置:需要在服务端设置 TOBY_AI_MODEL(格式 provider/model,如 zai/glm-4.7)";
       case "AI_REQUEST_FAILED":

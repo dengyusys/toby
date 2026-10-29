@@ -1,8 +1,10 @@
 /**
  * Ledger service: the use-case layer tying validation, the proposal
- * registry and the store together. Every write goes through a proposal;
- * month reports aggregate store rows in pure TypeScript. The clock is
- * injected by token so tests can drive auto-write, expiry and pruning.
+ * registry and the store together. Recording always goes through a
+ * proposal; the user-initiated delete is the one direct write (its
+ * explicit UI confirmation replaces the proposal stage). Month reports
+ * aggregate store rows in pure TypeScript. The clock is injected by token
+ * so tests can drive auto-write, expiry and pruning.
  */
 
 import { randomUUID } from "node:crypto";
@@ -33,6 +35,7 @@ import type {
   LedgerCancelResult,
   LedgerCategorySummary,
   LedgerCommitResult,
+  LedgerDeleteResult,
   LedgerMonthReport,
   LedgerProposalView,
   LedgerTransactionRow,
@@ -207,6 +210,34 @@ export class LedgerService implements OnModuleInit, OnModuleDestroy {
 
   cancel(id: string): Promise<LedgerCancelResult> {
     return this.registry.cancel(id);
+  }
+
+  /**
+   * User-initiated delete of one stored transaction. The route parameter
+   * arrives as a string; ids are positive integers.
+   */
+  async deleteTransaction(rawId: string): Promise<LedgerDeleteResult> {
+    const id = Number.parseInt(rawId, 10);
+    if (!Number.isInteger(id) || id < 1) {
+      throw new LedgerRequestError(
+        "INVALID_ENTRY",
+        HttpStatus.BAD_REQUEST,
+        "transaction id must be a positive integer",
+      );
+    }
+    const deleted = await this.store.deleteTransaction(id);
+    if (!deleted) {
+      throw new LedgerRequestError(
+        "TRANSACTION_NOT_FOUND",
+        HttpStatus.NOT_FOUND,
+        "transaction does not exist (it may already be deleted)",
+      );
+    }
+    return {
+      transaction_id: id,
+      status: "deleted",
+      deleted_at: new Date(this.clock()).toISOString(),
+    };
   }
 
   async months(): Promise<{ months: readonly string[] }> {

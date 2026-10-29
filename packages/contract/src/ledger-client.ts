@@ -53,6 +53,13 @@ export interface LedgerCancelResult {
   status: "cancelled";
 }
 
+/** Result of a user-initiated delete (the sole non-proposal write). */
+export interface LedgerDeleteResult {
+  transaction_id: number;
+  status: "deleted";
+  deleted_at: string;
+}
+
 /** The AI could not resolve the sentence: it asks the user one question. */
 export interface LedgerFollowUp {
   question: string;
@@ -88,6 +95,8 @@ export interface LedgerClient {
   createTextProposal(text: string): Promise<LedgerProposalResult>;
   commitProposal(id: string): Promise<LedgerCommitResult>;
   cancelProposal(id: string): Promise<LedgerCancelResult>;
+  /** Delete one stored transaction by id; unknown ids 404. */
+  deleteTransaction(id: number): Promise<LedgerDeleteResult>;
   /** Months that have records, descending. */
   listMonths(): Promise<string[]>;
   monthReport(month: string): Promise<LedgerMonthReport>;
@@ -128,6 +137,11 @@ export function createLedgerClient(baseUrl: string): LedgerClient {
           `/api/ledger/proposals/${encodeURIComponent(id)}/cancel`,
         ),
         { method: "POST" },
+      ),
+    deleteTransaction: (id) =>
+      requestJson<LedgerDeleteResult>(
+        endpoint(baseUrl, `/api/ledger/transactions/${id}`),
+        { method: "DELETE" },
       ),
     listMonths: async () => {
       const body = await requestJson<{ months: string[] }>(

@@ -99,23 +99,29 @@ function routeFetch({
       const requestBody = init?.body ? JSON.parse(String(init.body)) : {};
       const body = url.endsWith("/api/ledger/months")
         ? MONTHS
-        : url.startsWith("/api/ledger/transactions")
-          ? REPORT
-          : url.endsWith("/commit")
-            ? {
-                proposal_id: proposalIdFromUrl(url),
-                status: "committed",
-                written: 2,
-                transaction_ids: [3, 4],
-                committed_at: new Date().toISOString(),
-              }
-            : url.endsWith("/cancel")
-              ? { proposal_id: proposalIdFromUrl(url), status: "cancelled" }
-              : typeof requestBody.text === "string"
-                ? textResult === "follow-up"
-                  ? FOLLOW_UP
-                  : proposalStub()
-                : proposalStub();
+        : init?.method === "DELETE"
+          ? {
+              transaction_id: Number(url.match(/transactions\/(\d+)/)?.[1]),
+              status: "deleted",
+              deleted_at: new Date().toISOString(),
+            }
+          : url.startsWith("/api/ledger/transactions")
+            ? REPORT
+            : url.endsWith("/commit")
+              ? {
+                  proposal_id: proposalIdFromUrl(url),
+                  status: "committed",
+                  written: 2,
+                  transaction_ids: [3, 4],
+                  committed_at: new Date().toISOString(),
+                }
+              : url.endsWith("/cancel")
+                ? { proposal_id: proposalIdFromUrl(url), status: "cancelled" }
+                : typeof requestBody.text === "string"
+                  ? textResult === "follow-up"
+                    ? FOLLOW_UP
+                    : proposalStub()
+                  : proposalStub();
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -273,4 +279,33 @@ it("pages to the previous month that has records", async () => {
       url.includes("/api/ledger/transactions?month=2026-09"),
     ),
   ).toBe(true);
+});
+
+it("deletes a day-panel transaction through the inline confirm", async () => {
+  routeFetch();
+  const user = userEvent.setup();
+  renderPage();
+
+  expect((await screen.findAllByText("¥25.50")).length).toBeGreaterThan(0);
+  await user.click(
+    screen.getByRole("gridcell", {
+      name: "2026-10-20，支出 25.50，收入 0.00",
+    }),
+  );
+
+  // The first click only arms the confirm; nothing is sent yet.
+  await user.click(screen.getByRole("button", { name: "删除 餐饮 ¥25.50" }));
+  expect(calls.some(({ init }) => init?.method === "DELETE")).toBe(false);
+
+  await user.click(screen.getByRole("button", { name: "确认删除" }));
+  expect(
+    calls.some(
+      ({ url, init }) =>
+        url.endsWith("/api/ledger/transactions/1") && init?.method === "DELETE",
+    ),
+  ).toBe(true);
+  // The confirm controls fold back once the delete lands.
+  expect(
+    await screen.findByRole("button", { name: "删除 餐饮 ¥25.50" }),
+  ).toBeInTheDocument();
 });
