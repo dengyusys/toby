@@ -10,6 +10,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { LedgerPage } from "../src/features/ledger/LedgerPage.tsx";
+import { ChatPage } from "../src/features/chat/ChatPage.tsx";
 
 const MONTHS = { months: ["2026-10"] };
 const REPORT = {
@@ -124,6 +125,17 @@ function renderPage() {
   );
 }
 
+function renderChatPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ChatPage />
+    </QueryClientProvider>,
+  );
+}
+
 async function sendSentence(
   user: ReturnType<typeof userEvent.setup>,
   text: string,
@@ -140,7 +152,10 @@ afterEach(() => {
 it("sends a sentence and shows the AI follow-up question in the stream", async () => {
   routeFetch();
   const user = userEvent.setup();
-  renderPage();
+  renderChatPage();
+
+  // Empty conversation: the hero headline sits centered until the first send.
+  expect(screen.getByText("有什么我能帮你的吗？")).toBeInTheDocument();
 
   await sendSentence(user, "午饭花了25");
 
@@ -150,12 +165,13 @@ it("sends a sentence and shows the AI follow-up question in the stream", async (
   });
   expect(await screen.findByText("午饭花了25")).toBeInTheDocument();
   expect(await screen.findByText("这笔用的哪个账户?")).toBeInTheDocument();
+  expect(screen.queryByText("有什么我能帮你的吗？")).not.toBeInTheDocument();
 });
 
 it("turns a sentence into a proposal card that commits and dismisses", async () => {
   routeFetch({ textResults: ["proposal"] });
   const user = userEvent.setup();
-  renderPage();
+  renderChatPage();
 
   await sendSentence(user, "昨天午饭25");
   expect(await screen.findByText(/后自动记入/)).toBeInTheDocument();
@@ -235,7 +251,7 @@ it("deletes a day-panel transaction through the inline confirm", async () => {
 it("folds a follow-up answer onto the sentence that was asked about", async () => {
   routeFetch({ textResults: ["follow-up", "proposal"] });
   const user = userEvent.setup();
-  renderPage();
+  renderChatPage();
 
   await sendSentence(user, "晚饭吃了8块钱");
   expect(await screen.findByText("这笔用的哪个账户?")).toBeInTheDocument();

@@ -25,7 +25,6 @@ import { ProposalCard } from "./ProposalCard.tsx";
 import { describeError, type ProposalOutcome } from "./ledger-view.ts";
 
 type Turn =
-  | { kind: "greeting"; id: number }
   | { kind: "user"; id: number; text: string }
   | { kind: "question"; id: number; text: string }
   | {
@@ -36,14 +35,14 @@ type Turn =
     }
   | { kind: "error"; id: number; text: string };
 
-const GREETING =
-  "说一句话就能记账，例如「昨天午饭花了 25」。不确定的地方我会追问。";
+/** The empty-conversation hero headline, centered until the first send. */
+const EMPTY_HEADLINE = "有什么我能帮你的吗？";
 
 const MAX_INPUT_HEIGHT = 120;
 
 export function LedgerChat() {
   const queryClient = useQueryClient();
-  const [turns, setTurns] = useState<Turn[]>([{ kind: "greeting", id: 0 }]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [nowTick, setNowTick] = useState(() => Date.now());
   // The sentence behind the pending follow-up question; the next send —
@@ -218,42 +217,49 @@ export function LedgerChat() {
   }
 
   return (
-    <section
-      aria-label="对话记账"
-      className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm"
-    >
+    // Same flow language as the PC chat: messages sit directly on the page
+    // background, only the composer is a card. The page provides the height.
+    <section aria-label="对话记账" className="flex min-h-0 flex-1 flex-col">
       <div
         ref={listRef}
-        className="flex h-[300px] flex-col gap-3 overflow-y-auto p-3.5"
+        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pb-4"
         aria-live="polite"
       >
-        {turns.map((turn) => (
-          <TurnView
-            key={turn.id}
-            turn={turn}
-            nowTick={nowTick}
-            commitPending={commitMutation.isPending}
-            commitError={commitMutation.error}
-            cancelPending={cancelMutation.isPending}
-            onCommit={(id) => commitMutation.mutate(id)}
-            onCancel={(id) => cancelMutation.mutate(id)}
-            onDismiss={() =>
-              setTurns((current) =>
-                current.filter((item) => item.id !== turn.id),
-              )
-            }
-          />
-        ))}
-        {sendPending && (
-          <p className="px-1 text-xs text-muted-foreground">正在解析…</p>
+        {turns.length === 0 && !sendPending ? (
+          // Empty conversation: the hero headline sits in the middle of
+          // the stream area and disappears with the first exchange.
+          <div className="flex flex-1 items-center justify-center">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              {EMPTY_HEADLINE}
+            </h2>
+          </div>
+        ) : (
+          <>
+            {turns.map((turn) => (
+              <TurnView
+                key={turn.id}
+                turn={turn}
+                nowTick={nowTick}
+                commitPending={commitMutation.isPending}
+                commitError={commitMutation.error}
+                cancelPending={cancelMutation.isPending}
+                onCommit={(id) => commitMutation.mutate(id)}
+                onCancel={(id) => cancelMutation.mutate(id)}
+                onDismiss={() =>
+                  setTurns((current) =>
+                    current.filter((item) => item.id !== turn.id),
+                  )
+                }
+              />
+            ))}
+            {sendPending && (
+              <p className="px-1 text-xs text-muted-foreground">正在解析…</p>
+            )}
+          </>
         )}
       </div>
-      <form
-        onSubmit={handleSubmit}
-        aria-busy={sendPending}
-        className="border-t p-3"
-      >
-        <div className="flex items-end gap-2 rounded-2xl border bg-background py-2 pr-2 pl-3.5 transition-[border-color,box-shadow] focus-within:border-ring focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
+      <form onSubmit={handleSubmit} aria-busy={sendPending} className="pt-2">
+        <div className="flex items-end gap-2 rounded-2xl border bg-card py-2 pr-2 pl-3.5 shadow-[0_4px_20px_rgba(15,17,21,0.06)] transition-[border-color,box-shadow] focus-within:border-ring focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
           <textarea
             ref={textareaRef}
             value={draft}
@@ -270,7 +276,7 @@ export function LedgerChat() {
             disabled={sendPending || draft.trim().length === 0}
             aria-label="发送"
             title="发送（Enter）"
-            className="flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-[0.92] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45"
+            className="flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-[0.92] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45"
           >
             <svg
               viewBox="0 0 24 24"
@@ -279,10 +285,11 @@ export function LedgerChat() {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="size-[15px]"
+              className="size-[16px]"
               aria-hidden="true"
             >
-              <path d="m5 12 14-7-7 14-2.1-5.9L5 12Z" />
+              <path d="M12 19V5" />
+              <path d="m5 12 7-7 7 7" />
             </svg>
           </button>
         </div>
@@ -321,25 +328,18 @@ function TurnView({
       </div>
     );
   }
-  if (turn.kind === "greeting") {
-    return (
-      <div className="rounded-xl border bg-surface px-4 py-2.5 text-sm leading-relaxed text-muted-foreground">
-        {GREETING}
-      </div>
-    );
-  }
   if (turn.kind === "question") {
     return (
-      <div className="rounded-xl border bg-surface px-4 py-2.5 text-sm leading-relaxed">
+      <p className="px-1 text-sm leading-relaxed text-foreground">
         {turn.text}
-      </div>
+      </p>
     );
   }
   if (turn.kind === "error") {
     return (
-      <div className="rounded-xl border bg-surface px-4 py-2.5 text-sm leading-relaxed text-destructive">
+      <p className="px-1 text-sm leading-relaxed text-destructive">
         {turn.text}
-      </div>
+      </p>
     );
   }
   return (

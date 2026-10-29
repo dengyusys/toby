@@ -208,12 +208,12 @@ export function MonthLedger({
         </span>
         <div className="mt-auto flex flex-col gap-0.5 pt-1">
           {totals && totals.expense > 0 && (
-            <span className="font-mono text-11 text-danger tabular-nums max-[380px]:text-[10px]">
+            <span className="font-mono text-xs text-danger tabular-nums">
               支 {formatCents(totals.expense)}
             </span>
           )}
           {totals && totals.income > 0 && (
-            <span className="font-mono text-11 text-success tabular-nums max-[380px]:text-[10px]">
+            <span className="font-mono text-xs text-success tabular-nums">
               收 {formatCents(totals.income)}
             </span>
           )}
@@ -239,7 +239,7 @@ export function MonthLedger({
           >
             <ChevronLeft className="size-4" />
           </button>
-          <span className="min-w-[96px] px-1 text-center font-serif text-15 font-semibold tracking-tight tabular-nums">
+          <span className="min-w-[96px] px-1 text-center font-serif text-base font-semibold tracking-tight tabular-nums">
             {monthLabel(currentMonth)}
           </span>
           <button
@@ -253,7 +253,7 @@ export function MonthLedger({
           </button>
         </div>
         {data && (
-          <span className="ml-auto font-mono text-11 text-faint tabular-nums">
+          <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">
             支出{" "}
             <span className="text-danger">
               ¥{formatCents(data.expense_total)}
@@ -269,14 +269,14 @@ export function MonthLedger({
       </div>
 
       {loading && !data ? (
-        <p className="p-9 text-center text-13 leading-relaxed text-faint">
+        <p className="p-9 text-center text-sm leading-relaxed text-faint">
           正在加载…
         </p>
       ) : (
         <>
           {/* Weekday row: the weekend columns carry the primary color. */}
           <div
-            className="grid grid-cols-7 border-b border-border text-center text-11 font-semibold text-faint [&>span:first-child]:text-primary [&>span:last-child]:text-primary"
+            className="grid grid-cols-7 border-b border-border text-center text-xs font-semibold text-faint [&>span:first-child]:text-primary [&>span:last-child]:text-primary"
             aria-hidden="true"
           >
             <span className="py-2">日</span>
@@ -299,7 +299,7 @@ export function MonthLedger({
             ))}
           </div>
           {data && data.transactions.length === 0 && (
-            <p className="py-6 text-center text-13 leading-relaxed text-faint">
+            <p className="py-6 text-center text-sm leading-relaxed text-faint">
               本月暂无账目。点击日期查看详情，或用上方表单记一笔。
             </p>
           )}
