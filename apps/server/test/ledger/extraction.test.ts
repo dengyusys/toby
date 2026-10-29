@@ -175,6 +175,9 @@ describe("createLedgerExtractor", () => {
       extractor.extract("hi", new Date("2026-03-05T23:00:00")),
     ).rejects.toBeInstanceOf(AiError);
     expect(specs[0]!.systemPrompt).toContain("2026-03-05");
+    // A sentence without a date must default to today, not trigger a
+    // follow-up question about the date.
+    expect(specs[0]!.systemPrompt).toContain("未提及日期就是今天");
     expect(prompts).toEqual(["hi"]);
   });
 

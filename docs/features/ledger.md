@@ -37,7 +37,7 @@ nonsense (bad amount, impossible date, blank category) is answered by the domain
 ## Key rules
 
 - AI extraction is untrusted input: it must pass the domain's deterministic validation and normalization before a proposal exists.
-- Amounts: non-negative numbers with at most two decimal places, parsed digit-wise into cents. Dates: local format plus calendar validation; any past or future date is legal (backfill).
+- Amounts: non-negative numbers with at most two decimal places, parsed digit-wise into cents. Dates: local format plus calendar validation; any past or future date is legal (backfill); a sentence with no date defaults to today.
 - Uncertain fields return a follow-up question, never a guess; the user retries with more detail.
 - Proposal TTL 10 minutes; uncancelled after 30 seconds the server auto-writes; commit is idempotent — no duplicate rows; cancelled proposals refuse commit, expired ones answer 410; records pruned one hour past expiry answer 404.
 - One failed entry rolls back the batch.

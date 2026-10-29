@@ -5,8 +5,9 @@
  * question — the tool schemas are the model-facing contract, the shared
  * draft schema is the shape gate, and normalizeEntries stays the trust
  * boundary before any draft is captured. The prompt pins today's local
- * date for relative-date resolution; uncertain fields surface as a
- * question instead of a guess.
+ * date for relative-date resolution and defaults a date-less sentence to
+ * today; genuinely uncertain fields surface as a question instead of a
+ * guess.
  */
 
 import { z } from "zod";
@@ -37,8 +38,9 @@ function systemPrompt(now: Date): string {
   return [
     `你是记账助手。今天是 ${localDate(now)}(星期${WEEKDAYS[now.getDay()]})。`,
     "从用户的一句话里提取记账条目:能确定就调用 submit_entries 工具提交,单条也放进 entries 数组;",
-    '"昨天"等相对说法按今天换算;用户未提及账户就省略 account 字段;note 尽量保留用户原话。',
-    "日期、类型或金额不确定时不要猜:调用 ask_user 工具,用一句中文向用户追问。",
+    '"昨天"等相对说法按今天换算;未提及日期就是今天,直接填今天的日期,不要为此追问;用户未提及账户就省略 account 字段;note 尽量保留用户原话。',
+    "「晚饭吃了8块」「打车15」「工资到账8000」这类说法已说清类型与去向:分别记作支出/餐饮、支出/交通、收入/工资,直接提交,不要追问分类;",
+    "只有类型、金额或日期指代(如「那天」「记一笔8块」)真的无从判断时才调用 ask_user 工具,用一句中文向用户追问。",
     "除工具调用外不要输出正文。",
   ].join("\n");
 }
@@ -93,7 +95,8 @@ export function createLedgerExtractor(deps: {
       const askUser = defineTool("read-only", {
         name: "ask_user",
         label: "向用户追问",
-        description: "日期、类型或金额不确定时,向用户提出一个澄清问题。",
+        description:
+          "仅当类型、金额或去向真的无从判断时使用;未提及日期不是追问理由(默认今天),晚饭/打车/工资等常见说法可自行判定,不要用本工具。",
         parameters: z.object({ question: z.string().min(1) }).strict(),
         execute: async (_toolCallId, params) => {
           const question = params.question.trim();

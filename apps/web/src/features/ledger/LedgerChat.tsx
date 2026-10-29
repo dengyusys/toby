@@ -3,10 +3,12 @@
  * ai-steward chat design, ledger-scoped): a scrolling message stream plus
  * a bottom composer. One sentence per send — the server answers with a
  * proposal card, a clarifying question, or an error turn; every pending
- * proposal keeps its countdown and auto-write. Sending a new sentence
- * tacitly commits pending proposals first (the chat-domain rule, applied
- * client-side here). History is session-only — persisted conversations
- * belong to the future chat domain (docs/features/chat.md).
+ * proposal keeps its countdown and auto-write. A fragment answering the
+ * pending question folds back onto the sentence that caused it before
+ * dispatch, and sending tacitly commits pending proposals first (both
+ * chat-domain rules, applied client-side here). History is session-only —
+ * persisted conversations belong to the future chat domain
+ * (docs/features/chat.md).
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -44,6 +46,9 @@ export function LedgerChat() {
   const [turns, setTurns] = useState<Turn[]>([{ kind: "greeting", id: 0 }]);
   const [draft, setDraft] = useState("");
   const [nowTick, setNowTick] = useState(() => Date.now());
+  // The sentence behind the pending follow-up question; the next send —
+  // usually a bare fragment like "今天呀" — folds onto it before dispatch.
+  const [followUpBase, setFollowUpBase] = useState<string | null>(null);
   const nextId = useRef(1);
   const firedRef = useRef(new Set<string>());
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -109,12 +114,14 @@ export function LedgerChat() {
     },
   });
 
-  // Send: the user turn lands immediately; pending proposals are committed
-  // first (tacit approval, oldest first); the reply becomes a question,
-  // proposal, or error turn.
+  // Send: the user turn lands immediately (the typed fragment only — the
+  // folded outbound sentence travels as mutation data); pending proposals
+  // are committed first (tacit approval, oldest first); the reply becomes
+  // a question, proposal, or error turn.
   const sendMutation = useMutation({
-    mutationFn: (text: string) => ledgerClient.createTextProposal(text),
-    onMutate: (text) => {
+    mutationFn: (variables: { outbound: string; display: string }) =>
+      ledgerClient.createTextProposal(variables.outbound),
+    onMutate: (variables) => {
       for (const pending of pendingProposals) {
         if (!firedRef.current.has(pending.proposal.proposal_id)) {
           firedRef.current.add(pending.proposal.proposal_id);
@@ -123,11 +130,11 @@ export function LedgerChat() {
       }
       setTurns((current) => [
         ...current,
-        { kind: "user", id: nextId.current++, text },
+        { kind: "user", id: nextId.current++, text: variables.display },
       ]);
       setDraft("");
     },
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
       setTurns((current) => [
         ...current,
         "question" in result
@@ -139,15 +146,25 @@ export function LedgerChat() {
               outcome: null,
             },
       ]);
+      // A question keeps the (possibly already folded) sentence as the
+      // folding base for its answer; anything else ends the follow-up.
+      setFollowUpBase("question" in result ? variables.outbound : null);
     },
     onError: (error) => {
       setTurns((current) => [
         ...current,
         { kind: "error", id: nextId.current++, text: describeError(error) },
       ]);
+      setFollowUpBase(null);
     },
   });
   const sendPending = sendMutation.isPending;
+
+  /** Send a typed sentence, folding it onto the follow-up base if set. */
+  function send(text: string): void {
+    const outbound = followUpBase ? `${followUpBase}，${text}` : text;
+    sendMutation.mutate({ outbound, display: text });
+  }
 
   // Countdown to each proposal's auto-write moment; hitting zero commits
   // here too — the endpoint is idempotent, so this races the sweeper
@@ -180,7 +197,7 @@ export function LedgerChat() {
     event.preventDefault();
     const text = draft.trim();
     if (text && !sendPending) {
-      sendMutation.mutate(text);
+      send(text);
     }
   }
 
@@ -195,7 +212,7 @@ export function LedgerChat() {
       event.preventDefault();
       const text = draft.trim();
       if (text && !sendPending) {
-        sendMutation.mutate(text);
+        send(text);
       }
     }
   }

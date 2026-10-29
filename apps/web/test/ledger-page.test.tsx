@@ -87,10 +87,12 @@ function proposalIdFromUrl(url: string): string {
 const calls: { url: string; init?: RequestInit }[] = [];
 
 function routeFetch({
-  textResult = "follow-up",
-}: { textResult?: "follow-up" | "proposal" } = {}): void {
+  textResults = ["follow-up"],
+}: { textResults?: ("follow-up" | "proposal")[] } = {}): void {
   calls.length = 0;
   proposalCounter = 0;
+  // One queued outcome per text proposal, in order; exhausted → follow-up.
+  const queue = [...textResults];
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -118,7 +120,8 @@ function routeFetch({
               : url.endsWith("/cancel")
                 ? { proposal_id: proposalIdFromUrl(url), status: "cancelled" }
                 : typeof requestBody.text === "string"
-                  ? textResult === "follow-up"
+                  ? (queue.shift() ?? textResults.at(-1) ?? "follow-up") ===
+                    "follow-up"
                     ? FOLLOW_UP
                     : proposalStub()
                   : proposalStub();
@@ -173,7 +176,7 @@ it("sends a sentence and shows the AI follow-up question in the stream", async (
 });
 
 it("turns a sentence into a proposal card that commits and dismisses", async () => {
-  routeFetch({ textResult: "proposal" });
+  routeFetch({ textResults: ["proposal"] });
   const user = userEvent.setup();
   renderPage();
 
@@ -199,7 +202,7 @@ it("turns a sentence into a proposal card that commits and dismisses", async () 
 });
 
 it("cancelling the proposal shows the cancelled terminal state", async () => {
-  routeFetch({ textResult: "proposal" });
+  routeFetch({ textResults: ["proposal"] });
   const user = userEvent.setup();
   renderPage();
 
@@ -216,7 +219,7 @@ it("cancelling the proposal shows the cancelled terminal state", async () => {
 });
 
 it("sending the next sentence tacitly commits the pending proposal", async () => {
-  routeFetch({ textResult: "proposal" });
+  routeFetch({ textResults: ["proposal"] });
   const user = userEvent.setup();
   renderPage();
 
@@ -308,4 +311,26 @@ it("deletes a day-panel transaction through the inline confirm", async () => {
   expect(
     await screen.findByRole("button", { name: "删除 餐饮 ¥25.50" }),
   ).toBeInTheDocument();
+});
+
+it("folds a follow-up answer onto the sentence that was asked about", async () => {
+  routeFetch({ textResults: ["follow-up", "proposal"] });
+  const user = userEvent.setup();
+  renderPage();
+
+  await sendSentence(user, "晚饭吃了8块钱");
+  expect(await screen.findByText("这笔用的哪个账户?")).toBeInTheDocument();
+
+  // The fragment answer folds onto the original sentence before dispatch.
+  await sendSentence(user, "微信");
+  const sent = calls
+    .filter(({ url }) => url.endsWith("/api/ledger/proposals"))
+    .map(({ init }) => JSON.parse(String(init?.body)));
+  expect(sent).toEqual([
+    { text: "晚饭吃了8块钱" },
+    { text: "晚饭吃了8块钱，微信" },
+  ]);
+  // The user bubble shows only the fragment as typed.
+  expect(screen.getByText("微信")).toBeInTheDocument();
+  expect(await screen.findByText("提案确认")).toBeInTheDocument();
 });
