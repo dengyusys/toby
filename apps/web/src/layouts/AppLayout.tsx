@@ -11,7 +11,8 @@ export function AppLayout() {
           <span className="text-sm font-semibold tracking-tight">Toby</span>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-2xl flex-1 px-6">
+      {/* Wide enough for the ledger page's calendar + day-panel grid. */}
+      <main className="mx-auto w-full max-w-5xl flex-1 px-6">
         <Outlet />
       </main>
     </div>

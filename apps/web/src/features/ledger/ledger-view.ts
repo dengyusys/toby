@@ -7,7 +7,7 @@
  * shared across the two apps from here.
  */
 
-import { ApiError, type LedgerTransactionRow } from "@toby/contract";
+import { ApiError } from "@toby/contract";
 
 export interface EntryFormState {
   date: string;
@@ -50,67 +50,14 @@ export function formatCountdown(ms: number): string {
 }
 
 const WEEKDAY_NAMES = ["日", "一", "二", "三", "四", "五", "六"] as const;
-export const WEEKDAY_HEADERS = [
-  "一",
-  "二",
-  "三",
-  "四",
-  "五",
-  "六",
-  "日",
-] as const;
 
 export function weekdayOf(date: string): string {
   return WEEKDAY_NAMES[new Date(`${date}T00:00:00`).getDay()]!;
 }
 
-export function shiftMonth(month: string, delta: number): string {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const shifted = new Date(year!, monthNumber! - 1 + delta, 1);
-  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
-}
-
-export interface DayCell {
-  date: string;
-  day: number;
-  inMonth: boolean;
-  expenseCents: number;
-  incomeCents: number;
-}
-
-/** Six-week Monday-first grid; day subtotals filled from the month rows. */
-export function buildMonthGrid(
-  month: string,
-  transactions: readonly LedgerTransactionRow[],
-): DayCell[] {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const first = new Date(year!, monthNumber! - 1, 1);
-  const cursor = new Date(first);
-  cursor.setDate(cursor.getDate() - ((first.getDay() + 6) % 7));
-  const cells: DayCell[] = [];
-  for (let index = 0; index < 42; index += 1) {
-    cells.push({
-      date: toLocalIso(cursor),
-      day: cursor.getDate(),
-      inMonth: cursor.getMonth() === monthNumber! - 1,
-      expenseCents: 0,
-      incomeCents: 0,
-    });
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  const byDate = new Map(cells.map((cell) => [cell.date, cell]));
-  for (const transaction of transactions) {
-    const cell = byDate.get(transaction.date);
-    if (!cell) {
-      continue;
-    }
-    if (transaction.type === "income") {
-      cell.incomeCents += transaction.amount;
-    } else {
-      cell.expenseCents += transaction.amount;
-    }
-  }
-  return cells;
+/** "YYYY-MM" → "2026 年 9 月" (leading zero dropped) for the pager header. */
+export function monthLabel(month: string): string {
+  return `${Number(month.slice(0, 4))} 年 ${Number(month.slice(5))} 月`;
 }
 
 export function describeError(error: unknown): string {

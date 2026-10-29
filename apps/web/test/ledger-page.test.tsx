@@ -12,7 +12,7 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { LedgerPage } from "../src/features/ledger/LedgerPage.tsx";
 
-const MONTHS = { months: ["2026-10"] };
+const MONTHS = { months: ["2026-10", "2026-09"] };
 const REPORT = {
   month: "2026-10",
   transactions: [
@@ -132,7 +132,7 @@ it("submits a sentence and shows the AI follow-up question", async () => {
   const user = userEvent.setup();
   renderPage();
 
-  await screen.findByText("月度账本");
+  await screen.findByText("2026 年 10 月");
 
   await user.type(screen.getByLabelText("一句话记账"), "午饭花了25");
   await user.click(screen.getByRole("button", { name: "解析" }));
@@ -146,26 +146,51 @@ it("submits a sentence and shows the AI follow-up question", async () => {
   ).toBeInTheDocument();
 });
 
-it("renders the month calendar with day subtotals and a day panel", async () => {
+it("renders the month ledger with day subtotals and a day panel", async () => {
   routeFetch();
   const user = userEvent.setup();
   renderPage();
 
-  expect(await screen.findByText("¥5000.00")).toBeInTheDocument(); // income total
-  expect(screen.getByText("¥25.50")).toBeInTheDocument(); // expense total
-  expect(screen.getByText("支 · 餐饮 ¥25.50")).toBeInTheDocument();
+  // Wait on a data-driven marker: the month label alone can render from
+  // the current-month fallback before the report arrives.
+  expect((await screen.findAllByText("¥25.50")).length).toBeGreaterThan(0); // expense summary
+  expect(screen.getByText("2026 年 10 月")).toBeInTheDocument();
+  expect(screen.getAllByText("¥5000.00").length).toBeGreaterThan(0); // income
 
-  // Default selection follows the data: the latest transaction's day.
-  expect(screen.getByText("餐饮 · 午饭")).toBeInTheDocument();
-  expect(screen.getByText("-¥25.50")).toBeInTheDocument();
-
-  // Calendar cells carry per-day subtotals; picking a day opens its panel.
+  // Cells carry per-day subtotals; picking a day opens its panel.
   expect(screen.getByText("支 25.50")).toBeInTheDocument();
   expect(screen.getByText("收 5000.00")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "2026-10-09" }));
+  await user.click(
+    screen.getByRole("gridcell", {
+      name: "2026-10-09，支出 0.00，收入 5000.00",
+    }),
+  );
   expect(screen.getByText("工资")).toBeInTheDocument();
-  expect(screen.getByText("+¥5000.00")).toBeInTheDocument();
-  expect(screen.getByText("支出 ¥0.00 · 收入 ¥5000.00")).toBeInTheDocument();
+  expect(screen.getByText("+5000.00")).toBeInTheDocument();
+  expect(screen.getByText("1 笔")).toBeInTheDocument();
+  // Footer totals row: nested spans split the text, so match on content.
+  expect(
+    screen.getByText(
+      (_, element) =>
+        element?.tagName === "SPAN" &&
+        element.textContent === "支出 ¥0.00 · 收入 ¥5000.00",
+    ),
+  ).toBeInTheDocument();
+});
+
+it("pages to the previous month that has records", async () => {
+  routeFetch();
+  const user = userEvent.setup();
+  renderPage();
+
+  expect(await screen.findByText("2026 年 10 月")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "上一月" }));
+
+  expect(
+    calls.some(({ url }) =>
+      url.includes("/api/ledger/transactions?month=2026-09"),
+    ),
+  ).toBe(true);
 });
 
 it("creates a proposal from the form; the card counts down, totals, and lands in a terminal state", async () => {
@@ -173,7 +198,7 @@ it("creates a proposal from the form; the card counts down, totals, and lands in
   const user = userEvent.setup();
   renderPage();
 
-  await screen.findByText("月度账本");
+  await screen.findByText("2026 年 10 月");
 
   await user.type(screen.getByLabelText("分类"), "餐饮");
   await user.type(screen.getByLabelText("账户"), "微信");
@@ -219,7 +244,7 @@ it("cancelling the proposal shows the cancelled terminal state", async () => {
   const user = userEvent.setup();
   renderPage();
 
-  await screen.findByText("月度账本");
+  await screen.findByText("2026 年 10 月");
   await user.type(screen.getByLabelText("分类"), "餐饮");
   await user.type(screen.getByLabelText("金额"), "25.5");
   await user.click(screen.getByRole("button", { name: "生成提案" }));

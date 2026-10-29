@@ -105,16 +105,33 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("renders the month calendar with the default day panel", async () => {
+it("renders the month ledger with day subtotals and a day panel", async () => {
   routeFetch();
+  const user = userEvent.setup();
   renderPage();
 
-  expect(await screen.findByText("¥25.50")).toBeInTheDocument();
-  expect(screen.getByText("支 · 餐饮 ¥25.50")).toBeInTheDocument();
-  // Default selection follows the data: the latest transaction's day.
-  expect(screen.getByText("餐饮 · 午饭")).toBeInTheDocument();
-  expect(screen.getByText("-¥25.50")).toBeInTheDocument();
-  expect(screen.getByText("支出 ¥25.50 · 收入 ¥0.00")).toBeInTheDocument();
+  // Wait on a data-driven marker: the month label alone can render from
+  // the current-month fallback before the report arrives.
+  expect((await screen.findAllByText("¥25.50")).length).toBeGreaterThan(0); // expense summary
+  expect(screen.getByText("2026 年 10 月")).toBeInTheDocument();
+
+  // Cells carry per-day subtotals; picking a day opens its panel.
+  expect(screen.getByText("支 25.50")).toBeInTheDocument();
+  await user.click(
+    screen.getByRole("gridcell", {
+      name: "2026-10-20，支出 25.50，收入 0.00",
+    }),
+  );
+  expect(screen.getByText("餐饮")).toBeInTheDocument();
+  expect(screen.getByText("\u221225.50")).toBeInTheDocument();
+  // Footer totals row: nested spans split the text, so match on content.
+  expect(
+    screen.getByText(
+      (_, element) =>
+        element?.tagName === "SPAN" &&
+        element.textContent === "支出 ¥25.50 · 收入 ¥0.00",
+    ),
+  ).toBeInTheDocument();
 });
 
 it("creates a proposal from the form; the card counts down and lands in a terminal state", async () => {
@@ -122,7 +139,7 @@ it("creates a proposal from the form; the card counts down and lands in a termin
   const user = userEvent.setup();
   renderPage();
 
-  await screen.findByText("月度账本");
+  await screen.findByText("2026 年 10 月");
 
   await user.type(screen.getByLabelText("分类"), "餐饮");
   await user.type(screen.getByLabelText("账户"), "微信");
@@ -165,7 +182,7 @@ it("submits a sentence and shows the AI follow-up question", async () => {
   const user = userEvent.setup();
   renderPage();
 
-  await screen.findByText("月度账本");
+  await screen.findByText("2026 年 10 月");
 
   await user.type(screen.getByLabelText("一句话记账"), "午饭花了25");
   await user.click(screen.getByRole("button", { name: "解析" }));
