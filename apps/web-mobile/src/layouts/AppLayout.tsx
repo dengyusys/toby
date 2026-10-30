@@ -1,6 +1,9 @@
 import { NavLink, Outlet } from "react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import logo from "@/assets/logo.svg";
+
+/** Drawer slide transition length; keeps the unmount timer in sync. */
+const DRAWER_TRANSITION_MS = 300;
 
 /** Primary-route nav entries: icon + label, rendered as drawer pills. */
 const NAV_ITEMS = [
@@ -35,12 +38,34 @@ function NavPills({ onNavigate }: { onNavigate: () => void }) {
 
 /**
  * Route shell (mobile): a compact top bar whose hamburger button opens the
- * left nav drawer (backdrop click closes; a nav pick navigates and closes).
- * Each page owns its scrolling — the chat fills the viewport, the ledger
- * page scrolls its column.
+ * nav drawer — nearly full-screen, sliding in from the left (doubao-style);
+ * a narrow scrim strip stays tappable on the right to close, as does a nav
+ * pick. There is no close button by design. Each page owns its scrolling —
+ * the chat fills the viewport, the ledger page scrolls its column.
  */
 export function AppLayout() {
-  const [navOpen, setNavOpen] = useState(false);
+  // The drawer keeps its DOM node mounted while the exit transition plays:
+  // `mounted` controls presence, `shown` drives the transform/scrim states.
+  const [mounted, setMounted] = useState(false);
+  const [shown, setShown] = useState(false);
+
+  function openDrawer(): void {
+    setMounted(true);
+  }
+
+  function closeDrawer(): void {
+    setShown(false);
+    window.setTimeout(() => setMounted(false), DRAWER_TRANSITION_MS);
+  }
+
+  // Paint one frame off-screen first so the slide-in transition runs.
+  useEffect(() => {
+    if (!mounted) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(frame);
+  }, [mounted]);
 
   return (
     <div className="flex h-dvh flex-col">
@@ -48,8 +73,8 @@ export function AppLayout() {
         <button
           type="button"
           aria-label="打开菜单"
-          aria-expanded={navOpen}
-          onClick={() => setNavOpen(true)}
+          aria-expanded={mounted}
+          onClick={openDrawer}
           className="flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <MenuIcon className="size-5" />
@@ -61,23 +86,29 @@ export function AppLayout() {
         <Outlet />
       </main>
 
-      {navOpen && (
+      {mounted && (
         <div className="fixed inset-0 z-50">
+          {/* The scrim spans the viewport; the panel covers all but a
+              right-hand strip, which stays tappable for closing. */}
           <button
             type="button"
             aria-label="关闭菜单"
-            className="absolute inset-0 cursor-pointer bg-black/40"
-            onClick={() => setNavOpen(false)}
+            className={`absolute inset-0 cursor-pointer bg-black/40 transition-opacity duration-300 ease-out ${
+              shown ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={closeDrawer}
           />
           <aside
             aria-label="侧边导航"
-            className="absolute inset-y-0 left-0 flex w-60 max-w-[82%] flex-col border-r bg-card p-3 shadow-xl"
+            className={`absolute inset-y-0 left-0 flex w-[calc(100%-3rem)] flex-col rounded-r-3xl bg-card p-4 shadow-2xl transition-transform duration-300 ease-out ${
+              shown ? "translate-x-0" : "-translate-x-full"
+            }`}
           >
-            <div className="flex items-center gap-2.5 px-2 py-2.5">
+            <div className="flex items-center gap-2.5 px-2 py-3">
               <img src={logo} alt="" className="size-6" />
               <span className="text-sm font-semibold tracking-tight">Toby</span>
             </div>
-            <NavPills onNavigate={() => setNavOpen(false)} />
+            <NavPills onNavigate={closeDrawer} />
           </aside>
         </div>
       )}
