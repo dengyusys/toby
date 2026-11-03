@@ -4,7 +4,7 @@
  * 401 elsewhere in the app routes here through the query caches.
  */
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useState } from "react";
 import { ApiError } from "@toby/contract";
@@ -26,6 +26,7 @@ function describeError(error: unknown): string {
 
 export function LoginPage() {
   const [password, setPassword] = useState("");
+  const queryClient = useQueryClient();
   const sessionQuery = useQuery({
     queryKey: ["auth", "session"],
     queryFn: () => authClient.session(),
@@ -34,6 +35,9 @@ export function LoginPage() {
     mutationFn: () => authClient.login(password),
     onSuccess: () => {
       setPassword("");
+      // The cached session still says unauthenticated; drop it or the
+      // route gate bounces the fresh session back here.
+      queryClient.removeQueries({ queryKey: ["auth", "session"] });
       window.location.hash = "#/";
     },
   });

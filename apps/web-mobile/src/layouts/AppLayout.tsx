@@ -100,7 +100,7 @@ export function AppLayout() {
           />
           <aside
             aria-label="侧边导航"
-            className={`absolute inset-y-0 left-0 flex w-[calc(100%-3rem)] flex-col rounded-r-3xl bg-card p-4 shadow-2xl transition-transform duration-300 ease-out ${
+            className={`absolute inset-y-0 left-0 flex w-[calc(100%-3rem)] flex-col bg-card p-4 shadow-2xl transition-transform duration-300 ease-out ${
               shown ? "translate-x-0" : "-translate-x-full"
             }`}
           >
