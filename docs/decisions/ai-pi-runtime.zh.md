@@ -23,7 +23,11 @@
 
 1. **信任边界是服务端确定性校验。** 工具 schema(Zod,在 pi 边界转成 JSON Schema)只约束*形状*;
    语义校验(金额换算为整数分、真实日历日期、条目上限)保留在各域手写。
-   AI 输出——包括工具参数——永远是非受信输入。
+   pi 1.5.0 起边界经 pi-schema 校验并*带强制转换*:松散类型的工具实参
+   (数字字符串、声明为数组却只给单值)会被转换成 schema 的形状而不是
+   弹回——转换可能改类型甚至截断,所以没有任何数据能凭转换本身进入域,
+   仍由手写校验把关。`format` 关键字在边界只是注解(draft 2020-12 默认),
+   格式语义同样留在域校验。AI 输出——包括工具参数——永远是非受信输入。
 2. **一切真实效果走 proposal → 用户确认 → 事务执行。** 共享的提案确认
    状态机在 `infrastructure/actions-kernel/` (`registry.ts`);
    agent 永不直写、永不替用户确认。
@@ -56,9 +60,12 @@ kind(联网搜索、生图)已有预案,待有域需要时再引入。
 - 提示词、工具与 schema 归各域:ledger 的草稿 schema 以 Zod 只定义
   一次,同时是面向模型的工具契约与服务端的形状门控;validation.ts 仍是
   语义信任边界。
-- 版本:pi-ai / pi-agent-core 在 pnpm catalog
+- 版本:pi-ai / pi-agent-core / pi-schema 在 pnpm catalog
   (pnpm-workspace.yaml)中精确锁定版本——pi-agent-core 精确依赖它们,
-  用 `^` 会装出第二份 pi-ai、类型跨版本分叉。
+  用 `^` 会装出第二份副本、类型跨版本分叉。pi-schema 同时是直接依赖:
+  `tool-schema.ts` 在启动时逐个编译产出的工具 schema(pi-ai 在运行时
+  用 pi-schema 校验工具实参),pi 编译不了的 schema 会让装配失败,
+  而不是在生产运行中才炸。
 
 ## 失败处理
 

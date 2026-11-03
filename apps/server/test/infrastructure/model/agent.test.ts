@@ -132,6 +132,74 @@ describe("createTobyAgentFactory", () => {
     expect(result.turns).toBe(3);
   });
 
+  it("coerces loosely typed arguments into the schema's shape (pi 1.5.0 boundary)", async () => {
+    const { factory, faux } = makeHarness();
+    const calls: unknown[] = [];
+    const typed = defineTool("read-only", {
+      name: "typed_probe",
+      label: "typed_probe",
+      description: "typed probe tool",
+      parameters: z.object({
+        count: z.number().int(),
+        tags: z.array(z.string()),
+      }),
+      execute: async (_id, params) => {
+        calls.push(params);
+        return { content: [{ type: "text", text: "ok" }], details: {} };
+      },
+    });
+    faux.appendResponses([
+      // Since pi 1.5.0 the boundary validates through pi-schema with
+      // coercion: "2" becomes 2, a bare tag wraps into a one-item array —
+      // execute sees the coerced values, and the domain's semantic
+      // validation stays the trust boundary downstream of this.
+      fauxAssistantMessage([
+        fauxToolCall("typed_probe", { count: "2", tags: "food" }),
+      ]),
+      fauxAssistantMessage("done"),
+    ]);
+    const agent = factory({
+      systemPrompt: "sys",
+      tools: [typed],
+      policy: { allowedKinds: ["read-only"], maxTurns: 3 },
+    });
+    const result = await agent.run("go");
+    expect(calls).toEqual([{ count: 2, tags: ["food"] }]);
+    expect(result.turns).toBe(2);
+  });
+
+  it("bounces arguments no coercion rule can save", async () => {
+    const { factory, faux } = makeHarness();
+    const calls: unknown[] = [];
+    const typed = defineTool("read-only", {
+      name: "typed_probe",
+      label: "typed_probe",
+      description: "typed probe tool",
+      parameters: z.object({ count: z.number().int() }),
+      execute: async (_id, params) => {
+        calls.push(params);
+        return { content: [{ type: "text", text: "ok" }], details: {} };
+      },
+    });
+    faux.appendResponses([
+      // A non-numeric string cannot coerce to an integer, so the call fails
+      // schema validation — an error tool result the model corrects against.
+      fauxAssistantMessage([
+        fauxToolCall("typed_probe", { count: "not a number" }),
+      ]),
+      fauxAssistantMessage([fauxToolCall("typed_probe", { count: 7 })]),
+      fauxAssistantMessage("done"),
+    ]);
+    const agent = factory({
+      systemPrompt: "sys",
+      tools: [typed],
+      policy: { allowedKinds: ["read-only"], maxTurns: 4 },
+    });
+    const result = await agent.run("go");
+    expect(calls).toEqual([{ count: 7 }]);
+    expect(result.turns).toBe(3);
+  });
+
   it("blocks tool calls for names that are not registered", async () => {
     const { factory, faux } = makeHarness();
     const probe = makeProbeTool("probe");

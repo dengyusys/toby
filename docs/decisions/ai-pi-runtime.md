@@ -27,8 +27,15 @@ as the agent loop. The guardrails below are part of the deal.
 1. **The trust boundary is deterministic server-side validation.** Tool
    schemas (Zod, converted to JSON Schema at the pi boundary) only constrain _shape_; semantic validation (amounts
    to integer cents, real calendar dates, entry bounds) stays hand-written
-   in each domain. AI output — including tool arguments — is untrusted
-   input, always.
+   in each domain. Since pi 1.5.0 the boundary validates through pi-schema
+   _with coercion_: loosely typed tool arguments (numeric strings, a bare
+   value where an array is declared) are coerced to the schema's shape
+   instead of bounced — coercion can re-type and even truncate, so nothing
+   reaches a domain on the strength of coercion alone; the hand-written
+   gate still decides. `format` keywords are annotations there (the
+   draft 2020-12 default), so format semantics likewise stay in domain
+   validation. AI output — including tool arguments — is untrusted input,
+   always.
 2. **Every real effect goes through proposal → user confirmation →
    transactional execution.** The shared actions kernel (the
    proposal-confirmation state machine) lives in `infrastructure/actions-kernel/`
@@ -74,10 +81,13 @@ is anticipated but not introduced until a domain needs it.
   defined once in Zod and is simultaneously the model-facing tool
   contract and the server's shape gate; validation.ts remains the
   semantic trust boundary.
-- Versioning: pi-ai / pi-agent-core are pinned exact in the
+- Versioning: pi-ai / pi-agent-core / pi-schema are pinned exact in the
   pnpm catalog (pnpm-workspace.yaml) — pi-agent-core depends on exact
-  versions, and a caret would install a second pi-ai copy and split the
-  types.
+  versions, and a caret would install a second copy and split the
+  types. pi-schema is also a direct dependency: `tool-schema.ts` compiles
+  every emitted tool schema at boot (pi-ai validates tool arguments with
+  pi-schema at run time), so a schema pi cannot compile fails assembly,
+  not a production run.
 
 ## Failure handling
 

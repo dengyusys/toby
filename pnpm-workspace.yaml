@@ -81,15 +81,20 @@ catalog:
   zod: ^4.6.7
 
   # AI runtime (pi ecosystem) — pinned exact: pi-agent-core depends on exact
-  # pi-ai 1.3.0; a caret here would install a second copy of pi-ai and split
-  # the Message/Context types across versions. The server has no direct
-  # TypeBox dependency: tool schemas are Zod, and pi-ai's own `TSchema`
-  # signatures resolve from its module graph.
-  # AI 运行时（pi 生态）—— 精确钉版:pi-agent-core 精确依赖 pi-ai 1.3.0;
-  # 这里若用 ^ 会装出第二份 pi-ai,类型跨版本分叉。服务端不再直接依赖
-  # TypeBox:工具 schema 用 Zod,pi-ai 签名里的 `TSchema` 由它自己的模块图解析。
-  "@earendil-works/pi-ai": 1.3.0
-  "@earendil-works/pi-agent-core": 1.3.0
+  # pi-ai / pi-schema versions; a caret here would install a second copy and
+  # split the Message/Context types across versions. Since pi 1.5.0 the pi
+  # packages validate tool arguments with pi-schema (no TypeBox): tool
+  # parameters are plain JSON Schema, so Zod's z.toJSONSchema output fits the
+  # AgentTool type directly. pi-schema is also a direct dependency: the server
+  # compiles each emitted tool schema at boot as a fail-fast self-check.
+  # AI 运行时（pi 生态）—— 精确钉版:pi-agent-core 精确依赖 pi-ai / pi-schema;
+  # 这里若用 ^ 会装出第二份副本,类型跨版本分叉。pi 1.5.0 起工具实参由
+  # pi-schema 校验(不再用 TypeBox):工具参数就是纯 JSON Schema,Zod 的
+  # z.toJSONSchema 产物可直接匹配 AgentTool 类型。pi-schema 同时是直接依赖:
+  # 服务端在启动时逐个编译工具 schema,作为启动即败的自检。
+  "@earendil-works/pi-ai": 1.5.0
+  "@earendil-works/pi-agent-core": 1.5.0
+  "@earendil-works/pi-schema": 1.5.0
 
   # Testing — vitest everywhere, DOM stack for the web apps.
   # 测试 —— vitest 全局使用,DOM 栈归前端应用。

@@ -33,6 +33,7 @@ import type {
 } from "@earendil-works/pi-ai";
 import type { z } from "zod";
 import { toolSchema } from "./tool-schema.ts";
+import type { ToolParameterSchema } from "./tool-schema.ts";
 import type { AiRuntimeConfig } from "./types.ts";
 import { AiError } from "./errors.ts";
 import { resolveCatalogModel } from "./catalog.ts";
@@ -44,7 +45,7 @@ export type ToolKind = "read-only" | "write-intent";
 /** A pi-agent-core tool wrapped with its mandatory safety kind. */
 export interface TobyTool {
   readonly kind: ToolKind;
-  readonly tool: AgentTool;
+  readonly tool: AgentTool<ToolParameterSchema>;
 }
 
 /**
@@ -65,18 +66,22 @@ export type TobyToolDefinition<S extends z.ZodType> = Omit<
 
 /**
  * Wrap a tool with its mandatory safety kind, converting the Zod parameters
- * to the JSON Schema pi-ai expects. The cast is the single seam between the
- * two schema worlds (see tool-schema.ts).
+ * to the JSON Schema pi validates. Since pi 1.5.0 `parameters` is any JSON
+ * Schema object, so the document itself needs no cast; the single remaining
+ * one is `execute`, authored against Zod's inferred argument type while pi
+ * passes the arguments pi-schema coerced against that same document. Every
+ * other field of the tool object is compiler-checked.
  */
 export function defineTool<S extends z.ZodType>(
   kind: ToolKind,
   definition: TobyToolDefinition<S>,
 ): TobyTool {
-  const { parameters, ...rest } = definition;
-  const tool = {
+  const { parameters, execute, ...rest } = definition;
+  const tool: AgentTool<ToolParameterSchema> = {
     ...rest,
     parameters: toolSchema(parameters),
-  } as unknown as AgentTool;
+    execute: execute as AgentTool<ToolParameterSchema>["execute"],
+  };
   return { kind, tool };
 }
 
