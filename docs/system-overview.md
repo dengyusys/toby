@@ -10,20 +10,20 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 
 ## Stack
 
-| Layer    | Choice                                                                                                                                                                              |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime  | Node 22.23.2; server built with `nest build`, webs with Vite                                                                                                                        |
-| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                                                                                   |
-| Server   | NestJS 12 on the Node HTTP adapter + own db adapter port — "port" as in ports-and-adapters, not a network port — (SQLite default, MySQL optional) + zod (AI: pi-ai + pi-agent-core) |
-| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                                                                           |
-| Tests    | vitest + happy-dom + @testing-library                                                                                                                                               |
+| Layer    | Choice                                                                                                                                                     |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime  | Node 22.23.2; server built with `tsc`, webs with Vite                                                                                                      |
+| Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                                                          |
+| Server   | Fastify 5 + own db adapter port — "port" as in ports-and-adapters, not a network port — (SQLite default, MySQL optional) + zod (AI: pi-ai + pi-agent-core) |
+| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                                                  |
+| Tests    | vitest + happy-dom + @testing-library                                                                                                                      |
 
 ## System context
 
 ```mermaid
 flowchart LR
     U(("User")) --> W["Two web apps (React SPAs:<br/>PC at / and mobile at /m/)"]
-    W -->|"read-only APIs / proposals (HTTP)"| S["Toby server · single process (NestJS · Node HTTP adapter)<br/>vertical domains · proposal lifecycle (actions kernel)"]
+    W -->|"read-only APIs / proposals (HTTP)"| S["Toby server · single process (Fastify)<br/>vertical domains · proposal lifecycle (actions kernel)"]
     S --> DB[("Databases via the adapter port<br/>SQLite (default) · MySQL (optional)<br/>only the server writes")]
     S -->|"kind-gated tools; writes only via proposals"| AI(("AI via pi-ai / pi-agent-core"))
 ```
@@ -38,7 +38,7 @@ flowchart LR
 
 ```text
 apps/
-├─ server/        # @toby/server: NestJS single process — pages, APIs, proposals, safe writes
+├─ server/        # @toby/server: Fastify single process — pages, APIs, proposals, safe writes
 ├─ web/           # @toby/web: PC app (entry /)
 ├─ web-mobile/    # @toby/web-mobile: mobile app (entry /m/)
 packages/
@@ -113,7 +113,7 @@ Two non-inferable details: the AI's draft passes shape, domain, and semantic val
 
 ```mermaid
 flowchart TB
-    BOOT["main.ts (composition root)<br/>one line per domain; all cross-domain wiring lives here"]
+    BOOT["app.ts (composition root)<br/>one line per domain; all cross-domain wiring lives here"]
     INFRA["infrastructure/<br/>config (TOBY_*) · http (body limits / error body / no-store / dual-SPA static)<br/>model (AI runtime) · actions-kernel (proposal kernel) · db (adapter port: sqlite / mysql)"]
     DOM["domains/*<br/>business domains, landing one by one"]
     BOOT --> INFRA
@@ -122,7 +122,7 @@ flowchart TB
 
 Domain organization discipline:
 
-- Every domain under `domains/` contains its own module (Nest module factory), controller, services, stores, and pure business files; **domains never import each other** — cross-domain wiring happens only in the composition root `apps/server/src/main.ts`.
+- Every domain under `domains/` contains its own plugin (self-assembly), routes, services, stores, and pure business files; **domains never import each other** — cross-domain wiring happens only in the composition root `apps/server/src/app.ts`.
 - A domain's `types.ts` stays pure: no HTTP adapter, no infrastructure, no `node:` imports.
 - `infrastructure/` never imports business domains; database opening is provided by `infrastructure/db` and consumed by domain stores.
 - Adding a business domain needs no rule registration — the boundary tests in `test/boundaries.test.ts` discover domains from the filesystem.
@@ -138,7 +138,7 @@ Security boundaries:
 
 - Re-evaluate in-domain layering or splitting when a domain exceeds 15 files; split single files past 400 lines by concern.
 - Configuration is resolved once at startup by `infrastructure/config`'s `resolveConfig({ env })` (`TOBY_*` environment variables); no global config at import time — the entry passes it explicitly, tests inject their own `env`.
-- Web/packages `.ts` runs on Node 22 with no build step; the server is built with `nest build`. Style rules per package: see AGENTS.md (`erasableSyntaxOnly` still enforces web/packages).
+- Web/packages `.ts` runs on Node 22 with no build step; the server is built with plain `tsc`. Style rules per package: see AGENTS.md (`erasableSyntaxOnly` applies to every package, the server included).
 - When adjusting layout, update this document and path references in affected docs in the same change; long-lived trade-offs get an ADR in `docs/decisions/`. The full maintenance rules live in the [living docs decision](decisions/living-docs.md).
 
 ## Glossary
@@ -153,9 +153,9 @@ Terms this repository uses with a specific meaning; one line each — the author
 | gate (policy / shape / health) | Enforcement points: policy = tool kinds an agent may call; shape = Zod schema check; health = dev startup readiness                                                 |
 | trust boundary                 | Deterministic server-side validation — the AI's output (and every other foreign input) is untrusted until it passes                                                 |
 | adapter port                   | "Port" as in ports-and-adapters: the interface behind which SQLite / MySQL swap                                                                                     |
-| composition root               | `apps/server/src/main.ts` — the only place cross-domain wiring happens                                                                                              |
-| vertical domain slice          | One business = one directory owning its controller, service, store, and rules                                                                                       |
+| composition root               | `apps/server/src/app.ts` — the only place cross-domain wiring happens                                                                                               |
+| vertical domain slice          | One business = one directory owning its routes, service, store, and rules                                                                                           |
 | modular monolith               | Modules isolated in code, assembled and run by one process                                                                                                          |
 | single-flight                  | Concurrent confirms and the sweeper share one execution                                                                                                             |
-| error body                     | The one error shape: Nest's `{ statusCode, message, error }` plus a machine-readable `errorCode`                                                                    |
+| error body                     | The one error shape: `{ statusCode, message, error }` plus a machine-readable `errorCode` (the sanitized 500 keeps only `statusCode` and `message`)                 |
 | sweeper                        | The periodic task that auto-writes due proposals and prunes expired ones                                                                                            |

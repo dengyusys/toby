@@ -843,7 +843,7 @@
               sys: null,
               code: '<span class="k">RUN</span> pnpm run build',
               title: "构建两 Web + 服务端",
-              body: "依次构建 @toby/web、@toby/web-mobile(产出静态文件)与 @toby/server(nest build 编译进 apps/server/dist)。到此 Stage 1 的使命完成。",
+              body: "依次构建 @toby/web、@toby/web-mobile(产出静态文件)与 @toby/server(tsc 编译进 apps/server/dist)。到此 Stage 1 的使命完成。",
               bullets: [
                 "产物全部位于 apps/*/dist 目录",
                 "只依赖源码层:改代码只重跑构建,依赖安装层继续命中缓存",

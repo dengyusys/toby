@@ -18,28 +18,29 @@ Traditional layering organizes directories by technical responsibility (`control
 src/
 ├── domains/
 │   ├── schedule/
-│   │   ├── schedule.controller.ts
+│   │   ├── schedule.routes.ts
 │   │   ├── schedule.service.ts
-│   │   ├── schedule.module.ts
+│   │   ├── schedule.plugin.ts
 │   │   ├── store.ts
 │   │   └── types.ts
 │   └── ledger/
 │       └── …same shape…
 ├── infrastructure/
+├── app.ts
 └── main.ts
 ```
 
-Nest role files carry the domain name (`<domain>.controller.ts`, `<domain>.service.ts`,
-`<domain>.module.ts`) — that is what `nest g` emits, and it keeps three
-`service.ts` files from looking identical in an editor. Domain vocabulary
-(`types.ts`, `errors.ts`, `store.ts`, `schema.ts`) stays unprefixed: it is
-scoped by the folder and appears once.
+Role files carry the domain name (`<domain>.routes.ts`, `<domain>.service.ts`,
+`<domain>.plugin.ts`) — it keeps three `service.ts` files from looking
+identical in an editor. Domain vocabulary (`types.ts`, `errors.ts`,
+`store.ts`, `schema.ts`) stays unprefixed: it is scoped by the folder and
+appears once.
 
 For example, when modifying the ledger feature, the routes, business logic, and storage all sit in `domains/ledger/` — no hunting through multiple technical directories.
 
 ## Why domain slices?
 
-**The code structure tracks business change.** Adding a new domain means adding a module and wiring it in `main.ts`, leaving existing modules untouched; each domain owns its rules, logic, and data access and does not import other domains — cross-domain collaboration is wired in the composition root (`main.ts` + `app.module.ts`) through explicit interfaces, and the import-boundary tests (`test/boundaries.test.ts`) enforce these constraints so they are not left to discipline.
+**The code structure tracks business change.** Adding a new domain means adding its plugin and registering it in `app.ts`, leaving existing domains untouched; each domain owns its rules, logic, and data access and does not import other domains — cross-domain collaboration is wired in the composition root (`app.ts`) through explicit interfaces, and the import-boundary tests (`test/boundaries.test.ts`) enforce these constraints so they are not left to discipline.
 
 **Business logic is easier to understand and test.** A domain's implementation lives in one directory; you don't need to understand the whole project's layering to read it. Business rules that avoid framework and infrastructure dependencies can be plain functions — unit-testable directly, without an HTTP server or a database.
 

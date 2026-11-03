@@ -25,7 +25,7 @@ All from the repo root:
 | `pnpm run lint`                    | ESLint only (code-quality rules)                                                            |
 | `pnpm run format` / `format:check` | Prettier format / check                                                                     |
 | `pnpm run test`                    | All tests (builds the server first; per-package + root HTTP integration and boundary tests) |
-| `pnpm run build`                   | Build both web apps and the server (`nest build` → `dist/`)                                 |
+| `pnpm run build`                   | Build both web apps and the server (`tsc` → `dist/`)                                        |
 
 Ports, processes, and deployment details live in `docs/operations/` — not repeated here.
 
@@ -47,7 +47,7 @@ If one change touches several rows, run all the checks those rows list.
 
 ## Project structure
 
-- `apps/server/` — single server process; composition root `src/main.ts`; vertical domain slices under `src/domains/<domain>/`. Each domain registers its wire error codes in a closed union in `src/domains/<domain>/errors.ts` — add new codes there and in the web clients, nowhere else.
+- `apps/server/` — single server process; composition root `src/app.ts` (`src/main.ts` only boots it); vertical domain slices under `src/domains/<domain>/`. Each domain registers its wire error codes in a closed union in `src/domains/<domain>/errors.ts` — add new codes there and in the web clients, nowhere else.
 - `apps/web/` (PC, served at `/`) and `apps/web-mobile/` (mobile, `/m/`) — two React SPAs; they never import each other.
 - `packages/contract/` (pure logic) — the only cross-app sharing path; components and styles are owned by each app and never shared.
 - Dependency direction is always `apps → packages`: packages never import apps; the web apps never import `@toby/server`.
@@ -58,7 +58,7 @@ If one change touches several rows, run all the checks those rows list.
 ## Code style
 
 - `apps/web`, `apps/web-mobile`, `packages`: `.ts` runs on Node 22 with no build step — no `enum` / `namespace` / constructor parameter properties; use `import type` (`erasableSyntaxOnly` enforces this).
-- `apps/server`: built with `nest build`; decorators, `emitDecoratorMetadata`, constructor parameter properties and Nest idioms are allowed there. Server tests run through vitest with the swc transform (`apps/server/vitest.config.ts`), which emits decorator metadata like the build — write services as `@Injectable()` classes with constructor injection; use `@Inject(token)` only for value-shaped or optional dependencies (`TOBY_CONFIG` / `CLOCK`, domain extractor / timing tokens) and no logging of its own — the server keeps no application log.
+- `apps/server`: plain Fastify, built with plain `tsc` — the same erasable-syntax rules as above (no decorators, no constructor parameter properties). Services are closure factories over explicit dependencies (config, clock, store, extractor…), not classes; each domain assembles itself in its `<domain>.plugin.ts`, and the composition root `src/app.ts` installs the session guard on every `/api` route by default (a route opts out with `config: { public: true }`). Tests drive the app through fastify's `inject`. No logging of its own — the server keeps no application log beyond the one stderr line an unexpected 500 prints.
 - No Python; introducing it requires an ADR first.
 
 ## Git workflow

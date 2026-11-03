@@ -25,7 +25,7 @@
 | `pnpm run lint`                    | 仅 ESLint(代码质量规则)                                             |
 | `pnpm run format` / `format:check` | Prettier 格式化 / 校验                                              |
 | `pnpm run test`                    | 全部测试(先构建服务端;各包 + 根 HTTP 集成与边界测试)                |
-| `pnpm run build`                   | 构建两个 web 与服务端(`nest build` → `dist/`)                       |
+| `pnpm run build`                   | 构建两个 web 与服务端(`tsc` → `dist/`)                              |
 
 端口、进程、部署细节看 `docs/operations/`,这里不重复。
 
@@ -47,7 +47,7 @@
 
 ## 目录结构
 
-- `apps/server/`——服务端单进程;组合根 `src/main.ts`;垂直域切片在 `src/domains/<域>/`。每个域的对外错误码以闭联合集形式登记在 `src/domains/<域>/errors.ts`——新增错误码只加在那里和 web 客户端,别处不加。
+- `apps/server/`——服务端单进程;组合根 `src/app.ts`(`src/main.ts` 只负责启动);垂直域切片在 `src/domains/<域>/`。每个域的对外错误码以闭联合集形式登记在 `src/domains/<域>/errors.ts`——新增错误码只加在那里和 web 客户端,别处不加。
 - `apps/web/`(PC 端,`/`)与 `apps/web-mobile/`(移动端,`/m/`)——两个 React SPA,互不导入。
 - `packages/contract/`(纯逻辑)——唯一的跨端共享通道;组件与样式各端自持,永不共享。
 - 依赖方向永远 `apps → packages`:packages 不许 import apps;前端不许 import `@toby/server`。
@@ -58,7 +58,7 @@
 ## 代码风格
 
 - `apps/web`、`apps/web-mobile`、`packages`:`.ts` 由 Node 22 直跑、无构建 —— 禁 `enum` / `namespace` / 类参数属性;类型导入用 `import type`(`erasableSyntaxOnly` 自动拦违规)。
-- `apps/server`:经 `nest build` 构建;允许装饰器、`emitDecoratorMetadata`、类参数属性与 Nest 惯用法。server 测试走 vitest 的 swc 转换(`apps/server/vitest.config.ts`),与构建一样产出装饰器元数据——服务写成带构造注入的 `@Injectable()` 类;`@Inject(token)` 只用于值型或可选依赖(`TOBY_CONFIG` / `CLOCK`,域 extractor / timing token),且不自带日志——服务端不保留应用日志。
+- `apps/server`:原生 Fastify,经纯 `tsc` 构建——遵循与上面相同的可擦除语法规则(禁装饰器、禁类参数属性)。服务是对显式依赖(config、clock、store、extractor 等)的闭包工厂,不写成类;每个域在自己的 `<域>.plugin.ts` 中自装配,组合根 `src/app.ts` 默认给每条 `/api` 路由装上会话守卫(路由以 `config: { public: true }` 显式豁免)。测试经 fastify 的 `inject` 驱动应用。不自带日志——服务端不保留应用日志,唯一例外是意外 500 时向 stderr 打印的那一行。
 - 禁 Python;引入前必须先有 ADR。
 
 ## Git 工作流

@@ -43,7 +43,7 @@ hand, because one "cancel" — before the deadline — stops everything.
 ## Guardrails
 
 - The kernel starts no timers: domains drive the sweeper from their
-  module and pass their executors at commit time.
+  plugin and pass their executors at commit time.
 - Executors never run outside the gate: every write-intent AI tool
   routes through a proposal; direct-write endpoints are defects.
 - Prohibited capabilities (database, shell, file paths) never become

@@ -10,20 +10,20 @@
 
 ## 技术栈
 
-| 层     | 选型                                                                                                                                                                     |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 运行   | Node 22.23.2;服务端经 `nest build` 构建,前端经 Vite 构建                                                                                                                 |
-| 包管理 | pnpm 11.18.0 workspaces(`apps/*` + `packages/*`)                                                                                                                         |
-| 服务端 | NestJS 12（跑于 Node HTTP 适配器之上）+ 自建数据库适配 port —— 指 ports-and-adapters 架构概念,非网络端口 —— （默认 SQLite，可选 MySQL）+ zod（AI:pi-ai + pi-agent-core） |
-| 前端   | React 19 + Vite 6 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`)                                                                                                    |
-| 测试   | vitest + happy-dom + @testing-library                                                                                                                                    |
+| 层     | 选型                                                                                                                                         |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 运行   | Node 22.23.2;服务端经 `tsc` 构建,前端经 Vite 构建                                                                                            |
+| 包管理 | pnpm 11.18.0 workspaces(`apps/*` + `packages/*`)                                                                                             |
+| 服务端 | Fastify 5 + 自建数据库适配 port —— 指 ports-and-adapters 架构概念,非网络端口 —— （默认 SQLite，可选 MySQL）+ zod（AI:pi-ai + pi-agent-core） |
+| 前端   | React 19 + Vite 6 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`)                                                                        |
+| 测试   | vitest + happy-dom + @testing-library                                                                                                        |
 
 ## 系统上下文
 
 ```mermaid
 flowchart LR
     U(("用户")) --> W["Web 双应用(React SPA:<br/>PC 端 / 与移动端 /m/)"]
-    W -->|"只读 API / 提案(HTTP)"| S["Toby server 单进程(NestJS · Node HTTP 适配器)<br/>垂直域 · 提案生命周期(actions 内核)"]
+    W -->|"只读 API / 提案(HTTP)"| S["Toby server 单进程(Fastify)<br/>垂直域 · 提案生命周期(actions 内核)"]
     S --> DB[("数据库，经适配 port 访问<br/>SQLite（默认）·MySQL（可选）<br/>只有 server 写")]
     S -->|"按安全分级门控的工具调用;写入只经提案"| AI(("AI 经 pi-ai / pi-agent-core 接入"))
 ```
@@ -38,7 +38,7 @@ flowchart LR
 
 ```text
 apps/
-├─ server/        # @toby/server:NestJS 单进程——页面、API、提案与安全写入
+├─ server/        # @toby/server:Fastify 单进程——页面、API、提案与安全写入
 ├─ web/           # @toby/web:PC 端(入口 /)
 ├─ web-mobile/    # @toby/web-mobile:移动端(入口 /m/)
 packages/
@@ -113,7 +113,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-    BOOT["main.ts(组合根)<br/>每域一行装配,跨域接线只在这里"]
+    BOOT["app.ts(组合根)<br/>每域一行装配,跨域接线只在这里"]
     INFRA["infrastructure/<br/>config(TOBY_*)·http(请求体上限/错误体/no-store/双 SPA 静态)<br/>model(AI 运行时)·actions-kernel(提案内核)·db(适配 port:sqlite / mysql)"]
     DOM["domains/*<br/>业务域,逐个落地"]
     BOOT --> INFRA
@@ -122,7 +122,7 @@ flowchart TB
 
 域组织纪律:
 
-- `domains/` 下每个域自含 Nest 模块工厂、controller、service、store 与纯业务文件;**域与域互不导入**,跨域接线只发生在组合根 `apps/server/src/main.ts`。
+- `domains/` 下每个域自含插件(自装配)、路由、service、store 与纯业务文件;**域与域互不导入**,跨域接线只发生在组合根 `apps/server/src/app.ts`。
 - 域内 `types.ts` 保持纯净:不导入 HTTP 适配器、infrastructure、`node:` 模块。
 - `infrastructure/` 不导入业务域;开库能力由 `infrastructure/db` 提供,域内 store 消费。
 - 新增业务域无需登记规则——`test/boundaries.test.ts` 的边界测试从文件系统自动发现各域。
@@ -138,26 +138,26 @@ flowchart TB
 
 - 单个域超过 15 个文件时,重新评估域内分层或拆子域;域内单文件超过 400 行时,按关注点拆分。
 - 配置由 `infrastructure/config` 的 `resolveConfig({ env })` 启动时统一解析(`TOBY_*` 环境变量);不在导入时解析全局配置,入口显式传入,测试可注入独立 `env`。
-- 前端/packages 的 `.ts` 由 Node 22 直跑、无构建;服务端经 `nest build` 构建。各包风格规则见 AGENTS.md(`erasableSyntaxOnly` 仍对前端/packages 生效)。
+- 前端/packages 的 `.ts` 由 Node 22 直跑、无构建;服务端经纯 `tsc` 构建。各包风格规则见 AGENTS.md(`erasableSyntaxOnly` 对所有包生效,服务端也不例外)。
 - 执行目录调整时,同步更新本文与受影响文档的路径引用;长期取舍新增 ADR 到 `docs/decisions/`。完整的维护规则见[文档维护决策](decisions/living-docs.zh.md)。
 
 ## 术语表
 
 本仓库中带特定含义的术语,每词一行——权威定义见该术语首次出现处。
 
-| 术语                                    | 含义                                                                                                          |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 提案 / 提案卡(proposal / proposal card) | 短期的、需用户确认的写入建议;确认之前不写入任何数据                                                           |
-| 提案确认内核(actions kernel)            | `infrastructure/actions-kernel/` (`registry.ts`) 中的共享提案确认状态机(30 秒默许窗口、TTL 兜底、单飞 commit) |
-| 安全分级(safety kind)                   | 工具注册时的类别:`read-only`(无状态改变)或 `write-intent`(只能经提案产生效果);`costly` 为将来预留             |
-| 门控(policy / shape / health gate)      | 三类强制点:policy = agent 可调用的工具分级;shape = Zod schema 校验;health = 开发期启动就绪检查                |
-| 信任边界(trust boundary)                | 服务端确定性校验——AI 输出(以及一切外来输入)通过校验之前都是非受信的                                           |
-| 适配 port(adapter port)                 | ports-and-adapters 意义上的 port:SQLite / MySQL 在其后替换的接口                                              |
-| 组合根(composition root)                | `apps/server/src/main.ts` —— 跨域接线唯一发生的地方                                                           |
-| 垂直域切片(vertical domain slice)       | 一个业务 = 一个目录,自含 controller、service、store 与规则                                                    |
-| 模块化单体(modular monolith)            | 模块在代码层隔离,由单进程装配运行                                                                             |
-| 单飞(single-flight)                     | 并发确认与清扫任务合并为同一次执行                                                                            |
-| 错误体(error body)                      | 唯一错误形状:Nest 的 `{ statusCode, message, error }` 外加机器可读的 `errorCode`                              |
-| 清扫任务(sweeper)                       | 周期任务:自动写入到期的提案并清理已过期的记录                                                                 |
+| 术语                                    | 含义                                                                                                                    |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 提案 / 提案卡(proposal / proposal card) | 短期的、需用户确认的写入建议;确认之前不写入任何数据                                                                     |
+| 提案确认内核(actions kernel)            | `infrastructure/actions-kernel/` (`registry.ts`) 中的共享提案确认状态机(30 秒默许窗口、TTL 兜底、单飞 commit)           |
+| 安全分级(safety kind)                   | 工具注册时的类别:`read-only`(无状态改变)或 `write-intent`(只能经提案产生效果);`costly` 为将来预留                       |
+| 门控(policy / shape / health gate)      | 三类强制点:policy = agent 可调用的工具分级;shape = Zod schema 校验;health = 开发期启动就绪检查                          |
+| 信任边界(trust boundary)                | 服务端确定性校验——AI 输出(以及一切外来输入)通过校验之前都是非受信的                                                     |
+| 适配 port(adapter port)                 | ports-and-adapters 意义上的 port:SQLite / MySQL 在其后替换的接口                                                        |
+| 组合根(composition root)                | `apps/server/src/app.ts` —— 跨域接线唯一发生的地方                                                                      |
+| 垂直域切片(vertical domain slice)       | 一个业务 = 一个目录,自含路由、service、store 与规则                                                                     |
+| 模块化单体(modular monolith)            | 模块在代码层隔离,由单进程装配运行                                                                                       |
+| 单飞(single-flight)                     | 并发确认与清扫任务合并为同一次执行                                                                                      |
+| 错误体(error body)                      | 唯一错误形状:`{ statusCode, message, error }` 外加机器可读的 `errorCode`(净化后的 500 只保留 `statusCode` 与 `message`) |
+| 清扫任务(sweeper)                       | 周期任务:自动写入到期的提案并清理已过期的记录                                                                           |
 
 中文域名对照:记账=ledger、对话=chat、问候=greeting、日程=schedule、手账=notes、待办=todo、记忆=memory、书库=library。

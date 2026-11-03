@@ -15,12 +15,13 @@ The server's first domain: two minimal read-only endpoints that walk the whole c
 
 - `health` is the liveness probe: the container healthcheck target, always `{"status":"ok"}`. It probes nothing — a readiness check (disk, heap, dependency reachability) is added when a deployment has to act on it.
 - `info` is the runtime identity: version, Node version, start time, uptime — the first thing to check when debugging a deployed instance.
-- Domain template: `types.ts` (pure) + `<domain>.controller.ts` + `<domain>.module.ts` (self-assembly), one line in `app.module.ts`.
+- Domain template: `types.ts` (pure) + `<domain>.routes.ts` + `<domain>.service.ts` + `<domain>.plugin.ts` (self-assembly), one line in `app.ts`.
 
 ## Interface
 
-All JSON, read-only, no parameters; errors use the server's one error body — Nest's
-`{ statusCode, message, error }` plus a machine-readable `errorCode`.
+All JSON, read-only, no parameters; errors use the server's one error body —
+`{ statusCode, message, error }` plus a machine-readable `errorCode` (the
+sanitized 500 keeps only `statusCode` and `message`).
 
 | Method and path          | Purpose                                                               |
 | ------------------------ | --------------------------------------------------------------------- |

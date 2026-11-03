@@ -14,7 +14,7 @@
 
 ## `pnpm run dev`
 
-服务端经 `nest start --watch`(由 `scripts/nest-dev.js` 拉起)运行:编译到 `dist/` 并在改动后自动重启。
+服务端经 `scripts/server-dev.js` 运行:`tsc --watch` 编译到 `dist/`,首次干净编译后 `node --watch dist/main.js` 才启动——改动后自动重新编译并重启;编译报错时旧服务继续运行,修好为止。
 
 一条命令拉起三个进程,由 `scripts/dev.js` 编排:
 

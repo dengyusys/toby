@@ -14,7 +14,7 @@ All ports are fixed (`strictPort`): if one is occupied, that process fails fast 
 
 ## `pnpm run dev`
 
-The server runs via `nest start --watch` (through `scripts/nest-dev.js`): it compiles to `dist/` and restarts on change.
+The server runs via `scripts/server-dev.js`: `tsc --watch` compiles to `dist/`, and `node --watch dist/main.js` starts once the first compile is clean — it recompiles and restarts on change, and a compile error keeps the old server running until fixed.
 
 Starts three processes from one command, orchestrated by `scripts/dev.js`:
 

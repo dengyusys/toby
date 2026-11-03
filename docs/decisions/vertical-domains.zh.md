@@ -18,26 +18,27 @@
 src/
 ├── domains/
 │   ├── schedule/
-│   │   ├── schedule.controller.ts
+│   │   ├── schedule.routes.ts
 │   │   ├── schedule.service.ts
-│   │   ├── schedule.module.ts
+│   │   ├── schedule.plugin.ts
 │   │   ├── store.ts
 │   │   └── types.ts
 │   └── ledger/
 │       └── …同构…
 ├── infrastructure/
+├── app.ts
 └── main.ts
 ```
 
-Nest 角色文件带域前缀(`<域>.controller.ts`、`<域>.service.ts`、`<域>.module.ts`)——
-这正是 `nest g` 生成的名字,也让三个 `service.ts` 在编辑器里不至于长得一模一样。
+角色文件带域前缀(`<域>.routes.ts`、`<域>.service.ts`、`<域>.plugin.ts`)——
+这让三个 `service.ts` 在编辑器里不至于长得一模一样。
 域内词汇(`types.ts`、`errors.ts`、`store.ts`、`schema.ts`)不加前缀:它们由目录限定作用域,且每个只出现一次。
 
 例如,修改记账功能时,相关路由、业务逻辑和存储代码都集中在 `domains/ledger/` 中,不必在多个技术目录之间寻找和修改文件。
 
 ## 为什么选择业务域切片?
 
-**让代码结构贴近业务变化。** 新增业务域时,通过新增模块并在 `main.ts` 中完成装配,减少对已有模块的影响;每个业务域负责自己的规则、逻辑和数据访问,不直接依赖其他业务域——跨域协作由组合根(`main.ts` + `app.module.ts`)通过明确的接口装配,并且这些约束由 `test/boundaries.test.ts` 中的边界测试机器强制,不依赖开发者自觉。
+**让代码结构贴近业务变化。** 新增业务域时,通过新增该域的插件并在 `app.ts` 中注册完成装配,减少对已有域的影响;每个业务域负责自己的规则、逻辑和数据访问,不直接依赖其他业务域——跨域协作由组合根(`app.ts`)通过明确的接口装配,并且这些约束由 `test/boundaries.test.ts` 中的边界测试机器强制,不依赖开发者自觉。
 
 **让业务逻辑更容易理解和测试。** 一个业务域的主要实现集中在同一个目录中,阅读代码时不必先了解整个项目的技术分层。不依赖框架和基础设施的业务规则可以用普通函数实现,直接进行单元测试,不需要启动 HTTP 服务或连接数据库。
 
