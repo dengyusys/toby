@@ -1,13 +1,17 @@
 /**
  * Ledger service against a fake store and an injected clock: the proposal
  * lifecycle — auto-write after the confirmation window, single-flight and
- * idempotent commit, cancel semantics, expiry, memory pruning.
+ * idempotent commit, cancel semantics, expiry, memory pruning — and the
+ * sweeper's start/stop lifecycle.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ProposalBody } from "../../src/domains/ledger/dto/create-proposal.dto.ts";
-import { LedgerService } from "../../src/domains/ledger/ledger.service.ts";
-import { LedgerStore } from "../../src/domains/ledger/store.ts";
+import {
+  createLedgerService,
+  type LedgerService,
+} from "../../src/domains/ledger/ledger.service.ts";
+import type { LedgerStore } from "../../src/domains/ledger/store.ts";
 import type {
   LedgerDraft,
   LedgerExtractor,
@@ -18,8 +22,7 @@ import type {
 } from "../../src/domains/ledger/types.ts";
 import { AiError } from "../../src/infrastructure/model/errors.ts";
 
-// The store methods the service actually calls — the class's private
-// fields exist only for DI, so fakes satisfy the structural shape.
+// The store methods the service actually calls; fakes satisfy that slice.
 type LedgerStoreLike = Pick<
   LedgerStore,
   "insertTransactions" | "listMonths" | "listMonthTransactions"
@@ -70,16 +73,16 @@ function fakeStore(options: { failFirstWrites?: number } = {}) {
 
 function makeService(store: LedgerStoreLike, extractor?: LedgerExtractor) {
   let nowMs = Date.parse("2026-10-20T08:00:00.000Z");
-  const service = new LedgerService(
-    store as unknown as LedgerStore,
-    () => nowMs,
-    {
+  const service = createLedgerService({
+    store: store as unknown as LedgerStore,
+    clock: () => nowMs,
+    timing: {
       autoWriteDelayMs: AUTO_WRITE_MS,
       ttlMs: TTL_MS,
       retentionMs: RETENTION_MS,
     },
     extractor,
-  );
+  });
   return {
     service,
     advance: (ms: number) => {
@@ -164,7 +167,7 @@ describe("ledger service proposal lifecycle", () => {
     expect(calls).toHaveLength(0);
     await expect(service.commit(view.proposal_id)).rejects.toMatchObject({
       code: "PROPOSAL_CANCELLED",
-      status: 409,
+      statusCode: 409,
     });
   });
 
@@ -175,7 +178,7 @@ describe("ledger service proposal lifecycle", () => {
     await service.commit(view.proposal_id);
     await expect(service.cancel(view.proposal_id)).rejects.toMatchObject({
       code: "PROPOSAL_COMMITTED",
-      status: 409,
+      statusCode: 409,
     });
 
     const other = await propose(service);
@@ -206,11 +209,11 @@ describe("ledger service proposal lifecycle", () => {
     advance(TTL_MS + 1);
     await expect(service.commit(view.proposal_id)).rejects.toMatchObject({
       code: "PROPOSAL_EXPIRED",
-      status: 410,
+      statusCode: 410,
     });
     await expect(service.cancel(view.proposal_id)).rejects.toMatchObject({
       code: "PROPOSAL_EXPIRED",
-      status: 410,
+      statusCode: 410,
     });
   });
 
@@ -223,13 +226,13 @@ describe("ledger service proposal lifecycle", () => {
     // Expired but retained: still a 410, not a 404.
     await expect(service.commit(view.proposal_id)).rejects.toMatchObject({
       code: "PROPOSAL_EXPIRED",
-      status: 410,
+      statusCode: 410,
     });
     advance(RETENTION_MS + 1);
     service.sweep();
     await expect(service.commit(view.proposal_id)).rejects.toMatchObject({
       code: "PROPOSAL_NOT_FOUND",
-      status: 404,
+      statusCode: 404,
     });
   });
 
@@ -237,11 +240,11 @@ describe("ledger service proposal lifecycle", () => {
     const { service } = makeService(fakeStore().store);
     await expect(service.commit("missing")).rejects.toMatchObject({
       code: "PROPOSAL_NOT_FOUND",
-      status: 404,
+      statusCode: 404,
     });
     await expect(
       service.createProposal({ text: "午饭花了25" }),
-    ).rejects.toMatchObject({ code: "AI_UNAVAILABLE", status: 501 });
+    ).rejects.toMatchObject({ code: "AI_UNAVAILABLE", statusCode: 501 });
   });
 
   it("month reports reject bad months and aggregate empty months", async () => {
@@ -260,6 +263,55 @@ describe("ledger service proposal lifecycle", () => {
       expense_total: 0,
       categories: [],
     });
+  });
+});
+
+describe("ledger service sweeper lifecycle", () => {
+  it("stop waits for the sweep in flight; ticks never overlap a running sweep", async () => {
+    vi.useFakeTimers();
+    try {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let writes = 0;
+      const store: LedgerStoreLike = {
+        async insertTransactions(entries) {
+          writes += 1;
+          await gate; // the store is slow until released
+          return entries.map((_, index) => index + 1);
+        },
+        async listMonths() {
+          return [];
+        },
+        async listMonthTransactions() {
+          return [];
+        },
+      };
+      const { service, advance } = makeService(store);
+      await propose(service);
+      await propose(service);
+      advance(AUTO_WRITE_MS); // both proposals are due
+
+      service.start();
+      await vi.advanceTimersByTimeAsync(1_000); // tick: sweep starts, blocks
+      expect(writes).toBe(1);
+      await vi.advanceTimersByTimeAsync(3_000); // ticks skip while it runs
+      expect(writes).toBe(1);
+
+      let stopped = false;
+      const stopping = service.stop().then(() => {
+        stopped = true;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(stopped).toBe(false); // still waiting for the sweep
+      release();
+      await stopping;
+      // The sweep in flight finished both due proposals before stop resolved.
+      expect(writes).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -345,7 +397,7 @@ describe("ledger service one-sentence path", () => {
       unconfigured.service.createProposal({ text: "x" }),
     ).rejects.toMatchObject({
       code: "AI_UNAVAILABLE",
-      status: 501,
+      statusCode: 501,
     });
     const upstream = makeAiService(() => {
       throw new AiError("request-failed", "provider 500");
@@ -354,7 +406,7 @@ describe("ledger service one-sentence path", () => {
       upstream.service.createProposal({ text: "x" }),
     ).rejects.toMatchObject({
       code: "AI_REQUEST_FAILED",
-      status: 502,
+      statusCode: 502,
     });
     const capped = makeAiService(() => {
       throw new AiError("max-turns-exceeded", "capped");
@@ -363,7 +415,7 @@ describe("ledger service one-sentence path", () => {
       capped.service.createProposal({ text: "x" }),
     ).rejects.toMatchObject({
       code: "AI_REQUEST_FAILED",
-      status: 502,
+      statusCode: 502,
     });
   });
 

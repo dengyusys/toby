@@ -2,19 +2,16 @@
  * Auth domain over HTTP: the contract's five scenarios (not logged in,
  * wrong password, logout, expiry, revocation) plus the exemption surface
  * (login endpoint + static pages). Auth is driven purely through
- * env-injected config and an injected clock.
+ * env-injected config and an injected clock, over the production assembly.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import request from "supertest";
-import type { NestNodeApplication } from "@nestjs/platform-node";
+import type { FastifyInstance } from "fastify";
+import { productionDomains } from "../../src/app.ts";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { SystemModule } from "../../src/domains/system/system.module.ts";
-import { LedgerModule } from "../../src/domains/ledger/ledger.module.ts";
-import { AuthModule } from "../../src/domains/auth/auth.module.ts";
 import { hashPassword } from "../../src/domains/auth/password.ts";
 import { createTestApp } from "../app-fixture.ts";
 
@@ -26,7 +23,7 @@ afterAll(() => {
   rmSync(baseDir, { recursive: true, force: true });
 });
 
-let app: NestNodeApplication;
+let app: FastifyInstance;
 let nowMs: number;
 let caseCounter = 0;
 const BASE_MS = Date.parse("2026-10-20T08:00:00.000Z");
@@ -42,8 +39,7 @@ async function buildApp(env: Record<string, string>): Promise<void> {
   });
   app = await createTestApp({
     config,
-    modules: [SystemModule, LedgerModule, AuthModule],
-    clock: () => nowMs,
+    domains: productionDomains({ config, clock: () => nowMs }),
   });
 }
 
@@ -52,20 +48,13 @@ function send(
   url: string,
   payload?: Record<string, unknown>,
   cookie?: string,
-  extraHeaders?: Record<string, string>,
 ) {
-  const agent = request(app.getHttpServer());
-  const call = method === "GET" ? agent.get(url) : agent.post(url);
-  if (cookie !== undefined) {
-    call.set("cookie", cookie);
-  }
-  for (const [name, value] of Object.entries(extraHeaders ?? {})) {
-    call.set(name, value);
-  }
-  if (payload !== undefined) {
-    call.send(payload);
-  }
-  return call;
+  return app.inject({
+    method,
+    url,
+    ...(payload !== undefined ? { payload } : {}),
+    headers: cookie !== undefined ? { cookie } : {},
+  });
 }
 
 function tokenFrom(response: { headers: Record<string, unknown> }): string {
@@ -93,18 +82,18 @@ describe("auth disabled (no password hash configured)", () => {
 
   it("session reports enabled false and login is rejected", async () => {
     const session = await send("GET", "/api/auth/session");
-    expect(session.status).toBe(200);
-    expect(session.body).toEqual({ enabled: false, authenticated: false });
+    expect(session.statusCode).toBe(200);
+    expect(session.json()).toEqual({ enabled: false, authenticated: false });
 
     const loginResponse = await login(PASSWORD);
-    expect(loginResponse.status).toBe(400);
-    expect(loginResponse.body.errorCode).toBe("AUTH_DISABLED");
+    expect(loginResponse.statusCode).toBe(400);
+    expect(loginResponse.json().errorCode).toBe("AUTH_DISABLED");
   });
 
   it("business endpoints stay open — local dev behavior", async () => {
     const months = await send("GET", "/api/ledger/months");
-    expect(months.status).toBe(200);
-    expect(months.body).toEqual({ months: [] });
+    expect(months.statusCode).toBe(200);
+    expect(months.json()).toEqual({ months: [] });
   });
 });
 
@@ -120,61 +109,112 @@ describe("auth enabled", () => {
       "/api/system/info",
     ]) {
       const response = await send("GET", url);
-      expect(response.status).toBe(401);
-      expect(response.body.errorCode).toBe("AUTH_REQUIRED");
+      expect(response.statusCode).toBe(401);
+      expect(response.json().errorCode).toBe("AUTH_REQUIRED");
     }
     // The auth endpoints themselves stay reachable: logout is idempotent
     // and the session query feeds the login page.
     const logout = await send("POST", "/api/auth/logout");
-    expect(logout.status).toBe(200);
+    expect(logout.statusCode).toBe(200);
     const session = await send("GET", "/api/auth/session");
-    expect(session.status).toBe(200);
-    expect(session.body.authenticated).toBe(false);
+    expect(session.statusCode).toBe(200);
+    expect(session.json().authenticated).toBe(false);
   });
 
   it("health stays public: the Docker healthcheck must not need a session", async () => {
     const health = await send("GET", "/api/system/health");
-    expect(health.status).toBe(200);
-    expect(health.body).toMatchObject({ status: "ok" });
+    expect(health.statusCode).toBe(200);
+    expect(health.json()).toMatchObject({ status: "ok" });
   });
 
   it("percent-encoded paths cannot dodge the session guard", async () => {
     // The router matches /%61pi/... and /api/%6Cedger/... onto /api/...
-    // routes after decoding; the guard's exemption decision comes from
-    // route metadata, so the encoded variants must answer 401 all the same.
+    // routes after decoding, so the guard runs on the matched route and
+    // the encoded variants must answer 401 all the same.
     for (const url of ["/%61pi/ledger/months", "/api/%6Cedger/months"]) {
       const response = await send("GET", url);
-      expect(response.status).toBe(401);
-      expect(response.body.errorCode).toBe("AUTH_REQUIRED");
+      expect(response.statusCode).toBe(401);
+      expect(response.json().errorCode).toBe("AUTH_REQUIRED");
     }
+  });
+
+  it("a trailing slash on an /api route changes nothing", async () => {
+    // The router strips one trailing slash before matching, as it always
+    // has; the guarded route stays guarded, the public one public.
+    const guarded = await send("GET", "/api/ledger/months/");
+    expect(guarded.statusCode).toBe(401);
+    expect(guarded.json().errorCode).toBe("AUTH_REQUIRED");
+    const health = await send("GET", "/api/system/health/");
+    expect(health.statusCode).toBe(200);
+    expect(health.json()).toEqual({ status: "ok" });
   });
 
   it("static pages stay exempt (404 for missing builds, never 401)", async () => {
     const page = await send("GET", "/");
-    expect(page.status).toBe(404);
-    expect(page.body.errorCode).toBe("PAGE_NOT_FOUND");
+    expect(page.statusCode).toBe(404);
+    expect(page.json().errorCode).toBe("PAGE_NOT_FOUND");
   });
 
   it("a body that is not shaped like a login is a 400, not a wrong password", async () => {
     for (const body of [{ password: 123 }, { password: { nested: true } }]) {
       const response = await send("POST", "/api/auth/login", body);
-      expect(response.status).toBe(400);
-      expect(response.body.errorCode).toBe("BAD_REQUEST");
+      expect(response.statusCode).toBe(400);
+      expect(response.json().errorCode).toBe("BAD_REQUEST");
     }
     // A missing field stays a 401: an empty form is a wrong password.
     const empty = await send("POST", "/api/auth/login", {});
-    expect(empty.status).toBe(401);
-    expect(empty.body.errorCode).toBe("INVALID_CREDENTIALS");
+    expect(empty.statusCode).toBe(401);
+    expect(empty.json().errorCode).toBe("INVALID_CREDENTIALS");
+  });
+
+  it("a null body, no body at all, or an unparsed type is a 400", async () => {
+    const requests = [
+      { headers: { "content-type": "application/json" }, payload: "null" },
+      // A content type but no body declared: nothing to log in with.
+      { headers: { "content-type": "application/json" } },
+      // No content type at all: nothing to parse, nothing to log in.
+      {},
+      // A type without a parser is dropped, so the envelope check answers
+      // — including one that is not even type/subtype.
+      {
+        headers: { "content-type": "application/vnd.api+json" },
+        payload: JSON.stringify({ password: PASSWORD }),
+      },
+      {
+        headers: { "content-type": "text+plain" },
+        payload: JSON.stringify({ password: PASSWORD }),
+      },
+    ];
+    for (const request of requests) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        ...request,
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().errorCode).toBe("BAD_REQUEST");
+    }
+  });
+
+  it("a URL-encoded login form works like the JSON one", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      payload: new URLSearchParams({ password: PASSWORD }).toString(),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(String(response.headers["set-cookie"])).toContain("toby_session=");
   });
 
   it("wrong password is 401; the right one sets an HttpOnly cookie", async () => {
     const wrong = await login("nope");
-    expect(wrong.status).toBe(401);
-    expect(wrong.body.errorCode).toBe("INVALID_CREDENTIALS");
+    expect(wrong.statusCode).toBe(401);
+    expect(wrong.json().errorCode).toBe("INVALID_CREDENTIALS");
 
     const right = await login(PASSWORD);
-    expect(right.status).toBe(200);
-    expect(right.body).toEqual({ status: "ok" });
+    expect(right.statusCode).toBe(200);
+    expect(right.json()).toEqual({ status: "ok" });
     const setCookie = String(right.headers["set-cookie"]);
     expect(setCookie).toContain("toby_session=");
     expect(setCookie).toContain("HttpOnly");
@@ -184,16 +224,16 @@ describe("auth enabled", () => {
   });
 
   it("TOBY_AUTH_SECURE_COOKIE=true adds the Secure flag to the session cookie", async () => {
-    // One assertion through three layers: config parse → module assembly →
-    // controller cookie flags. Release the beforeEach assembly first —
-    // an open sqlite file cannot be unlinked on Windows.
+    // One assertion through three layers: config parse → domain assembly →
+    // route cookie flags. Release the beforeEach assembly first — an open
+    // sqlite file cannot be unlinked on Windows.
     await app.close();
     await buildApp({
       TOBY_AUTH_PASSWORD_HASH: PASSWORD_HASH,
       TOBY_AUTH_SECURE_COOKIE: "true",
     });
     const response = await login(PASSWORD);
-    expect(response.status).toBe(200);
+    expect(response.statusCode).toBe(200);
     expect(String(response.headers["set-cookie"])).toContain("; Secure");
   });
 
@@ -202,13 +242,13 @@ describe("auth enabled", () => {
     const cookie = `toby_session=${token}`;
 
     const months = await send("GET", "/api/ledger/months", undefined, cookie);
-    expect(months.status).toBe(200);
+    expect(months.statusCode).toBe(200);
     const health = await send("GET", "/api/system/health", undefined, cookie);
-    expect(health.status).toBe(200);
+    expect(health.statusCode).toBe(200);
 
     const session = await send("GET", "/api/auth/session", undefined, cookie);
-    expect(session.status).toBe(200);
-    const body = session.body as {
+    expect(session.statusCode).toBe(200);
+    const body = session.json() as {
       enabled: boolean;
       authenticated: boolean;
       expires_at?: string;
@@ -226,15 +266,15 @@ describe("auth enabled", () => {
     const cookie = `toby_session=${token}`;
 
     const logout = await send("POST", "/api/auth/logout", undefined, cookie);
-    expect(logout.status).toBe(200);
+    expect(logout.statusCode).toBe(200);
     expect(String(logout.headers["set-cookie"])).toContain("Max-Age=0");
 
     // The old token is revoked even if the client kept the cookie.
     const months = await send("GET", "/api/ledger/months", undefined, cookie);
-    expect(months.status).toBe(401);
+    expect(months.statusCode).toBe(401);
 
     const again = await send("POST", "/api/auth/logout", undefined, cookie);
-    expect(again.status).toBe(200);
+    expect(again.statusCode).toBe(200);
   });
 
   it("sessions expire with the configured TTL", async () => {
@@ -246,7 +286,65 @@ describe("auth enabled", () => {
       undefined,
       `toby_session=${token}`,
     );
-    expect(months.status).toBe(401);
+    expect(months.statusCode).toBe(401);
+  });
+
+  it("a quoted session cookie: the session answers, the guard does not", async () => {
+    // The first server's asymmetry, kept on purpose: the session endpoint
+    // parsed the cookie value (RFC 6265 unquoting), while its guard matched
+    // the raw header — a quoted token is not a token the server ever set.
+    const token = tokenFrom(await login(PASSWORD));
+    const cookie = `toby_session="${token}"`;
+    const session = await send("GET", "/api/auth/session", undefined, cookie);
+    expect(session.statusCode).toBe(200);
+    expect(session.json().authenticated).toBe(true);
+    const months = await send("GET", "/api/ledger/months", undefined, cookie);
+    expect(months.statusCode).toBe(401);
+    expect(months.json().errorCode).toBe("AUTH_REQUIRED");
+  });
+
+  it("HEAD requests follow the same guard as their GET", async () => {
+    const guarded = await app.inject({
+      method: "HEAD",
+      url: "/api/ledger/months",
+    });
+    expect(guarded.statusCode).toBe(401);
+    const health = await app.inject({
+      method: "HEAD",
+      url: "/api/system/health",
+    });
+    expect(health.statusCode).toBe(200);
+  });
+
+  it("an /api route is guarded unless it opts out with config.public", async () => {
+    // Default-secure: a route that forgets to declare itself is protected,
+    // never silently open.
+    await app.close();
+    caseCounter += 1;
+    const config = resolveConfig({
+      env: {
+        TOBY_DATA_ROOT: path.join(baseDir, `case-${caseCounter}`),
+        TOBY_AUTH_PASSWORD_HASH: PASSWORD_HASH,
+      },
+    });
+    app = await createTestApp({
+      config,
+      domains: [
+        ...productionDomains({ config, clock: () => nowMs }),
+        (instance) =>
+          instance.register(async (probe) => {
+            probe.get("/api/probe/default", () => ({ ok: true }));
+            probe.get("/api/probe/open", { config: { public: true } }, () => ({
+              ok: true,
+            }));
+          }),
+      ],
+    });
+    const guarded = await send("GET", "/api/probe/default");
+    expect(guarded.statusCode).toBe(401);
+    expect(guarded.json().errorCode).toBe("AUTH_REQUIRED");
+    const open = await send("GET", "/api/probe/open");
+    expect(open.statusCode).toBe(200);
   });
 });
 

@@ -97,7 +97,7 @@ describe("createActionRegistry", () => {
       .catch((thrown: unknown) => thrown)) as ActionStateError;
     expect(error).toBeInstanceOf(ActionStateError);
     expect(error.code).toBe("PROPOSAL_EXPIRED");
-    expect(error.getStatus()).toBe(410);
+    expect(error.statusCode).toBe(410);
   });
 
   it("cancel works while pending and is rejected after commit", async () => {
@@ -109,13 +109,13 @@ describe("createActionRegistry", () => {
     });
     await expect(registry.commit("a", EXECUTE_OK)).rejects.toMatchObject({
       code: "PROPOSAL_CANCELLED",
-      status: 409,
+      statusCode: 409,
     });
     registry.add("b", { value: "b" });
     await registry.commit("b", EXECUTE_OK);
     await expect(registry.cancel("b")).rejects.toMatchObject({
       code: "PROPOSAL_COMMITTED",
-      status: 409,
+      statusCode: 409,
     });
   });
 
@@ -134,7 +134,7 @@ describe("createActionRegistry", () => {
     const { registry } = makeRegistry();
     await expect(registry.commit("ghost", EXECUTE_OK)).rejects.toMatchObject({
       code: "PROPOSAL_NOT_FOUND",
-      status: 404,
+      statusCode: 404,
     });
   });
 });

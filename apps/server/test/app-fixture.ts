@@ -1,27 +1,19 @@
 /**
- * The shared test app fixture: the same modules production assembles, with
- * per-case config/clock and `overrideProvider` for the rest. Requests go
- * through supertest against a real server, so every assertion crosses the wire.
+ * The shared test app fixture: the same shell production assembles, with a
+ * per-case config and the test's own domain set (clocks and fakes go into
+ * the domain plugins the test mounts). Requests go through fastify's
+ * `inject`, so every assertion crosses the full request lifecycle; the root
+ * integration test separately covers the real socket.
  */
 
-import "reflect-metadata";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { Test, type TestingModuleBuilder } from "@nestjs/testing";
-import type { DynamicModule, Type } from "@nestjs/common";
-import { NodeAdapter, type NestNodeApplication } from "@nestjs/platform-node";
+import type { FastifyInstance } from "fastify";
+import { createApp, type DomainMount } from "../src/app.ts";
 import type {
   PathConfig,
   TobyConfig,
 } from "../src/infrastructure/config/config.ts";
-import { HttpModule } from "../src/infrastructure/http/http.module.ts";
-import { SharedProvidersModule } from "../src/infrastructure/providers/shared-providers.module.ts";
-import {
-  CLOCK,
-  TOBY_CONFIG,
-  type Clock,
-} from "../src/infrastructure/providers/shared-tokens.ts";
-import { REQUEST_BODY_LIMIT_BYTES } from "../src/infrastructure/http/body-limit.ts";
 
 // Static roots that never exist: every fixture app looks like a fresh clone
 // without web builds, whatever the developer machine has built.
@@ -38,45 +30,19 @@ export interface TestAppOptions {
    * test gets roots that never exist, so static serving stays out of the way.
    */
   staticRoots?: Pick<PathConfig, "webRoot" | "mobileWebRoot">;
-  /** The modules under test; the fixture adds the shared providers. */
-  modules: Array<Type<unknown> | DynamicModule>;
-  /** Injectable clock; tests typically pass a mutable closure. */
-  clock?: Clock;
-  /** Per-case provider overrides (LEDGER_TIMING, LEDGER_EXTRACTOR, ...). */
-  overrides?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
+  /** The domains under test (a subset, fakes, or `productionDomains`). */
+  domains: readonly DomainMount[];
 }
 
 export async function createTestApp(
   options: TestAppOptions,
-): Promise<NestNodeApplication> {
-  let builder = Test.createTestingModule({
-    imports: [SharedProvidersModule.forRoot(), HttpModule, ...options.modules],
-  });
-  // Every per-case value takes the same path: the config replaces the
-  // container's own resolution (so a test run never reads the process
-  // environment), and the clock joins it when a case needs to drive time.
+): Promise<FastifyInstance> {
   const staticRoots = options.staticRoots ?? missingStaticRoots;
   const config: TobyConfig = {
     ...options.config,
     paths: { ...options.config.paths, ...staticRoots },
   };
-  builder = builder.overrideProvider(TOBY_CONFIG).useValue(config);
-  if (options.clock) {
-    builder = builder.overrideProvider(CLOCK).useValue(options.clock);
-  }
-  if (options.overrides) {
-    builder = options.overrides(builder);
-  }
-  const moduleRef = await builder.compile();
-  const app = moduleRef.createNestApplication<NestNodeApplication>(
-    new NodeAdapter(),
-    { logger: false, abortOnError: false },
-  );
-  // The only bootstrap-level default production also applies that the tests
-  // need; the no-store policy and the SPA roots come from HttpModule, and the
-  // latter mount from their own `onModuleInit`.
-  app.useBodyParser("json", { limit: REQUEST_BODY_LIMIT_BYTES });
-  app.useBodyParser("urlencoded", { limit: REQUEST_BODY_LIMIT_BYTES });
-  await app.init();
+  const app = await createApp({ config, domains: options.domains });
+  await app.ready();
   return app;
 }

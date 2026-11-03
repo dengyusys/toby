@@ -22,7 +22,6 @@
  * the kernel.
  */
 
-import { HttpStatus } from "@nestjs/common";
 import { DomainHttpError } from "../http/http-error.ts";
 
 const DEFAULT_ACTION_AUTO_WRITE_DELAY_MS = 30_000;
@@ -96,7 +95,7 @@ export function createActionRegistry<P, R>(
     if (!record) {
       throw new ActionStateError(
         "PROPOSAL_NOT_FOUND",
-        HttpStatus.NOT_FOUND,
+        404,
         "proposal not found",
       );
     }
@@ -127,14 +126,14 @@ export function createActionRegistry<P, R>(
       if (record.status === "expired") {
         throw new ActionStateError(
           "PROPOSAL_EXPIRED",
-          HttpStatus.GONE,
+          410,
           "proposal has expired",
         );
       }
       if (record.status === "cancelled") {
         throw new ActionStateError(
           "PROPOSAL_CANCELLED",
-          HttpStatus.CONFLICT,
+          409,
           "proposal was cancelled and cannot be committed",
         );
       }
@@ -152,7 +151,7 @@ export function createActionRegistry<P, R>(
         record.status = "expired";
         throw new ActionStateError(
           "PROPOSAL_EXPIRED",
-          HttpStatus.GONE,
+          410,
           "proposal has expired",
         );
       }
@@ -179,14 +178,14 @@ export function createActionRegistry<P, R>(
         record.status = "expired";
         throw new ActionStateError(
           "PROPOSAL_EXPIRED",
-          HttpStatus.GONE,
+          410,
           "proposal has expired",
         );
       }
       if (record.status === "committed") {
         throw new ActionStateError(
           "PROPOSAL_COMMITTED",
-          HttpStatus.CONFLICT,
+          409,
           "proposal is already committed",
         );
       }
@@ -195,7 +194,7 @@ export function createActionRegistry<P, R>(
       if (record.inFlight) {
         throw new ActionStateError(
           "PROPOSAL_COMMITTED",
-          HttpStatus.CONFLICT,
+          409,
           "proposal commit is already in progress",
         );
       }

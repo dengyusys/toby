@@ -1,6 +1,6 @@
 /**
- * System domain HTTP contract, exercised through the test fixture over a
- * real HTTP server: health, info, the not-found body, and the shared
+ * System domain HTTP contract, exercised through the test fixture over the
+ * full request lifecycle: health, info, the not-found body, and the shared
  * response headers.
  */
 
@@ -8,10 +8,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import request from "supertest";
-import type { NestNodeApplication } from "@nestjs/platform-node";
+import type { FastifyInstance } from "fastify";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { SystemModule } from "../../src/domains/system/system.module.ts";
+import { systemPlugin } from "../../src/domains/system/system.plugin.ts";
 import { createTestApp } from "../app-fixture.ts";
 
 const tempDir = mkdtempSync(path.join(tmpdir(), "toby-system-"));
@@ -20,12 +19,12 @@ afterAll(() => {
   rmSync(tempDir, { recursive: true, force: true });
 });
 
-let app: NestNodeApplication;
+let app: FastifyInstance;
 
 beforeEach(async () => {
   app = await createTestApp({
     config: resolveConfig({ env: { TOBY_DATA_ROOT: tempDir } }),
-    modules: [SystemModule],
+    domains: [(instance) => instance.register(systemPlugin({}))],
   });
 });
 
@@ -33,23 +32,25 @@ afterEach(async () => {
   await app.close();
 });
 
-function http() {
-  return request(app.getHttpServer());
-}
-
 describe("system api", () => {
   it("health returns the liveness body with no-store", async () => {
-    const response = await http().get("/api/system/health");
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ status: "ok" });
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/system/health",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ status: "ok" });
     expect(response.headers["content-type"]).toContain("application/json");
     expect(response.headers["cache-control"]).toBe("no-store");
   });
 
   it("info exposes name, version, node, started_at, uptime", async () => {
-    const response = await http().get("/api/system/info");
-    expect(response.status).toBe(200);
-    const body = response.body;
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/system/info",
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
     expect(body.name).toBe("toby");
     expect(typeof body.version).toBe("string");
     expect(body.node).toBe(process.versions.node);
@@ -58,9 +59,9 @@ describe("system api", () => {
   });
 
   it("unknown paths get the PAGE_NOT_FOUND body", async () => {
-    const response = await http().get("/api/nope");
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({
+    const response = await app.inject({ method: "GET", url: "/api/nope" });
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({
       statusCode: 404,
       message: "page not found",
       error: "Not Found",
@@ -69,18 +70,31 @@ describe("system api", () => {
   });
 
   it("a method mismatch is a not-found like any other unmatched request", async () => {
-    const response = await http().post("/api/system/health");
-    expect(response.status).toBe(404);
-    expect(response.body.errorCode).toBe("PAGE_NOT_FOUND");
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/system/health",
+    });
+    expect(response.statusCode).toBe(404);
+    expect(response.json().errorCode).toBe("PAGE_NOT_FOUND");
   });
 
-  it("an undecodable path is rejected with a 400", async () => {
-    const response = await http().get("/%zz");
-    expect(response.status).toBe(400);
+  it("an undecodable path is rejected with a 400 in the shared body", async () => {
+    const response = await app.inject({ method: "GET", url: "/%zz" });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().errorCode).toBe("BAD_REQUEST");
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("one trailing slash on an /api path is optional, query included", async () => {
+    for (const url of ["/api/system/health/", "/api/system/health/?probe=1"]) {
+      const response = await app.inject({ method: "GET", url });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ status: "ok" });
+    }
   });
 
   it("missing static roots only affect static serving, not the API", async () => {
-    const response = await http().get("/");
-    expect(response.status).toBe(404);
+    const response = await app.inject({ method: "GET", url: "/" });
+    expect(response.statusCode).toBe(404);
   });
 });

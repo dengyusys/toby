@@ -4,15 +4,10 @@
  * apply the schema, close on shutdown, memoized per process.
  */
 
-import { Inject, Injectable, type OnModuleDestroy } from "@nestjs/common";
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
+import type { Clock } from "../../infrastructure/clock.ts";
 import { createDomainDb } from "../../infrastructure/db/create-db.ts";
 import type { DbDialect, DomainDb } from "../../infrastructure/db/types.ts";
-import {
-  CLOCK,
-  TOBY_CONFIG,
-  type Clock,
-} from "../../infrastructure/providers/shared-tokens.ts";
 import type { LedgerEntry, LedgerTransactionRow } from "./types.ts";
 
 /**
@@ -59,96 +54,110 @@ export function monthBounds(month: string): { start: string; end: string } {
   return { start: `${month}-01`, end: `${nextYear}-${nextMonth}-01` };
 }
 
-@Injectable()
-export class LedgerStore implements OnModuleDestroy {
-  private opening?: Promise<DomainDb>;
+export interface LedgerStore {
+  /** Insert a whole proposal batch in one transaction; returns the ids. */
+  insertTransactions(
+    entries: readonly LedgerEntry[],
+  ): Promise<readonly number[]>;
+  listMonths(): Promise<readonly string[]>;
+  listMonthTransactions(
+    month: string,
+  ): Promise<readonly LedgerTransactionRow[]>;
+  /** Delete one row by id; true when the row existed. */
+  deleteTransaction(id: number): Promise<boolean>;
+  /** Close the database, if it was ever opened; the store stays closed. */
+  close(): Promise<void>;
+}
 
-  constructor(
-    @Inject(TOBY_CONFIG) private readonly config: TobyConfig,
-    @Inject(CLOCK) private readonly clock: Clock,
-  ) {}
+export function createLedgerStore(deps: {
+  config: TobyConfig;
+  clock: Clock;
+}): LedgerStore {
+  const { config, clock } = deps;
+  let opening: Promise<DomainDb> | undefined;
+  let closed = false;
 
   /**
    * The opened database, opened once. A failed open forgets the memo, so a
-   * transient failure retries instead of bricking the domain.
+   * transient failure retries instead of bricking the domain. Once closed,
+   * the store stays closed: a late caller gets an error, never a fresh
+   * handle nobody would close.
    */
-  private db(): Promise<DomainDb> {
-    this.opening ??= (async () => {
-      const handle = await createDomainDb(this.config, "ledger");
+  function db(): Promise<DomainDb> {
+    if (closed) {
+      return Promise.reject(new Error("ledger store is closed"));
+    }
+    opening ??= (async () => {
+      const handle = await createDomainDb(config, "ledger");
       for (const statement of LEDGER_SCHEMA[handle.dialect]) {
         await handle.exec(statement);
       }
       return handle;
     })().catch((error: unknown) => {
-      this.opening = undefined;
+      opening = undefined;
       throw error;
     });
-    return this.opening;
+    return opening;
   }
 
-  async close(): Promise<void> {
-    const handle = await this.opening?.catch(() => undefined);
-    await handle?.close();
-    this.opening = undefined;
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    await this.close();
-  }
-
-  /** Insert a whole proposal batch in one transaction; returns the ids. */
-  async insertTransactions(
-    entries: readonly LedgerEntry[],
-  ): Promise<readonly number[]> {
-    if (entries.length === 0) {
-      return [];
-    }
-    const createdAt = new Date(this.clock()).toISOString();
-    const db = await this.db();
-    return db.transaction(async (tx) => {
-      const ids: number[] = [];
-      for (const entry of entries) {
-        const result = await tx.run(
-          "INSERT INTO transactions (date, type, category, account, amount, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [
-            entry.date,
-            entry.type,
-            entry.category,
-            entry.account,
-            entry.amount,
-            entry.note,
-            createdAt,
-          ],
-        );
-        ids.push(result.insertId ?? 0);
+  return {
+    async insertTransactions(entries) {
+      if (entries.length === 0) {
+        return [];
       }
-      return ids;
-    });
-  }
+      const createdAt = new Date(clock()).toISOString();
+      const handle = await db();
+      return handle.transaction(async (tx) => {
+        const ids: number[] = [];
+        for (const entry of entries) {
+          const result = await tx.run(
+            "INSERT INTO transactions (date, type, category, account, amount, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [
+              entry.date,
+              entry.type,
+              entry.category,
+              entry.account,
+              entry.amount,
+              entry.note,
+              createdAt,
+            ],
+          );
+          ids.push(result.insertId ?? 0);
+        }
+        return ids;
+      });
+    },
 
-  async listMonths(): Promise<readonly string[]> {
-    const db = await this.db();
-    const rows = await db.query<{ month: string }>(
-      "SELECT DISTINCT substr(date, 1, 7) AS month FROM transactions ORDER BY month DESC",
-    );
-    return rows.map((row) => row.month);
-  }
+    async listMonths() {
+      const handle = await db();
+      const rows = await handle.query<{ month: string }>(
+        "SELECT DISTINCT substr(date, 1, 7) AS month FROM transactions ORDER BY month DESC",
+      );
+      return rows.map((row) => row.month);
+    },
 
-  async listMonthTransactions(
-    month: string,
-  ): Promise<readonly LedgerTransactionRow[]> {
-    const db = await this.db();
-    const { start, end } = monthBounds(month);
-    return db.query<LedgerTransactionRow>(
-      "SELECT id, date, type, category, account, amount, note, created_at FROM transactions WHERE date >= ? AND date < ? ORDER BY date ASC, id ASC",
-      [start, end],
-    );
-  }
+    async listMonthTransactions(month) {
+      const handle = await db();
+      const { start, end } = monthBounds(month);
+      return handle.query<LedgerTransactionRow>(
+        "SELECT id, date, type, category, account, amount, note, created_at FROM transactions WHERE date >= ? AND date < ? ORDER BY date ASC, id ASC",
+        [start, end],
+      );
+    },
 
-  /** Delete one row by id; true when the row existed. */
-  async deleteTransaction(id: number): Promise<boolean> {
-    const db = await this.db();
-    const result = await db.run("DELETE FROM transactions WHERE id = ?", [id]);
-    return result.changes > 0;
-  }
+    async deleteTransaction(id) {
+      const handle = await db();
+      const result = await handle.run("DELETE FROM transactions WHERE id = ?", [
+        id,
+      ]);
+      return result.changes > 0;
+    },
+
+    async close() {
+      closed = true;
+      const handle = await opening?.catch(() => undefined);
+      await handle?.close();
+      opening = undefined;
+    },
+  };
 }

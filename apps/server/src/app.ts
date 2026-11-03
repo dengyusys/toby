@@ -1,0 +1,100 @@
+/**
+ * The composition root: the HTTP shell every application shares — body
+ * limit, request timeout, the one error body, no-store, cookies, the SPA
+ * roots — plus the domain assembly order (auth first: it provides the
+ * session guard every later `/api` route gets by default). Production
+ * `main.ts` listens on what this returns; tests drive it with their own
+ * domain set. No logger is configured — the server keeps no application
+ * log.
+ */
+
+import cookie from "@fastify/cookie";
+import fastify, { type FastifyInstance } from "fastify";
+import { authPlugin } from "./domains/auth/auth.plugin.ts";
+import { ledgerPlugin } from "./domains/ledger/ledger.plugin.ts";
+import { systemPlugin } from "./domains/system/system.plugin.ts";
+import type { TobyConfig } from "./infrastructure/config/config.ts";
+import type { Clock } from "./infrastructure/clock.ts";
+import { REQUEST_BODY_LIMIT_BYTES } from "./infrastructure/http/body-limit.ts";
+import { registerBodyParsers } from "./infrastructure/http/body-parsers.ts";
+import {
+  errorHandler,
+  frameworkErrorHandler,
+} from "./infrastructure/http/error-handler.ts";
+import { notFoundHandler } from "./infrastructure/http/not-found.ts";
+import { guardApiRoutes } from "./infrastructure/http/route-guard.ts";
+import { normalizeRequestUrl } from "./infrastructure/http/request-url.ts";
+import {
+  MOBILE_MOUNT,
+  registerStaticAssets,
+} from "./infrastructure/http/static.ts";
+
+/**
+ * Node's own default for receiving a whole request; Fastify's default (0)
+ * would let a slow upload hold its socket — and shutdown — forever.
+ */
+const REQUEST_TIMEOUT_MS = 300_000;
+
+/**
+ * One domain's mount step; the composition root decides the order. It
+ * returns what `app.register` returns — awaiting it waits for the plugin.
+ */
+export type DomainMount = (app: FastifyInstance) => PromiseLike<unknown> | void;
+
+export interface AppOptions {
+  config: TobyConfig;
+  /** Replaces the production domain set (tests mount a subset or fakes). */
+  domains?: readonly DomainMount[];
+}
+
+/** The production assembly: all three domains behind the session guard. */
+export function productionDomains(options: {
+  config: TobyConfig;
+  /** Injectable clock; tests typically pass a mutable closure. */
+  clock?: Clock;
+}): DomainMount[] {
+  const { config, clock } = options;
+  const auth = authPlugin({ config, clock });
+  return [
+    async (app) => {
+      // Default-secure from here on: every `/api` route registered after
+      // this hook carries the guard unless it is marked public.
+      app.addHook("onRoute", guardApiRoutes(auth.requireSession));
+      await app.register(auth.plugin);
+    },
+    (app) => app.register(systemPlugin({ clock })),
+    (app) => app.register(ledgerPlugin({ config, clock })),
+  ];
+}
+
+export async function createApp(options: AppOptions): Promise<FastifyInstance> {
+  const app = fastify({
+    bodyLimit: REQUEST_BODY_LIMIT_BYTES,
+    requestTimeout: REQUEST_TIMEOUT_MS,
+    frameworkErrors: frameworkErrorHandler,
+    // One rewrite, the two static layers' inherited rules: `/api/x/`
+    // matches `/api/x`; in-root dot segments collapse before routing,
+    // except where the mobile mount refuses them.
+    rewriteUrl: (request) =>
+      normalizeRequestUrl(request.url ?? "/", [MOBILE_MOUNT]),
+  });
+
+  registerBodyParsers(app);
+  app.setErrorHandler(errorHandler);
+  app.setNotFoundHandler(notFoundHandler);
+  // Every response leaves no-store'd, static files and errors included.
+  app.addHook("onSend", async (_request, reply, payload) => {
+    reply.header("Cache-Control", "no-store");
+    return payload;
+  });
+
+  await app.register(cookie);
+  await registerStaticAssets(app, options.config.paths);
+
+  const domains =
+    options.domains ?? productionDomains({ config: options.config });
+  for (const mount of domains) {
+    await mount(app);
+  }
+  return app;
+}

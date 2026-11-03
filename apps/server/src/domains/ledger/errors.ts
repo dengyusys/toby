@@ -1,6 +1,5 @@
 /** The domain's closed wire-code union: clients match these, never messages. */
 
-import { HttpStatus } from "@nestjs/common";
 import { DomainHttpError } from "../../infrastructure/http/http-error.ts";
 
 export type LedgerErrorCode =
@@ -21,7 +20,7 @@ export class LedgerRequestError extends DomainHttpError {
 /** Entry-shape/semantics rejection from the trust boundary (validation.ts). */
 export class LedgerInputError extends DomainHttpError {
   constructor(message: string) {
-    super(HttpStatus.BAD_REQUEST, "INVALID_ENTRY", message);
+    super(400, "INVALID_ENTRY", message);
     this.name = "LedgerInputError";
   }
 }

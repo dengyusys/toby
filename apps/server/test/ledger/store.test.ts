@@ -9,7 +9,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { monthBounds, LedgerStore } from "../../src/domains/ledger/store.ts";
+import {
+  createLedgerStore,
+  monthBounds,
+  type LedgerStore,
+} from "../../src/domains/ledger/store.ts";
 import type { LedgerEntry } from "../../src/domains/ledger/types.ts";
 
 const dataRoot = mkdtempSync(path.join(tmpdir(), "toby-ledger-store-"));
@@ -20,7 +24,7 @@ afterAll(async () => {
 });
 
 // One isolated database per case: a fresh subdirectory per call. The
-// store opens and migrates its database lazily, exactly as under DI.
+// store opens and migrates its database lazily, exactly as in the app.
 let caseCounter = 0;
 
 async function openStore(): Promise<LedgerStore> {
@@ -28,7 +32,7 @@ async function openStore(): Promise<LedgerStore> {
   const config = resolveConfig({
     env: { TOBY_DATA_ROOT: path.join(dataRoot, `case-${caseCounter}`) },
   });
-  return new LedgerStore(config, fixedNow);
+  return createLedgerStore({ config, clock: fixedNow });
 }
 
 function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
@@ -129,5 +133,14 @@ describe("ledger store", () => {
     } finally {
       await store.close();
     }
+  });
+
+  it("a closed store stays closed instead of reopening the database", async () => {
+    const store = await openStore();
+    await store.listMonths();
+    await store.close();
+    await expect(store.listMonths()).rejects.toThrow(/closed/);
+    // Closing again is harmless.
+    await store.close();
   });
 });

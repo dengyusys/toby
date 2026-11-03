@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nest start --watch",
-    "build": "nest build",
+    "dev": "node ../../scripts/server-dev.js",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -14,26 +14,18 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
-    "@nestjs/common": "catalog:",
-    "@nestjs/core": "catalog:",
-    "@nestjs/platform-node": "catalog:",
+    "@fastify/cookie": "catalog:",
+    "@fastify/static": "catalog:",
     "better-sqlite3": "catalog:",
+    "fastify": "catalog:",
     "mysql2": "catalog:",
-    "reflect-metadata": "catalog:",
-    "rxjs": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@nestjs/cli": "catalog:",
-    "@nestjs/testing": "catalog:",
-    "@swc/core": "catalog:",
     "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
-    "@types/supertest": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "supertest": "catalog:",
     "typescript": "catalog:",
-    "unplugin-swc": "catalog:",
     "vitest": "catalog:"
   }
 }

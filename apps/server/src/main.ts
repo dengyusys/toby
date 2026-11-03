@@ -1,34 +1,55 @@
 /**
- * Server entry point: the standard Nest bootstrap. Only the listen target is
- * resolved here; config, domains and the HTTP shell come from `AppModule`. No
- * logger is configured — the server keeps no application log.
+ * Server entry point: resolve the config, assemble the application, listen,
+ * and close cleanly on a termination signal. Running this module starts the
+ * server — tests import `app.ts` instead. Config failures surface as a plain
+ * startup error. No logger is configured — the server keeps no application
+ * log.
  */
 
-import { pathToFileURL } from "node:url";
-import { NestFactory } from "@nestjs/core";
-import { NodeAdapter, type NestNodeApplication } from "@nestjs/platform-node";
-import { AppModule } from "./app.module.ts";
-import { resolveListenTarget } from "./infrastructure/config/config.ts";
-import { REQUEST_BODY_LIMIT_BYTES } from "./infrastructure/http/body-limit.ts";
+import { createApp } from "./app.ts";
+import { resolveConfig } from "./infrastructure/config/config.ts";
+
+/** How long a graceful close may take before the process exits anyway. */
+const SHUTDOWN_DEADLINE_MS = 10_000;
+
+/** Termination requests: Ctrl+C, `docker stop` / kill, a closed terminal. */
+const SHUTDOWN_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 async function bootstrap(): Promise<void> {
-  const target = resolveListenTarget();
+  const config = resolveConfig();
+  const target = config.server;
+  const app = await createApp({ config });
 
-  const app = await NestFactory.create<NestNodeApplication>(
-    AppModule,
-    new NodeAdapter(),
-    // abortOnError off: a DI failure surfaces instead of process.abort().
-    { abortOnError: false },
-  );
-
-  // Before init(): a parser registered under the same name replaces Nest's
-  // 100 KiB default.
-  app.useBodyParser("json", { limit: REQUEST_BODY_LIMIT_BYTES });
-  app.useBodyParser("urlencoded", { limit: REQUEST_BODY_LIMIT_BYTES });
-  app.enableShutdownHooks();
+  // The framework installs no signal handling of its own. The first signal
+  // closes the app (sweepers stop, the store closes its database); repeats
+  // are ignored, and the deadline ends a close that hangs.
+  let closing = false;
+  const shutdown = (): void => {
+    if (closing) {
+      return;
+    }
+    closing = true;
+    setTimeout(() => {
+      console.error("toby server: shutdown timed out");
+      process.exit(1);
+    }, SHUTDOWN_DEADLINE_MS).unref();
+    app.close().then(
+      () => process.exit(process.exitCode ?? 0),
+      (error: unknown) => {
+        console.error(
+          "toby server: shutdown failed",
+          error instanceof Error ? error.message : String(error),
+        );
+        process.exit(1);
+      },
+    );
+  };
+  for (const signal of SHUTDOWN_SIGNALS) {
+    process.on(signal, shutdown);
+  }
 
   try {
-    await app.listen(target.port, target.host);
+    await app.listen({ port: target.port, host: target.host });
   } catch (error) {
     process.exitCode = 1;
     await app.close();
@@ -41,19 +62,9 @@ async function bootstrap(): Promise<void> {
   }
 }
 
-// Run only as the process entry (`node dist/main.js`): importing this module
-// must not boot a server. Two spellings count — `pnpm run start` and the
-// Dockerfile pass the file with `.js`, while `nest start` spawns it
-// extensionless (`node dist/main`), which Node resolves to the same file.
-const entryUrl = process.argv[1] && pathToFileURL(process.argv[1]).href;
-if (
-  entryUrl === import.meta.url ||
-  (entryUrl !== undefined && `${entryUrl}.js` === import.meta.url)
-) {
-  try {
-    await bootstrap();
-  } catch (error) {
-    process.exitCode = 1;
-    console.error("toby server failed to start", error);
-  }
+try {
+  await bootstrap();
+} catch (error) {
+  process.exitCode = 1;
+  console.error("toby server failed to start", error);
 }

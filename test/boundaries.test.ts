@@ -29,9 +29,18 @@ const infrastructureDir = path.join(serverSrc, "infrastructure");
 const utilsDir = path.join(serverSrc, "utils");
 const httpDir = path.join(infrastructureDir, "http");
 
-// HTTP assembly internals: the app shell and the error boundary. Domains
-// build routes against the shared error body instead.
-const ASSEMBLY_MODULES = ["exception-filter", "http.module"];
+// HTTP assembly internals: the error boundary, the not-found answer, the
+// body parsers, the SPA mounts, the guard installer and the URL rewrite.
+// Domains build routes against the shared error body and body-schema helper
+// instead.
+const ASSEMBLY_MODULES = [
+  "error-handler",
+  "not-found",
+  "body-parsers",
+  "static",
+  "route-guard",
+  "request-url",
+];
 
 // Domains each domain may depend on. Domains are discovered from the
 // filesystem, so a new domain is governed the moment it lands; only domains
@@ -150,7 +159,8 @@ const rules: BoundaryRule[] = [
       }
       const forbidden =
         specifier.startsWith("node:") ||
-        specifier.startsWith("@nestjs/platform-") ||
+        importsPackage(specifier, "fastify") ||
+        specifier.startsWith("@fastify/") ||
         (resolved !== null && inside(resolved, infrastructureDir));
       return forbidden
         ? "domain types.ts must stay pure: no HTTP adapter, infrastructure or node: imports"
@@ -165,8 +175,44 @@ const rules: BoundaryRule[] = [
         head !== null &&
         ASSEMBLY_MODULES.some((m) => head === m || head.startsWith(`${m}.`));
       return domainOf(file) !== null && isAssembly
-        ? "assembly lives in main.ts and domain module.ts files"
+        ? "assembly lives in app.ts and the domain plugin.ts files"
         : null;
+    },
+  },
+  {
+    name: "domain fastify imports stay in routes.ts and plugin.ts",
+    check: ({ file, specifier }) => {
+      if (domainOf(file) === null) return null;
+      if (
+        !importsPackage(specifier, "fastify") &&
+        !specifier.startsWith("@fastify/")
+      ) {
+        return null;
+      }
+      const base = path.basename(file);
+      return base.endsWith(".routes.ts") || base.endsWith(".plugin.ts")
+        ? null
+        : "fastify imports belong in <domain>.routes.ts / <domain>.plugin.ts — services and stores stay HTTP-free";
+    },
+  },
+  {
+    name: "domains never import the composition root or the entry point",
+    check: ({ file, resolved }) => {
+      if (domainOf(file) === null || resolved === null) return null;
+      const rel = path.relative(serverSrc, resolved);
+      return rel === "app.ts" || rel === "main.ts"
+        ? "domains must not import the app shell or the entry point"
+        : null;
+    },
+  },
+  {
+    name: "domains are imported only by the composition root",
+    check: ({ file, resolved }) => {
+      if (resolved === null || !inside(resolved, domainsDir)) return null;
+      if (inside(file, domainsDir)) return null; // domain-to-domain has its own rule
+      return path.relative(serverSrc, file) === "app.ts"
+        ? null
+        : "cross-domain wiring happens only in the composition root app.ts";
     },
   },
   {
@@ -175,7 +221,7 @@ const rules: BoundaryRule[] = [
       inside(file, infrastructureDir) &&
       resolved !== null &&
       domainOf(resolved) !== null
-        ? "assembly happens only in the composition root and domain module.ts files"
+        ? "assembly happens only in the composition root and domain plugin.ts files"
         : null,
   },
   {

@@ -1,7 +1,7 @@
 /**
- * Ledger domain HTTP contract, driven through supertest against the fully
- * assembled domain (real sqlite in a fresh temporary directory per case,
- * injected clock). Pins the public shapes: proposal views, commit
+ * Ledger domain HTTP contract, driven through fastify inject against the
+ * fully assembled domain (real sqlite in a fresh temporary directory per
+ * case, injected clock). Pins the public shapes: proposal views, commit
  * idempotency, cancel/expiry status codes, month reports, empty states.
  */
 
@@ -9,14 +9,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import request from "supertest";
-import type { NestNodeApplication } from "@nestjs/platform-node";
+import type { FastifyInstance } from "fastify";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { LedgerModule } from "../../src/domains/ledger/ledger.module.ts";
-import {
-  LEDGER_EXTRACTOR,
-  LEDGER_TIMING,
-} from "../../src/domains/ledger/tokens.ts";
+import { ledgerPlugin } from "../../src/domains/ledger/ledger.plugin.ts";
 import type {
   LedgerDraft,
   LedgerExtractor,
@@ -33,7 +28,7 @@ const AUTO_WRITE_MS = 30_000;
 const TTL_MS = 600_000;
 const BASE_MS = Date.parse("2026-10-20T08:00:00.000Z");
 
-let app: NestNodeApplication;
+let app: FastifyInstance;
 let nowMs: number;
 let caseCounter = 0;
 
@@ -45,17 +40,17 @@ async function buildApp(extractor?: LedgerExtractor): Promise<void> {
   });
   app = await createTestApp({
     config,
-    modules: [LedgerModule],
-    clock: () => nowMs,
-    overrides: (builder) => {
-      let b = builder
-        .overrideProvider(LEDGER_TIMING)
-        .useValue({ autoWriteDelayMs: AUTO_WRITE_MS, ttlMs: TTL_MS });
-      if (extractor) {
-        b = b.overrideProvider(LEDGER_EXTRACTOR).useValue(extractor);
-      }
-      return b;
-    },
+    domains: [
+      (instance) =>
+        instance.register(
+          ledgerPlugin({
+            config,
+            clock: () => nowMs,
+            ...(extractor ? { extractor } : {}),
+            timing: { autoWriteDelayMs: AUTO_WRITE_MS, ttlMs: TTL_MS },
+          }),
+        ),
+    ],
   });
 }
 
@@ -72,14 +67,11 @@ function inject(
   url: string,
   payload?: Record<string, unknown>,
 ) {
-  const agent = request(app.getHttpServer());
-  const call =
-    method === "GET"
-      ? agent.get(url)
-      : method === "DELETE"
-        ? agent.delete(url)
-        : agent.post(url);
-  return payload === undefined ? call : call.send(payload);
+  return app.inject({
+    method,
+    url,
+    ...(payload === undefined ? {} : { payload }),
+  });
 }
 
 function structuredEntry(overrides: Record<string, unknown> = {}) {
@@ -103,8 +95,8 @@ describe("ledger api: proposals", () => {
       "/api/ledger/proposals",
       structuredEntry(),
     );
-    expect(response.status).toBe(200);
-    const body = response.body;
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
     expect(body.status).toBe("pending");
     expect(typeof body.proposal_id).toBe("string");
     expect(body.entries).toEqual([
@@ -139,11 +131,11 @@ describe("ledger api: proposals", () => {
         "/api/ledger/proposals",
         structuredEntry(overrides),
       );
-      expect(response.status).toBe(400);
-      expect(response.body.errorCode).toBe("INVALID_ENTRY");
+      expect(response.statusCode).toBe(400);
+      expect(response.json().errorCode).toBe("INVALID_ENTRY");
     }
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.body).toEqual({ months: [] });
+    expect(months.json()).toEqual({ months: [] });
   });
 
   it("a body with no intake path is rejected by the route schema", async () => {
@@ -156,11 +148,11 @@ describe("ledger api: proposals", () => {
       { text: "x", extra: 1 }, // unknown keys are not silently accepted
     ]) {
       const response = await inject("POST", "/api/ledger/proposals", body);
-      expect(response.status).toBe(400);
-      expect(response.body.errorCode).toBe("BAD_REQUEST");
+      expect(response.statusCode).toBe(400);
+      expect(response.json().errorCode).toBe("BAD_REQUEST");
     }
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.body).toEqual({ months: [] });
+    expect(months.json()).toEqual({ months: [] });
   });
 
   it("a malformed entry is the domain's call once the envelope is right", async () => {
@@ -173,19 +165,19 @@ describe("ledger api: proposals", () => {
       { ...structuredEntry().entry, account: 42 },
     ]) {
       const response = await inject("POST", "/api/ledger/proposals", { entry });
-      expect(response.status).toBe(400);
-      expect(response.body.errorCode).toBe("INVALID_ENTRY");
+      expect(response.statusCode).toBe(400);
+      expect(response.json().errorCode).toBe("INVALID_ENTRY");
     }
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.body).toEqual({ months: [] });
+    expect(months.json()).toEqual({ months: [] });
   });
 
   it("the one-sentence text path answers 501 when the extractor is absent", async () => {
     const response = await inject("POST", "/api/ledger/proposals", {
       text: "午饭花了25",
     });
-    expect(response.status).toBe(501);
-    expect(response.body.errorCode).toBe("AI_UNAVAILABLE");
+    expect(response.statusCode).toBe(501);
+    expect(response.json().errorCode).toBe("AI_UNAVAILABLE");
   });
 
   it("the one-sentence AI path returns a proposal or a follow-up question", async () => {
@@ -213,64 +205,64 @@ describe("ledger api: proposals", () => {
     const proposed = await inject("POST", "/api/ledger/proposals", {
       text: "午饭花了25",
     });
-    expect(proposed.status).toBe(200);
-    expect(proposed.body.status).toBe("pending");
-    expect(proposed.body.entries[0].amount).toBe(2500);
+    expect(proposed.statusCode).toBe(200);
+    expect(proposed.json().status).toBe("pending");
+    expect(proposed.json().entries[0].amount).toBe(2500);
 
     const asked = await inject("POST", "/api/ledger/proposals", {
       text: "再来一杯咖啡",
     });
-    expect(asked.status).toBe(200);
-    expect(asked.body).toEqual({ question: "这笔用的哪个账户?" });
+    expect(asked.statusCode).toBe(200);
+    expect(asked.json()).toEqual({ question: "这笔用的哪个账户?" });
 
     const committed = await inject(
       "POST",
-      `/api/ledger/proposals/${proposed.body.proposal_id}/commit`,
+      `/api/ledger/proposals/${proposed.json().proposal_id}/commit`,
     );
-    expect(committed.status).toBe(200);
+    expect(committed.statusCode).toBe(200);
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.body).toEqual({ months: ["2026-10"] });
+    expect(months.json()).toEqual({ months: ["2026-10"] });
   });
 
   it("commit writes the batch once and is idempotent", async () => {
     const created = (
       await inject("POST", "/api/ledger/proposals", structuredEntry())
-    ).body;
+    ).json();
     const first = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(first.status).toBe(200);
-    expect(first.body).toEqual({
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).toEqual({
       proposal_id: created.proposal_id,
       status: "committed",
       written: 1,
       transaction_ids: [1],
-      committed_at: first.body.committed_at,
+      committed_at: first.json().committed_at,
     });
     const again = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(again.status).toBe(200);
-    expect(again.body).toEqual(first.body);
+    expect(again.statusCode).toBe(200);
+    expect(again.json()).toEqual(first.json());
 
     const report = (
       await inject("GET", "/api/ledger/transactions?month=2026-10")
-    ).body;
+    ).json();
     expect(report.transactions).toHaveLength(1); // no duplicate rows
   });
 
   it("cancel prevents the write; a later commit is PROPOSAL_CANCELLED", async () => {
     const created = (
       await inject("POST", "/api/ledger/proposals", structuredEntry())
-    ).body;
+    ).json();
     const cancelled = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/cancel`,
     );
-    expect(cancelled.status).toBe(200);
-    expect(cancelled.body).toEqual({
+    expect(cancelled.statusCode).toBe(200);
+    expect(cancelled.json()).toEqual({
       proposal_id: created.proposal_id,
       status: "cancelled",
     });
@@ -278,27 +270,27 @@ describe("ledger api: proposals", () => {
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(commit.status).toBe(409);
-    expect(commit.body.errorCode).toBe("PROPOSAL_CANCELLED");
+    expect(commit.statusCode).toBe(409);
+    expect(commit.json().errorCode).toBe("PROPOSAL_CANCELLED");
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.body).toEqual({ months: [] }); // zero writes
+    expect(months.json()).toEqual({ months: [] }); // zero writes
   });
 
   it("expired proposals answer 410; unknown ids answer 404", async () => {
     const created = (
       await inject("POST", "/api/ledger/proposals", structuredEntry())
-    ).body;
+    ).json();
     nowMs += TTL_MS + 1;
     const commit = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(commit.status).toBe(410);
-    expect(commit.body.errorCode).toBe("PROPOSAL_EXPIRED");
+    expect(commit.statusCode).toBe(410);
+    expect(commit.json().errorCode).toBe("PROPOSAL_EXPIRED");
 
     const missing = await inject("POST", "/api/ledger/proposals/nope/commit");
-    expect(missing.status).toBe(404);
-    expect(missing.body.errorCode).toBe("PROPOSAL_NOT_FOUND");
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().errorCode).toBe("PROPOSAL_NOT_FOUND");
   });
 });
 
@@ -306,12 +298,12 @@ describe("ledger api: months and reports", () => {
   async function commitEntry(overrides: Record<string, unknown>) {
     const created = (
       await inject("POST", "/api/ledger/proposals", structuredEntry(overrides))
-    ).body;
+    ).json();
     const committed = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(committed.status).toBe(200);
+    expect(committed.statusCode).toBe(200);
   }
 
   it("aggregates a month: totals, category subtotals, ordering", async () => {
@@ -328,11 +320,11 @@ describe("ledger api: months and reports", () => {
     await commitEntry({ date: "2026-09-30", category: "餐饮", amount: "10" });
 
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.body).toEqual({ months: ["2026-10", "2026-09"] });
+    expect(months.json()).toEqual({ months: ["2026-10", "2026-09"] });
 
     const report = (
       await inject("GET", "/api/ledger/transactions?month=2026-10")
-    ).body;
+    ).json();
     expect(report.month).toBe("2026-10");
     expect(report.transactions).toHaveLength(4); // no September bleed
     expect(report.transactions.map((t: { date: string }) => t.date)).toEqual([
@@ -352,8 +344,8 @@ describe("ledger api: months and reports", () => {
 
   it("empty months report zeros; the month parameter is validated", async () => {
     const empty = await inject("GET", "/api/ledger/transactions?month=2026-10");
-    expect(empty.status).toBe(200);
-    expect(empty.body).toEqual({
+    expect(empty.statusCode).toBe(200);
+    expect(empty.json()).toEqual({
       month: "2026-10",
       transactions: [],
       income_total: 0,
@@ -365,17 +357,19 @@ describe("ledger api: months and reports", () => {
       "/api/ledger/transactions",
       "/api/ledger/transactions?month=2026-13",
       "/api/ledger/transactions?month=2026-1",
+      // A repeated parameter is not a month either.
+      "/api/ledger/transactions?month=2026-10&month=2026-11",
     ]) {
       const response = await inject("GET", url);
-      expect(response.status).toBe(400);
-      expect(response.body.errorCode).toBe("INVALID_MONTH");
+      expect(response.statusCode).toBe(400);
+      expect(response.json().errorCode).toBe("INVALID_MONTH");
     }
   });
 
   it("GET on a POST-only endpoint is a not-found, like any other", async () => {
     const response = await inject("GET", "/api/ledger/proposals");
-    expect(response.status).toBe(404);
-    expect(response.body.errorCode).toBe("PAGE_NOT_FOUND");
+    expect(response.statusCode).toBe(404);
+    expect(response.json().errorCode).toBe("PAGE_NOT_FOUND");
   });
 });
 
@@ -384,21 +378,21 @@ describe("ledger api: deletion", () => {
   async function commitEntryAndGetId(): Promise<number> {
     const created = (
       await inject("POST", "/api/ledger/proposals", structuredEntry())
-    ).body;
+    ).json();
     const committed = await inject(
       "POST",
       `/api/ledger/proposals/${created.proposal_id}/commit`,
     );
-    expect(committed.status).toBe(200);
-    return committed.body.transaction_ids[0];
+    expect(committed.statusCode).toBe(200);
+    return committed.json().transaction_ids[0];
   }
 
   it("deletes one stored transaction and the month follows", async () => {
     const id = await commitEntryAndGetId();
 
     const deleted = await inject("DELETE", `/api/ledger/transactions/${id}`);
-    expect(deleted.status).toBe(200);
-    expect(deleted.body).toEqual({
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json()).toEqual({
       transaction_id: id,
       status: "deleted",
       deleted_at: new Date(BASE_MS).toISOString(),
@@ -408,10 +402,10 @@ describe("ledger api: deletion", () => {
       "GET",
       "/api/ledger/transactions?month=2026-10",
     );
-    expect(report.body.transactions).toHaveLength(0);
-    expect(report.body.expense_total).toBe(0);
+    expect(report.json().transactions).toHaveLength(0);
+    expect(report.json().expense_total).toBe(0);
     const months = await inject("GET", "/api/ledger/months");
-    expect(months.body).toEqual({ months: [] });
+    expect(months.json()).toEqual({ months: [] });
   });
 
   it("a delete of one of two rows leaves the other intact", async () => {
@@ -419,25 +413,25 @@ describe("ledger api: deletion", () => {
     const second = await commitEntryAndGetId();
 
     const deleted = await inject("DELETE", `/api/ledger/transactions/${first}`);
-    expect(deleted.status).toBe(200);
+    expect(deleted.statusCode).toBe(200);
 
     const report = await inject(
       "GET",
       "/api/ledger/transactions?month=2026-10",
     );
-    expect(report.body.transactions).toHaveLength(1);
-    expect(report.body.transactions[0].id).toBe(second);
+    expect(report.json().transactions).toHaveLength(1);
+    expect(report.json().transactions[0].id).toBe(second);
   });
 
   it("unknown ids answer 404 TRANSACTION_NOT_FOUND; malformed ids 400", async () => {
     const missing = await inject("DELETE", "/api/ledger/transactions/999");
-    expect(missing.status).toBe(404);
-    expect(missing.body.errorCode).toBe("TRANSACTION_NOT_FOUND");
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().errorCode).toBe("TRANSACTION_NOT_FOUND");
 
     for (const id of ["0", "-1", "abc"]) {
       const response = await inject("DELETE", `/api/ledger/transactions/${id}`);
-      expect(response.status).toBe(400);
-      expect(response.body.errorCode).toBe("INVALID_ENTRY");
+      expect(response.statusCode).toBe(400);
+      expect(response.json().errorCode).toBe("INVALID_ENTRY");
     }
   });
 });

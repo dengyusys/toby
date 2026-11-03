@@ -3,36 +3,31 @@
  * start time, uptime). The clock is injected so tests pin time.
  */
 
-import { Inject, Injectable } from "@nestjs/common";
-import {
-  CLOCK,
-  type Clock,
-} from "../../infrastructure/providers/shared-tokens.ts";
+import type { Clock } from "../../infrastructure/clock.ts";
 import type { SystemHealth, SystemInfo } from "./types.ts";
 import { readServerVersion } from "./version.ts";
 
-@Injectable()
-export class SystemService {
-  private readonly version: string;
-  private readonly startedAtMs: number;
-
-  constructor(@Inject(CLOCK) private readonly clock: Clock) {
-    this.version = readServerVersion();
-    this.startedAtMs = this.clock();
-  }
-
+export interface SystemService {
   /** Liveness: the process answers. Nothing is probed any further. */
-  health(): SystemHealth {
-    return { status: "ok" };
-  }
+  health(): SystemHealth;
+  info(): SystemInfo;
+}
 
-  info(): SystemInfo {
-    return {
-      name: "toby",
-      version: this.version,
-      node: process.versions.node,
-      started_at: new Date(this.startedAtMs).toISOString(),
-      uptime_seconds: Math.floor((this.clock() - this.startedAtMs) / 1000),
-    };
-  }
+export function createSystemService(deps: { clock: Clock }): SystemService {
+  const version = readServerVersion();
+  const startedAtMs = deps.clock();
+  return {
+    health() {
+      return { status: "ok" };
+    },
+    info() {
+      return {
+        name: "toby",
+        version,
+        node: process.versions.node,
+        started_at: new Date(startedAtMs).toISOString(),
+        uptime_seconds: Math.floor((deps.clock() - startedAtMs) / 1000),
+      };
+    },
+  };
 }
