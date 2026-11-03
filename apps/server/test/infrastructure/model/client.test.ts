@@ -20,6 +20,8 @@ import {
 import { AiError } from "../../../src/infrastructure/model/errors.ts";
 import { caughtAiError } from "../../helpers.ts";
 import { createPiAiClient } from "../../../src/infrastructure/model/client.ts";
+import { createTraceBus } from "../../../src/infrastructure/trace/bus.ts";
+import type { TraceEvent } from "../../../src/infrastructure/trace/types.ts";
 
 const TIMEOUT_MS = 5_000;
 
@@ -214,5 +216,50 @@ describe("createPiAiClient", () => {
     expect(() =>
       createPiAiClient({ model: "nope/not-a-model", timeoutMs: TIMEOUT_MS }),
     ).toThrow(/provider\/model/);
+  });
+
+  it("reports each request to the trace bus with its transcript", async () => {
+    const bus = createTraceBus();
+    const events: TraceEvent[] = [];
+    bus.subscribe((event) => events.push(event));
+    const models = createModels();
+    const faux = fauxProvider();
+    models.setProvider(faux.provider);
+    const client = createPiAiClient(
+      { model: "faux/faux-1", timeoutMs: TIMEOUT_MS },
+      { models, reporter: bus },
+    );
+    faux.appendResponses([fauxAssistantMessage("hello there")]);
+    expect(
+      await client.text([
+        { role: "system", content: "be brief" },
+        { role: "user", content: "hi" },
+      ]),
+    ).toBe("hello there");
+
+    expect(events).toHaveLength(2);
+    const started = events[0] as {
+      run: { kind: string; label: string; prompt: string };
+    };
+    expect(started.run).toMatchObject({
+      kind: "single-shot",
+      label: "complete",
+      // The prompt preview is the last user message.
+      prompt: "hi",
+    });
+    const finished = events[1] as {
+      run: {
+        status: string;
+        result_text?: string;
+        messages: readonly { role: string }[];
+      };
+    };
+    expect(finished.run.status).toBe("succeeded");
+    expect(finished.run.result_text).toBe("hello there");
+    expect(finished.run.messages.map((message) => message.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+    ]);
   });
 });

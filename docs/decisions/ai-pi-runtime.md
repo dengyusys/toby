@@ -20,7 +20,8 @@ as the agent loop. The guardrails below are part of the deal.
   model as a tool error and fixed by the model itself, instead of one
   blind retry.
 - **Observability for free:** every call carries token/cost usage, which
-  lands in the structured log.
+  the in-memory trace bus streams live to the web monitor
+  (docs/features/traces.md) — nothing is logged or stored.
 
 ## What is fixed (unchanged red lines)
 

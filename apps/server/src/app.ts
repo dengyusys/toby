@@ -13,7 +13,10 @@ import fastify, { type FastifyInstance } from "fastify";
 import { authPlugin } from "./domains/auth/auth.plugin.ts";
 import { ledgerPlugin } from "./domains/ledger/ledger.plugin.ts";
 import { systemPlugin } from "./domains/system/system.plugin.ts";
+import { tracesPlugin } from "./domains/traces/traces.plugin.ts";
 import type { TobyConfig } from "./infrastructure/config/config.ts";
+import { createTobyAgentFactory } from "./infrastructure/model/agent.ts";
+import { createTraceBus } from "./infrastructure/trace/bus.ts";
 import type { Clock } from "./infrastructure/clock.ts";
 import { REQUEST_BODY_LIMIT_BYTES } from "./infrastructure/http/body-limit.ts";
 import { registerBodyParsers } from "./infrastructure/http/body-parsers.ts";
@@ -47,7 +50,7 @@ export interface AppOptions {
   domains?: readonly DomainMount[];
 }
 
-/** The production assembly: all three domains behind the session guard. */
+/** The production assembly: all domains behind the session guard. */
 export function productionDomains(options: {
   config: TobyConfig;
   /** Injectable clock; tests typically pass a mutable closure. */
@@ -55,6 +58,13 @@ export function productionDomains(options: {
 }): DomainMount[] {
   const { config, clock } = options;
   const auth = authPlugin({ config, clock });
+  // One trace bus, two consumers: the AI runtime reports every run into
+  // it, the traces domain streams it to the web monitor. Nothing is
+  // stored — console semantics, live observation only.
+  const traceBus = clock ? createTraceBus({ clock }) : createTraceBus();
+  const agentFactory = config.ai
+    ? createTobyAgentFactory(config.ai, { reporter: traceBus })
+    : undefined;
   return [
     async (app) => {
       // Default-secure from here on: every `/api` route registered after
@@ -63,7 +73,15 @@ export function productionDomains(options: {
       await app.register(auth.plugin);
     },
     (app) => app.register(systemPlugin({ clock })),
-    (app) => app.register(ledgerPlugin({ config, clock })),
+    (app) =>
+      app.register(
+        ledgerPlugin({
+          config,
+          clock,
+          ...(agentFactory ? { agentFactory } : {}),
+        }),
+      ),
+    (app) => app.register(tracesPlugin({ bus: traceBus })),
   ];
 }
 

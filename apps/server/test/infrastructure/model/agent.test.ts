@@ -18,16 +18,21 @@ import {
   createTobyAgentFactory,
   defineTool,
 } from "../../../src/infrastructure/model/agent.ts";
+import type {
+  TraceEvent,
+  TraceReporter,
+} from "../../../src/infrastructure/trace/types.ts";
+import { createTraceBus } from "../../../src/infrastructure/trace/bus.ts";
 import { AiError } from "../../../src/infrastructure/model/errors.ts";
 import { caughtAiError } from "../../helpers.ts";
 
 const CONFIG = { model: "faux/faux-1", timeoutMs: 5_000 };
 
-function makeHarness() {
+function makeHarness(extra: { reporter?: TraceReporter } = {}) {
   const models = createModels();
   const faux = fauxProvider();
   models.setProvider(faux.provider);
-  const factory = createTobyAgentFactory(CONFIG, { models });
+  const factory = createTobyAgentFactory(CONFIG, { models, ...extra });
   return { factory, faux };
 }
 
@@ -305,5 +310,79 @@ describe("createTobyAgentFactory", () => {
         policy: { allowedKinds: ["read-only"], maxTurns: 2 },
       }),
     ).toThrow(/duplicate tool name/);
+  });
+
+  it("reports each run to the trace bus with its transcript", async () => {
+    const bus = createTraceBus();
+    const events: TraceEvent[] = [];
+    bus.subscribe((event) => events.push(event));
+    const { factory, faux } = makeHarness({ reporter: bus });
+    faux.appendResponses([
+      fauxAssistantMessage([fauxToolCall("echo", { value: "v1" })]),
+      fauxAssistantMessage("done"),
+    ]);
+    const agent = factory({
+      name: "probe-agent",
+      systemPrompt: "sys",
+      tools: [ECHO_TOOL],
+      policy: { allowedKinds: ["read-only"], maxTurns: 3 },
+    });
+    await agent.run("go");
+
+    expect(events).toHaveLength(2);
+    const started = events[0] as {
+      run: { kind: string; label: string; prompt: string };
+    };
+    expect(started.run).toMatchObject({
+      kind: "agent",
+      label: "probe-agent",
+      prompt: "go",
+    });
+
+    const finished = events[1] as {
+      run: {
+        status: string;
+        result_text?: string;
+        messages: readonly { role: string }[];
+        usage?: { total_tokens: number };
+      };
+    };
+    expect(finished.run.status).toBe("succeeded");
+    expect(finished.run.result_text).toBe("done");
+    // The whole transcript survives: system prompt, user prompt, the
+    // tool-calling assistant turn, the tool result, the final answer.
+    expect(finished.run.messages.map((message) => message.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+      "tool_result",
+      "assistant",
+    ]);
+    expect(finished.run.usage?.total_tokens).toBeGreaterThan(0);
+  });
+
+  it("reports failed runs with the error message", async () => {
+    const bus = createTraceBus();
+    const events: TraceEvent[] = [];
+    bus.subscribe((event) => events.push(event));
+    const { factory, faux } = makeHarness({ reporter: bus });
+    faux.appendResponses([
+      fauxAssistantMessage("", {
+        stopReason: "error",
+        errorMessage: "provider exploded",
+      }),
+    ]);
+    const agent = factory({
+      systemPrompt: "sys",
+      tools: [],
+      policy: { allowedKinds: ["read-only"], maxTurns: 2 },
+    });
+    await caughtAiError(agent.run("go"));
+    expect(events).toHaveLength(2);
+    const finished = events[1] as {
+      run: { status: string; error?: string };
+    };
+    expect(finished.run.status).toBe("failed");
+    expect(finished.run.error).toContain("provider exploded");
   });
 });

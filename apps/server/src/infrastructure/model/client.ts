@@ -29,6 +29,8 @@ import type {
 } from "./types.ts";
 import { AiError } from "./errors.ts";
 import { resolveCatalogModel } from "./catalog.ts";
+import { traceMessageOf } from "../trace/normalize.ts";
+import type { TraceMessage, TraceReporter } from "../trace/types.ts";
 
 /** The catalog-resolved model this client talks to. */
 type ResolvedModel = Model<string>;
@@ -135,32 +137,69 @@ async function mapFailure(
 
 export function createPiAiClient(
   config: AiRuntimeConfig,
-  options: { models?: Models } = {},
+  options: { models?: Models; reporter?: TraceReporter } = {},
 ): AiClient {
   const models = options.models ?? builtinModels();
   const model: ResolvedModel = resolveCatalogModel(models, config.model);
+  const reporter = options.reporter;
 
   async function requestOnce(
     messages: readonly AiChatMessage[],
     options?: AiRequestOptions,
   ): Promise<string> {
+    const capture = reporter?.begin({
+      kind: "single-shot",
+      label: "complete",
+      model: model.id,
+      prompt:
+        [...messages].reverse().find((message) => message.role === "user")
+          ?.content ?? "",
+    });
+    const conversation = (): TraceMessage[] =>
+      messages.map((message): TraceMessage =>
+        message.role === "assistant"
+          ? { role: "assistant", text: message.content, tool_calls: [] }
+          : { role: message.role, text: message.content },
+      );
+
     const signal = AbortSignal.timeout(config.timeoutMs);
     const reply = await models.complete(model, toContext(model, messages), {
       maxTokens: options?.maxTokens,
       temperature: options?.temperature ?? 0,
       signal,
     });
-    if (reply.stopReason === "error" || reply.stopReason === "aborted") {
-      throw await mapFailure(models, reply, signal.aborted);
+    const transcript = (): TraceMessage[] => [
+      ...conversation(),
+      traceMessageOf(reply),
+    ];
+
+    try {
+      if (reply.stopReason === "error" || reply.stopReason === "aborted") {
+        throw await mapFailure(models, reply, signal.aborted);
+      }
+      const text = textOf(reply);
+      if (text.length === 0) {
+        throw new AiError(
+          "request-failed",
+          "AI provider returned no message content",
+        );
+      }
+      capture?.finish({
+        status: "succeeded",
+        messages: transcript(),
+        result_text: text,
+        stop_reason: reply.stopReason,
+      });
+      return text;
+    } catch (error) {
+      capture?.finish({
+        status: "failed",
+        messages: transcript(),
+        error: error instanceof Error ? error.message : String(error),
+        stop_reason: reply.stopReason,
+      });
+      throw error;
     }
-    const text = textOf(reply);
-    if (text.length === 0) {
-      throw new AiError(
-        "request-failed",
-        "AI provider returned no message content",
-      );
-    }
-    return text;
   }
 
   return {

@@ -38,6 +38,8 @@ import type { AiRuntimeConfig } from "./types.ts";
 import { AiError } from "./errors.ts";
 import { resolveCatalogModel } from "./catalog.ts";
 import { textOf } from "./client.ts";
+import { traceMessagesOf, traceUsage } from "../trace/normalize.ts";
+import type { TraceMessage, TraceReporter } from "../trace/types.ts";
 
 /** Safety classification every Toby tool must carry. */
 export type ToolKind = "read-only" | "write-intent";
@@ -101,6 +103,8 @@ export interface TobyAgentSpec {
   readonly policy: TobyAgentPolicy;
   /** Reply token budget forwarded to the provider request. */
   readonly maxTokens?: number;
+  /** Trace-monitor label; defaults to "agent" when unnamed. */
+  readonly name?: string;
 }
 
 export interface TobyAgentRunResult {
@@ -180,6 +184,8 @@ export interface TobyAgentFactoryOptions {
    * (its scripted fake provider); defaults to the shared builtin catalog.
    */
   readonly models?: Models;
+  /** Trace monitor feed: every run reports start and settled outcome. */
+  readonly reporter?: TraceReporter;
 }
 
 function createTobyAgent(
@@ -229,6 +235,16 @@ function createTobyAgent(
         },
       });
 
+      // Trace monitor feed: run-started goes out immediately (the panel
+      // shows the prompt under a running marker), run-finished below closes
+      // the record with the transcript and outcome.
+      const capture = injected.reporter?.begin({
+        kind: "agent",
+        label: spec.name ?? "agent",
+        model: model.id,
+        prompt,
+      });
+
       const timer = setTimeout(() => agent.abort(), timeoutMs);
       try {
         // pi-agent-core resolves every failure into the transcript (the
@@ -245,23 +261,51 @@ function createTobyAgent(
           (message): message is AssistantMessage =>
             message.role === "assistant",
         );
-      const stopReason = assistant?.stopReason ?? "none";
-
-      if (stopReason === "error") {
-        await throwForProviderFailure(catalog, model, assistant);
-      }
-      if (stopReason === "aborted") {
-        throw new AiError("timeout", "AI agent run timed out");
-      }
-
+      const stopReason: StopReason | "none" = assistant?.stopReason ?? "none";
+      const text = textOf(assistant);
       const usage = assistant?.usage;
-      return {
-        text: textOf(assistant),
-        turns,
-        turnCapped,
-        stopReason,
-        ...(usage ? { usage } : {}),
-      };
+
+      // The trace capture mirrors both exits: run-finished carries the full
+      // transcript (system prompt + tool declarations included) so the
+      // monitor needs no store of its own.
+      const snapshot = (): TraceMessage[] =>
+        traceMessagesOf(agent.state.messages);
+      const reportedUsage = usage ? traceUsage(usage) : undefined;
+
+      try {
+        if (stopReason === "error") {
+          await throwForProviderFailure(catalog, model, assistant);
+        }
+        if (stopReason === "aborted") {
+          throw new AiError("timeout", "AI agent run timed out");
+        }
+
+        capture?.finish({
+          status: "succeeded",
+          messages: snapshot(),
+          result_text: text,
+          stop_reason: stopReason,
+          turns,
+          ...(reportedUsage ? { usage: reportedUsage } : {}),
+        });
+        return {
+          text,
+          turns,
+          turnCapped,
+          stopReason,
+          ...(usage ? { usage } : {}),
+        };
+      } catch (error) {
+        capture?.finish({
+          status: "failed",
+          messages: snapshot(),
+          error: error instanceof Error ? error.message : String(error),
+          stop_reason: stopReason,
+          turns,
+          ...(reportedUsage ? { usage: reportedUsage } : {}),
+        });
+        throw error;
+      }
     },
   };
 }

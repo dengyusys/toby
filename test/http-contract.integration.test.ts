@@ -366,4 +366,37 @@ describe("http contract (auth enabled)", () => {
     const sessionBody = (await session.json()) as { authenticated: boolean };
     expect(sessionBody.authenticated).toBe(true);
   });
+
+  it("streams the trace feed over SSE behind the session guard", async () => {
+    // Transcripts are personal data: the stream is guarded like every
+    // other /api route.
+    const denied = await fetch(`${authUrl}/api/traces/stream`);
+    expect(denied.status).toBe(401);
+    expect(((await denied.json()) as { errorCode: string }).errorCode).toBe(
+      "AUTH_REQUIRED",
+    );
+
+    const login = await fetch(`${authUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: "integration-password" }),
+    });
+    expect(login.status).toBe(200);
+    const cookie = (login.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+
+    const controller = new AbortController();
+    const response = await fetch(`${authUrl}/api/traces/stream`, {
+      headers: { cookie },
+      signal: controller.signal,
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.body).not.toBeNull();
+    const reader = response.body!.getReader();
+    // The immediate comment frame proves the stream is live and unbuffered.
+    const { value } = await reader.read();
+    expect(new TextDecoder().decode(value)).toContain(": connected");
+    controller.abort();
+  });
 });

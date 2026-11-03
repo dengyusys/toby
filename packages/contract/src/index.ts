@@ -27,3 +27,13 @@ export type {
   AuthLoginResult,
   AuthSessionInfo,
 } from "./auth-client.ts";
+export type {
+  TraceEvent,
+  TraceMessage,
+  TraceRunFinished,
+  TraceRunKind,
+  TraceRunStarted,
+  TraceToolCall,
+  TraceToolDeclaration,
+  TraceUsage,
+} from "./trace-events.ts";

@@ -114,6 +114,7 @@ export function createLedgerExtractor(deps: {
       });
 
       const agent = agentFactory({
+        name: "ledger-extraction",
         systemPrompt: systemPrompt(now),
         tools: [submitEntries, askUser],
         policy: {
