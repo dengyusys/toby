@@ -12,6 +12,7 @@
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowUp } from "lucide-react";
 import {
   type FormEvent,
   type KeyboardEvent,
@@ -259,7 +260,7 @@ export function LedgerChat() {
         )}
       </div>
       <form onSubmit={handleSubmit} aria-busy={sendPending} className="pt-2">
-        <div className="flex items-end gap-2 rounded-2xl border bg-card py-2 pr-2 pl-3.5 shadow-[0_4px_20px_rgba(15,17,21,0.06)] transition-[border-color,box-shadow] focus-within:border-ring focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
+        <div className="flex items-end gap-2 rounded-2xl bg-card py-2 pr-2 pl-3.5 shadow-[0_2px_6px_rgba(15,17,21,0.05),0_8px_24px_rgba(15,17,21,0.07)] transition-shadow focus-within:shadow-[0_0_0_3px_var(--accent-soft),0_8px_24px_rgba(15,17,21,0.07)]">
           <textarea
             ref={textareaRef}
             value={draft}
@@ -278,19 +279,7 @@ export function LedgerChat() {
             title="发送（Enter）"
             className="flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-[0.92] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45"
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="size-[16px]"
-              aria-hidden="true"
-            >
-              <path d="M12 19V5" />
-              <path d="m5 12 7-7 7 7" />
-            </svg>
+            <ArrowUp className="size-[16px]" />
           </button>
         </div>
       </form>

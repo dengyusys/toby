@@ -7,6 +7,7 @@
  * selection state live in LedgerPage and arrive as props.
  */
 
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { LedgerMonthReport } from "@toby/contract";
 import { formatCents, monthLabel, todayLocal } from "./ledger-view.ts";
@@ -24,40 +25,6 @@ interface MonthLedgerProps {
 interface DayTotals {
   expense: number;
   income: number;
-}
-
-function ChevronLeft({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  );
-}
-
-function ChevronRight({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m9 18 6-6-6-6" />
-    </svg>
-  );
 }
 
 export function MonthLedger({
