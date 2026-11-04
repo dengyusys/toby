@@ -14,7 +14,7 @@ All ports are fixed (`strictPort`): if one is occupied, that process fails fast 
 
 ## `pnpm run dev`
 
-The server runs via `scripts/server-dev.js`: `tsc --watch` compiles to `dist/`, and `node --watch dist/main.js` starts once the first compile is clean — it recompiles and restarts on change, and a compile error keeps the old server running until fixed.
+The server runs via `scripts/server-dev.js`: Node 22's native type stripping runs `src/main.ts` directly under `node --watch` — there is no compile step in dev, and every change in the import graph just restarts the process (the server source is erasable-syntax-only, so no transform is needed). Type errors never gate a restart: the editor and `pnpm run check` own them, and production still builds through plain `tsc` (`pnpm run build`). The web apps on 8630/8631 keep Vite HMR — component edits hot-swap with no page reload.
 
 Starts three processes from one command, orchestrated by `scripts/dev.js`:
 

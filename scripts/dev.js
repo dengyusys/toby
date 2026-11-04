@@ -37,8 +37,8 @@ if (!repositoryRoot) {
   process.exit(1);
 }
 
-// The health URL must match what the server actually binds. The server reads
-// .env via --env-file-if-exists; this script only sees exported environment
+// The health URL must match what the server actually binds. server-dev.js
+// loads .env for the server, but this script only sees exported environment
 // variables — if you change TOBY_PORT inside .env, export it too (documented
 // in docs/operations/local-dev.md).
 const serverPort = process.env.TOBY_PORT ?? "8629";
@@ -156,10 +156,7 @@ async function waitForServer(entry, url, deadlineMs) {
 
 async function main() {
   const server = spawnNode(
-    [
-      `--env-file-if-exists=${path.join(repositoryRoot, ".env")}`,
-      path.join(repositoryRoot, "scripts/server-dev.js"),
-    ],
+    [path.join(repositoryRoot, "scripts/server-dev.js")],
     repositoryRoot,
   );
   const serverEntry = registerChild("server", server);

@@ -14,7 +14,7 @@
 
 ## `pnpm run dev`
 
-服务端经 `scripts/server-dev.js` 运行:`tsc --watch` 编译到 `dist/`,首次干净编译后 `node --watch dist/main.js` 才启动——改动后自动重新编译并重启;编译报错时旧服务继续运行,修好为止。
+服务端经 `scripts/server-dev.js` 运行:Node 22 原生 type stripping 直接跑 `src/main.ts`,配 `node --watch`——开发期没有编译步骤,导入图里任何文件改动都只是进程重启(服务端源码强制 erasable 语法,无需转换)。类型错误不会阻止重启:编辑器和 `pnpm run check` 负责把关,生产构建仍走纯 `tsc`(`pnpm run build`)。8630/8631 上的两个 Web 应用保持 Vite HMR——改组件即时热替换,不整页刷新。
 
 一条命令拉起三个进程,由 `scripts/dev.js` 编排:
 
