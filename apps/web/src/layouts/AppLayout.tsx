@@ -14,7 +14,7 @@ const NAV_ITEMS = [
 
 /**
  * Route shell (yuanbao-style): a fixed left sidebar — brand block on top,
- * pill nav below with the active item lifted onto a white card, logout
+ * pill nav below with the active item on a flat accent fill, logout
  * pinned to the bottom — and the route outlet filling the rest. Each page
  * owns its scrolling: the chat fills the viewport, the ledger page scrolls
  * its column. The top-right toggle opens the AI trace monitor as a
@@ -38,7 +38,7 @@ export function AppLayout() {
     <div className="flex h-dvh overflow-hidden">
       <aside
         aria-label="侧边导航"
-        className="flex w-56 shrink-0 flex-col border-r bg-muted/50 p-3 max-[767px]:w-16"
+        className="flex w-[448px] shrink-0 flex-col border-r bg-muted/50 p-3 max-[1100px]:w-56 max-[767px]:w-16"
       >
         <div className="flex items-center gap-2.5 px-2 py-3 max-[767px]:justify-center max-[767px]:px-0">
           <img src={logo} alt="" className="size-6" />
@@ -55,12 +55,12 @@ export function AppLayout() {
               className={({ isActive }) =>
                 `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors max-[767px]:justify-center max-[767px]:px-0 ${
                   isActive
-                    ? "bg-card font-medium text-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
+                    ? "bg-accent-soft font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-accent-soft/60 hover:text-foreground"
                 }`
               }
             >
-              <Icon className="size-[18px] shrink-0" />
+              <Icon className="size-5 shrink-0 text-foreground" />
               <span className="max-[767px]:hidden">{label}</span>
             </NavLink>
           ))}
@@ -69,7 +69,7 @@ export function AppLayout() {
           type="button"
           onClick={() => logoutMutation.mutate()}
           disabled={logoutMutation.isPending}
-          className="mt-auto flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-card/60 hover:text-foreground disabled:opacity-50 max-[767px]:justify-center max-[767px]:px-0"
+          className="mt-auto flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent-soft/60 hover:text-foreground disabled:opacity-50 max-[767px]:justify-center max-[767px]:px-0"
         >
           <LogOut className="size-[18px] shrink-0" />
           <span className="max-[767px]:hidden">退出登录</span>

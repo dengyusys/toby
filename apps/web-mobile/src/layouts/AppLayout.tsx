@@ -26,12 +26,12 @@ function NavPills({ onNavigate }: { onNavigate: () => void }) {
           className={({ isActive }) =>
             `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
               isActive
-                ? "bg-muted font-medium text-foreground"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                ? "bg-accent-soft font-medium text-foreground"
+                : "text-muted-foreground hover:bg-accent-soft/60 hover:text-foreground"
             }`
           }
         >
-          <Icon className="size-[18px] shrink-0" />
+          <Icon className="size-5 shrink-0 text-foreground" />
           {label}
         </NavLink>
       ))}
