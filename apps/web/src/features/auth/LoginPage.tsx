@@ -10,6 +10,7 @@ import { Link } from "react-router";
 import { useState } from "react";
 import { ApiError } from "@toby/contract";
 import { authClient } from "@/lib/api.ts";
+import logo from "@/assets/logo.svg";
 
 function describeError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -46,75 +47,85 @@ export function LoginPage() {
 
   if (sessionQuery.data && !sessionQuery.data.enabled) {
     return (
-      <section className="mx-auto mt-16 w-full max-w-sm rounded-xl border bg-card p-5 shadow-sm">
-        <h2 className="text-sm font-medium">登录未启用</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          本部署没有配置密码,无需登录。
-        </p>
-        <Link
-          to="/"
-          className="mt-4 inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground"
-        >
-          直接进入
-        </Link>
-      </section>
+      <div className="flex min-h-dvh items-center justify-center px-4">
+        <section className="w-full max-w-sm rounded-xl border bg-card p-7 shadow-sm">
+          <div className="flex flex-col items-center">
+            <img src={logo} alt="" className="size-12" />
+            <h2 className="mt-4 text-base font-semibold">登录未启用</h2>
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            本部署没有配置密码,无需登录。
+          </p>
+          <Link
+            to="/"
+            className="mt-4 inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground"
+          >
+            直接进入
+          </Link>
+        </section>
+      </div>
     );
   }
 
   return (
-    <section className="mx-auto mt-16 w-full max-w-sm rounded-xl border bg-card p-5 shadow-sm">
-      <h2 className="text-sm font-medium">登录 Toby</h2>
-      <form
-        className="mt-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          loginMutation.mutate();
-        }}
-      >
-        <div>
-          <label
-            htmlFor="login-password"
-            className="block text-xs font-medium text-muted-foreground"
-          >
-            密码
-          </label>
-          <div className="relative mt-1.5">
-            <input
-              id="login-password"
-              type={showPassword ? "text" : "password"}
-              required
-              autoFocus
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg bg-background px-3 py-2 pr-10 text-sm shadow-[0_1px_2px_rgba(15,17,21,0.06),0_4px_12px_rgba(15,17,21,0.06)] outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((visible) => !visible)}
-              aria-label={showPassword ? "隐藏密码" : "显示密码"}
-              className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-            >
-              {showPassword ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </button>
-          </div>
+    <div className="flex min-h-dvh items-center justify-center px-4">
+      <section className="w-full max-w-sm rounded-xl border bg-card p-7 shadow-sm">
+        <div className="flex flex-col items-center">
+          <img src={logo} alt="" className="size-12" />
+          <h2 className="mt-4 text-base font-semibold">登录 Toby</h2>
         </div>
-        <button
-          type="submit"
-          disabled={loginMutation.isPending || password === ""}
-          className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+        <form
+          className="mt-6"
+          onSubmit={(event) => {
+            event.preventDefault();
+            loginMutation.mutate();
+          }}
         >
-          {loginMutation.isPending ? "登录中…" : "登录"}
-        </button>
-        {loginMutation.isError && (
-          <p className="mt-2 text-sm text-destructive">
-            {describeError(loginMutation.error)}
-          </p>
-        )}
-      </form>
-    </section>
+          <div>
+            <label
+              htmlFor="login-password"
+              className="block text-xs font-medium text-muted-foreground"
+            >
+              密码
+            </label>
+            <div className="relative mt-1.5">
+              <input
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                required
+                autoFocus
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="w-full rounded-lg bg-background px-3 py-2 pr-10 text-sm shadow-[0_1px_2px_rgba(15,17,21,0.06),0_4px_12px_rgba(15,17,21,0.06)] outline-none focus-visible:shadow-[0_0_0_3px_var(--accent-soft),0_1px_2px_rgba(15,17,21,0.06),0_4px_12px_rgba(15,17,21,0.06)]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={loginMutation.isPending || password === ""}
+            className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          >
+            {loginMutation.isPending ? "登录中…" : "登录"}
+          </button>
+          {loginMutation.isError && (
+            <p className="mt-2 text-sm text-destructive">
+              {describeError(loginMutation.error)}
+            </p>
+          )}
+        </form>
+      </section>
+    </div>
   );
 }
