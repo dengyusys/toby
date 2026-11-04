@@ -7,11 +7,12 @@
  * console, like a browser console.
  */
 
+import { X } from "lucide-react";
 import { useState } from "react";
 import { StatusDot, type StatusDotState } from "@/components/StatusDot.tsx";
 import { formatDuration } from "./format.ts";
 import { RunDetail } from "./RunDetail.tsx";
-import { type TraceRun, useTraceStream } from "./trace-stream.tsx";
+import { type TraceRun, useTraceStream } from "./trace-stream-context.ts";
 
 const KIND_TEXT = { agent: "工具循环", "single-shot": "单发" } as const;
 
@@ -42,7 +43,7 @@ export function MonitorPanel({ onClose }: { onClose: () => void }) {
           title="关闭监控"
           className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          <CloseIcon className="size-4" />
+          <X className="size-4" />
         </button>
       </header>
       <div className="flex-1 overflow-y-auto">
@@ -111,23 +112,5 @@ function RunRow({ run, onSelect }: { run: TraceRun; onSelect: () => void }) {
         {run.prompt || "(无文本输入)"}
       </p>
     </button>
-  );
-}
-
-/** Thin outline cross (the drawer's close affordance). */
-function CloseIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M18 6 6 18M6 6l12 12" />
-    </svg>
   );
 }

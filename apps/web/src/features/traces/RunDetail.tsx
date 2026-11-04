@@ -8,7 +8,7 @@
 import type { ReactNode } from "react";
 import type { TraceMessage } from "@toby/contract";
 import { formatDuration } from "./format.ts";
-import type { TraceRun } from "./trace-stream.tsx";
+import type { TraceRun } from "./trace-stream-context.ts";
 
 const MONO = "whitespace-pre-wrap break-all font-mono text-xs leading-relaxed";
 

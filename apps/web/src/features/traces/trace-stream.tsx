@@ -5,39 +5,17 @@
  * another page. Console semantics still hold — the browser accumulates in
  * memory from login on, the server stores nothing, and a reload starts a
  * blank console. EventSource reconnects on its own; anything streamed
- * while no tab had the app open is gone, by design.
+ * while no tab had the app open is gone, by design. The context itself,
+ * with the TraceRun shape and the useTraceStream hook, lives in
+ * trace-stream-context.ts.
  */
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
-import type {
-  TraceEvent,
-  TraceRunFinished,
-  TraceRunStarted,
-} from "@toby/contract";
-
-/** One run as the page holds it: the started fields, plus the outcome once settled. */
-export type TraceRun =
-  | ({ phase: "running" } & TraceRunStarted)
-  | ({ phase: "finished" } & TraceRunFinished);
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import type { TraceEvent } from "@toby/contract";
+import { TraceStreamContext, type TraceRun } from "./trace-stream-context.ts";
 
 /** Browser-side history cap; the oldest entries drop off beyond it. */
 const MAX_RUNS = 200;
-
-export interface TraceStream {
-  runs: TraceRun[];
-  connected: boolean;
-  /** Clear the local history (the server keeps nothing to clear). */
-  clear: () => void;
-}
-
-const TraceStreamContext = createContext<TraceStream | null>(null);
 
 export function TraceStreamProvider({ children }: { children: ReactNode }) {
   const [runs, setRuns] = useState<TraceRun[]>([]);
@@ -72,12 +50,4 @@ export function TraceStreamProvider({ children }: { children: ReactNode }) {
       {children}
     </TraceStreamContext.Provider>
   );
-}
-
-export function useTraceStream(): TraceStream {
-  const context = useContext(TraceStreamContext);
-  if (!context) {
-    throw new Error("useTraceStream requires TraceStreamProvider");
-  }
-  return context;
 }
