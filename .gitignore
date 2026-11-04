@@ -37,5 +37,17 @@ Desktop.ini
 .idea/
 .vscode/
 
-# Local agent session files / 本地代理会话文件
+# AI agent artifacts / AI 代理工具产物
 .zcode/
+.claude/
+.cloud/
+.codex/
+.pi/
+.agent/
+.agents/
+.cursor/
+.gemini/
+.copilot/
+.continue/
+.windsurf/
+.aider*
