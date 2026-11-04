@@ -1,7 +1,8 @@
 /**
  * Login page render and submit with fetch stubbed to the auth endpoints:
- * the form posts the password, failures show their message, and a disabled
- * deployment shows the plain notice instead of a form.
+ * the form posts the password, the eye toggle reveals and hides the typed
+ * value, failures show their message, and a disabled deployment shows the
+ * plain notice instead of a form.
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -70,6 +71,23 @@ it("renders the form when auth is enabled and posts the password", async () => {
   const sent = calls.find(({ url }) => url.endsWith("/api/auth/login"));
   expect(sent?.init?.method).toBe("POST");
   expect(JSON.parse(String(sent?.init?.body))).toEqual({ password: "hunter2" });
+});
+
+it("toggles the password field between hidden and visible", async () => {
+  routeFetch({ enabled: true, authenticated: false });
+  const user = userEvent.setup();
+  renderPage();
+
+  expect(await screen.findByLabelText("密码")).toHaveAttribute(
+    "type",
+    "password",
+  );
+
+  await user.click(screen.getByRole("button", { name: "显示密码" }));
+  expect(screen.getByLabelText("密码")).toHaveAttribute("type", "text");
+
+  await user.click(screen.getByRole("button", { name: "隐藏密码" }));
+  expect(screen.getByLabelText("密码")).toHaveAttribute("type", "password");
 });
 
 it("shows the server message on wrong passwords", async () => {

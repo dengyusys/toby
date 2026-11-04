@@ -1,5 +1,8 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Calendar, LogOut, Menu, MessageSquare } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
 import { useEffect, useState } from "react";
+import { authClient } from "@/lib/api.ts";
 import logo from "@/assets/logo.svg";
 
 /** Drawer slide transition length; keeps the unmount timer in sync. */
@@ -7,8 +10,8 @@ const DRAWER_TRANSITION_MS = 300;
 
 /** Primary-route nav entries: icon + label, rendered as drawer pills. */
 const NAV_ITEMS = [
-  { to: "/", label: "对话", end: true, icon: ChatIcon },
-  { to: "/ledger", label: "账单", end: false, icon: CalendarIcon },
+  { to: "/", label: "对话", end: true, icon: MessageSquare },
+  { to: "/ledger", label: "账单", end: false, icon: Calendar },
 ] as const;
 
 function NavPills({ onNavigate }: { onNavigate: () => void }) {
@@ -40,14 +43,30 @@ function NavPills({ onNavigate }: { onNavigate: () => void }) {
  * Route shell (mobile): a compact top bar whose hamburger button opens the
  * nav drawer — nearly full-screen, sliding in from the left (doubao-style);
  * a narrow scrim strip stays tappable on the right to close, as does a nav
- * pick. There is no close button by design. Each page owns its scrolling —
- * the chat fills the viewport, the ledger page scrolls its column.
+ * pick. The logout button sits at the drawer's bottom. There is no close
+ * button by design. Each page owns its scrolling — the chat fills the
+ * viewport, the ledger page scrolls its column.
  */
 export function AppLayout() {
   // The drawer keeps its DOM node mounted while the exit transition plays:
   // `mounted` controls presence, `shown` drives the transform/scrim states.
   const [mounted, setMounted] = useState(false);
   const [shown, setShown] = useState(false);
+  const queryClient = useQueryClient();
+  const logoutMutation = useMutation({
+    mutationFn: () => authClient.logout(),
+    onSettled: () => {
+      // Reset (not remove) the cached session: the route gate still
+      // observes it, so reset refetches it, sees the logged-out answer,
+      // and walks the app to /login on its own.
+      queryClient.resetQueries({ queryKey: ["auth", "session"] });
+    },
+  });
+
+  function logout(): void {
+    logoutMutation.mutate();
+    closeDrawer();
+  }
 
   function openDrawer(): void {
     setMounted(true);
@@ -77,7 +96,7 @@ export function AppLayout() {
           onClick={openDrawer}
           className="flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          <MenuIcon className="size-5" />
+          <Menu className="size-5" />
         </button>
         <img src={logo} alt="" className="size-5" />
         <span className="text-sm font-semibold tracking-tight">Toby</span>
@@ -109,65 +128,18 @@ export function AppLayout() {
               <span className="text-sm font-semibold tracking-tight">Toby</span>
             </div>
             <NavPills onNavigate={closeDrawer} />
+            <button
+              type="button"
+              onClick={logout}
+              disabled={logoutMutation.isPending}
+              className="mt-auto flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+            >
+              <LogOut className="size-[18px] shrink-0" />
+              退出登录
+            </button>
           </aside>
         </div>
       )}
     </div>
-  );
-}
-
-/** Thin outline hamburger (lucide menu geometry). */
-function MenuIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-  );
-}
-
-/** Thin outline chat bubble (lucide message-square geometry). */
-function ChatIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
-    </svg>
-  );
-}
-
-/** Thin outline calendar (the ledger is a month calendar). */
-function CalendarIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M8 2v4M16 2v4" />
-      <rect width="18" height="18" x="3" y="4" rx="2" />
-      <path d="M3 10h18" />
-    </svg>
   );
 }

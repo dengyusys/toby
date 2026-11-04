@@ -5,6 +5,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router";
 import { useState } from "react";
 import { ApiError } from "@toby/contract";
@@ -26,6 +27,7 @@ function describeError(error: unknown): string {
 
 export function LoginPage() {
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const queryClient = useQueryClient();
   const sessionQuery = useQuery({
     queryKey: ["auth", "session"],
@@ -69,19 +71,37 @@ export function LoginPage() {
           loginMutation.mutate();
         }}
       >
-        <label className="block">
-          <span className="text-xs font-medium text-muted-foreground">
+        <div>
+          <label
+            htmlFor="login-password"
+            className="block text-xs font-medium text-muted-foreground"
+          >
             密码
-          </span>
-          <input
-            type="password"
-            required
-            autoFocus
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="mt-1.5 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </label>
+          </label>
+          <div className="relative mt-1.5">
+            <input
+              id="login-password"
+              type={showPassword ? "text" : "password"}
+              required
+              autoFocus
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="w-full rounded-lg bg-background px-3 py-2 pr-10 text-sm shadow-[0_1px_2px_rgba(15,17,21,0.06),0_4px_12px_rgba(15,17,21,0.06)] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              aria-label={showPassword ? "隐藏密码" : "显示密码"}
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </div>
         <button
           type="submit"
           disabled={loginMutation.isPending || password === ""}

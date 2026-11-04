@@ -66,6 +66,9 @@ catalogs:
     happy-dom:
       specifier: ^20.14.5
       version: 20.14.6
+    lucide-react:
+      specifier: ^1.33.0
+      version: 1.66.0
     mysql2:
       specifier: ^3.24.6
       version: 3.24.6
@@ -207,6 +210,9 @@ importers:
       cn:
         specifier: 'catalog:'
         version: 0.3.3
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.66.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: 'catalog:'
         version: 19.3.1
@@ -271,6 +277,9 @@ importers:
       cn:
         specifier: 'catalog:'
         version: 0.3.3
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.66.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: 'catalog:'
         version: 19.3.1
@@ -2934,6 +2943,15 @@ packages:
     resolution: {integrity: sha512-5J9ysMYUpYIg9RF2vJpy9SinEmSviFSe0GyPpCQ4L5QSkLAgeLXlTAOu2ZwWUU5m+0SBl6gUU1R1ZQB3aKypfA==}
     engines: {bun: '>=1.0.0', deno: '>=1.30.0', node: '>=8.0.0'}
 
+  lucide-react@1.66.0:
+    resolution: {integrity: sha512-8zjbi/Us+ETXqfBwmXF/FHrWGIqOdE6zT1yUdRJLQVoptomSkB0zdFWVIM667t9K8djWDaXdkBkqi2qVTuDNiw==}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
     hasBin: true
@@ -3543,6 +3561,10 @@ packages:
 
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
+    hasBin: true
+
+  semver@6.3.2:
+    resolution: {integrity: sha512-GYrCADwpu6yV5OAvchkQ27Z5wwMxWAEMg5NNWjyHh/5DboFFqbdbvYNIvZouQpxXyeMPoTOh0vdPYKlf0ZswdQ==}
     hasBin: true
 
   semver@7.8.5:
@@ -4315,7 +4337,7 @@ snapshots:
       debug: 4.4.3(supports-color@7.1.0)
       gensync: 1.0.0-beta.2
       json5: 2.2.3
-      semver: 6.3.1
+      semver: 6.3.2
     transitivePeerDependencies:
       - supports-color
 
@@ -4337,7 +4359,7 @@ snapshots:
       '@babel/helper-validator-option': 7.29.7
       browserslist: 4.29.4
       lru-cache: 5.1.1
-      semver: 6.3.1
+      semver: 6.3.2
 
   '@babel/helper-create-class-features-plugin@7.29.7(@babel/core@7.29.7(supports-color@7.1.0))(supports-color@7.1.0)':
     dependencies:
@@ -6819,6 +6841,12 @@ snapshots:
 
   lru.min@1.1.5: {}
 
+  lucide-react@1.66.0(@types/react@19.3.0)(react@19.3.1):
+    dependencies:
+      react: 19.3.1
+    optionalDependencies:
+      '@types/react': 19.3.0
+
   lz-string@1.5.0: {}
 
   magic-string@0.30.21:
@@ -7411,6 +7439,8 @@ snapshots:
   secure-json-parse@4.1.0: {}
 
   semver@6.3.1: {}
+
+  semver@6.3.2: {}
 
   semver@7.8.5: {}
 
