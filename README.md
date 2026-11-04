@@ -55,6 +55,7 @@ The name: **8629** — the server's port — spells TOBY on a T9 keypad.
 - [docs/product-overview.md](docs/product-overview.md) — the product, user-facing
 - [docs/system-overview.md](docs/system-overview.md) — architecture
 - [docs/features/](docs/features/) — per-domain target contracts
+- [docs/design/](docs/design/) — visual design principles
 - [docs/decisions/](docs/decisions/) — architecture decision records (ADRs)
 - [docs/operations/](docs/operations/) — local dev, ports, deployment notes
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute ([中文](CONTRIBUTING.zh.md))

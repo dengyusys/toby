@@ -10,7 +10,7 @@
 
 自托管个人助手:用户说一句话,AI 拟一条受限提案,用户确认后服务端才写入。产品:[README.zh.md](README.zh.md) · 架构:[docs/system-overview.zh.md](docs/system-overview.zh.md) · 各域契约:[docs/features/](docs/features/)。
 
-动手前:从 `docs/features/` 与 `docs/decisions/` 找「当前算数」的那份文档(功能文档 + ADR),别信记忆;先查有没有现成实现,别造平行方案。
+动手前:从 `docs/features/` 与 `docs/decisions/` 找「当前算数」的那份文档(功能文档 + ADR),UI 工作另见 `docs/design/` 的视觉规则,别信记忆;先查有没有现成实现,别造平行方案。
 
 ## 命令
 
