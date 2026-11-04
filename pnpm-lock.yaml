@@ -72,6 +72,9 @@ catalogs:
     mysql2:
       specifier: ^3.24.6
       version: 3.24.6
+    pino:
+      specifier: ^10.4.0
+      version: 10.4.0
     react:
       specifier: ^19.0.0
       version: 19.3.1
@@ -179,6 +182,9 @@ importers:
       mysql2:
         specifier: 'catalog:'
         version: 3.24.6(@types/node@22.20.5)
+      pino:
+        specifier: 'catalog:'
+        version: 10.4.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7

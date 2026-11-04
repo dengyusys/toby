@@ -3,7 +3,7 @@
  * a framework error that already carries a 4xx status (body-parser limits,
  * undecodable JSON, bad URL components) is rebuilt with a code derived from
  * its status, and everything else answers the sanitized 500 — nothing of
- * the stack goes out, only the one stderr line.
+ * the stack goes out, only one error line in the request log.
  */
 
 import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
@@ -58,7 +58,7 @@ function isClientErrorStatus(status: unknown): status is number {
 
 export function errorHandler(
   error: unknown,
-  _request: FastifyRequest,
+  request: FastifyRequest,
   reply: FastifyReply,
 ): void {
   if (error instanceof DomainHttpError) {
@@ -100,16 +100,20 @@ export function errorHandler(
     return;
   }
 
-  // Unexpected: the one line a silent failure must still print — the stack
-  // only, never the error object (driver errors carry SQL text, hosts and
-  // users in their properties and causes). The sanitized body deliberately
-  // keeps the historic `{ statusCode, message }` shape without `error` /
-  // `errorCode`; it is part of the wire contract, do not unify it.
-  console.error(
-    "toby server: unhandled error",
-    error instanceof Error
-      ? (error.stack ?? `${error.name}: ${error.message}`)
-      : String(error),
+  // Unexpected: one line in the request log, correlated with the request
+  // lines by the request id — the stack only, never the error object
+  // (driver errors carry SQL text, hosts and users in their properties and
+  // causes). The sanitized body deliberately keeps the historic
+  // `{ statusCode, message }` shape without `error` / `errorCode`; it is
+  // part of the wire contract, do not unify it.
+  request.log.error(
+    {
+      stack:
+        error instanceof Error
+          ? (error.stack ?? `${error.name}: ${error.message}`)
+          : String(error),
+    },
+    "unhandled error",
   );
   reply.status(500).send({ statusCode: 500, message: "Internal server error" });
 }

@@ -4,12 +4,14 @@
  * roots — plus the domain assembly order (auth first: it provides the
  * session guard every later `/api` route gets by default). Production
  * `main.ts` listens on what this returns; tests drive it with their own
- * domain set. No logger is configured — the server keeps no application
- * log.
+ * domain set. Logging is pino to stdout (docs/decisions/server-logging.md):
+ * the request lifecycle lines plus the error boundary's stack-only 500
+ * report, all carrying the request id.
  */
 
 import cookie from "@fastify/cookie";
-import fastify, { type FastifyInstance } from "fastify";
+import fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
+import pino from "pino";
 import { authPlugin } from "./domains/auth/auth.plugin.ts";
 import { ledgerPlugin } from "./domains/ledger/ledger.plugin.ts";
 import { systemPlugin } from "./domains/system/system.plugin.ts";
@@ -48,6 +50,8 @@ export interface AppOptions {
   config: TobyConfig;
   /** Replaces the production domain set (tests mount a subset or fakes). */
   domains?: readonly DomainMount[];
+  /** Injectable logger; tests pass a capturing or silent one. */
+  logger?: FastifyBaseLogger;
 }
 
 /** The production assembly: all domains behind the session guard. */
@@ -87,6 +91,12 @@ export function productionDomains(options: {
 
 export async function createApp(options: AppOptions): Promise<FastifyInstance> {
   const app = fastify({
+    // One pino instance for everything: request lifecycle lines and the
+    // error boundary's 500 report share it (and the request id). Structured
+    // JSON on stdout — the process supervisor keeps the history. Fastify 5
+    // takes a pre-built instance via `loggerInstance` (its `logger` option
+    // only accepts a configuration object).
+    loggerInstance: options.logger ?? pino({ name: "toby-server" }),
     bodyLimit: REQUEST_BODY_LIMIT_BYTES,
     requestTimeout: REQUEST_TIMEOUT_MS,
     frameworkErrors: frameworkErrorHandler,

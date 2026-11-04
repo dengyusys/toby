@@ -2,8 +2,8 @@
  * Server entry point: resolve the config, assemble the application, listen,
  * and close cleanly on a termination signal. Running this module starts the
  * server — tests import `app.ts` instead. Config failures surface as a plain
- * startup error. No logger is configured — the server keeps no application
- * log.
+ * startup error. The application logs through pino (see `app.ts`); only
+ * these bootstrap-time failures still print one plain stderr line.
  */
 
 import { createApp } from "./app.ts";

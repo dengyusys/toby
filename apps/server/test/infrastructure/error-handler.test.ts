@@ -7,8 +7,10 @@
 
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Writable } from "node:stream";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
+import pino from "pino";
 import { z } from "zod";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
 import { parseBody } from "../../src/infrastructure/http/body-schema.ts";
@@ -45,15 +47,26 @@ const probeRoutes: FastifyPluginAsync = async (app) => {
 };
 
 let app: FastifyInstance;
+/** Every log line the app under test emitted, one JSON string each. */
+let logLines: string[];
 
 beforeEach(async () => {
   // The probe routes touch no database; a never-created data root is
-  // enough for the config shape.
+  // enough for the config shape. The logger writes into memory so the
+  // 500 report can be asserted on.
+  logLines = [];
+  const destination = new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      logLines.push(chunk.toString());
+      callback();
+    },
+  });
   app = await createTestApp({
     config: resolveConfig({
       env: { TOBY_DATA_ROOT: path.join(tmpdir(), "toby-error-handler-probe") },
     }),
     domains: [(instance) => instance.register(probeRoutes)],
+    logger: pino(destination),
   });
 });
 
@@ -123,27 +136,28 @@ describe("error boundary", () => {
   });
 
   it("unexpected errors keep the stack server-side", async () => {
-    const report = vi.spyOn(console, "error").mockImplementation(() => {});
     const response = await app.inject({
       method: "GET",
       url: "/api/probe/crash",
     });
     expect(response.statusCode).toBe(500);
-    // The sanitized 500: the boundary answers and reports the error to
-    // stderr once — as a stack string, never the error object with its
+    // The sanitized 500: the boundary answers and reports the error to the
+    // request log once — as a stack string, never the error object with its
     // properties; nothing of the stack goes out.
     expect(response.json()).toEqual({
       statusCode: 500,
       message: "Internal server error",
     });
-    expect(report).toHaveBeenCalledOnce();
-    expect(typeof report.mock.calls[0]?.[1]).toBe("string");
-    expect(report.mock.calls[0]?.[1]).toContain("unexpected kaboom");
-    report.mockRestore();
+    const errors = logLines
+      .map((line) => JSON.parse(line))
+      .filter((entry) => entry.level >= 50);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].msg).toBe("unhandled error");
+    expect(typeof errors[0].stack).toBe("string");
+    expect(errors[0].stack).toContain("unexpected kaboom");
   });
 
   it("statuses that are not real error statuses end in the sanitized 500", async () => {
-    const report = vi.spyOn(console, "error").mockImplementation(() => {});
     for (const url of [
       "/api/probe/bad-domain-status",
       "/api/probe/fractional-status",
@@ -155,7 +169,10 @@ describe("error boundary", () => {
         message: "Internal server error",
       });
     }
-    report.mockRestore();
+    const errors = logLines
+      .map((line) => JSON.parse(line))
+      .filter((entry) => entry.level >= 50);
+    expect(errors).toHaveLength(2);
   });
 });
 
