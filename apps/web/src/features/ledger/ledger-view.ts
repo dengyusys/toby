@@ -1,14 +1,12 @@
 /**
  * Pure view helpers shared by the ledger feature components of this app:
- * date and month math, money and countdown formatting, proposal-error
+ * date and month math, money and countdown formatting, receipt-error
  * wording, and the card button class strings. Per
  * docs/decisions/web-split-dual-apps.md the mobile app keeps its own copy
  * of this module; nothing is shared across the two apps from here.
  */
 
 import { ApiError } from "@toby/contract";
-
-export type ProposalOutcome = "committed" | "cancelled";
 
 function toLocalIso(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -46,14 +44,14 @@ export function describeError(error: unknown): string {
         return `录入有误:${error.message}`;
       case "INVALID_MONTH":
         return "月份参数不正确";
-      case "PROPOSAL_CANCELLED":
-        return "提案已取消,无法记入";
-      case "PROPOSAL_COMMITTED":
-        return "提案已记入";
       case "PROPOSAL_EXPIRED":
-        return "提案已过期,请重新录入";
+        return "撤销窗口已过,不能再撤销";
       case "PROPOSAL_NOT_FOUND":
-        return "提案不存在或已被清理";
+        return "记录不存在或已被清理";
+      case "PROPOSAL_NOT_REVERTIBLE":
+        return "该写入不可撤销";
+      case "REVERT_CONFLICT":
+        return "已有后续改动,不能撤销——新的改动优先";
       case "TRANSACTION_NOT_FOUND":
         return "账目不存在,可能已被删除";
       case "AI_UNAVAILABLE":

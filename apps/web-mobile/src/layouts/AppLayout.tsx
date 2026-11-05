@@ -3,6 +3,8 @@ import { Calendar, LogOut, Menu, MessageSquare } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/api.ts";
+import { PreviewProvider } from "@/features/preview/preview-context.tsx";
+import { PreviewPanel } from "@/features/preview/PreviewPanel.tsx";
 import logo from "@/assets/logo.svg";
 
 /** Drawer slide transition length; keeps the unmount timer in sync. */
@@ -87,59 +89,64 @@ export function AppLayout() {
   }, [mounted]);
 
   return (
-    <div className="flex h-dvh flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-1.5 border-b bg-card/80 px-3 backdrop-blur">
-        <button
-          type="button"
-          aria-label="打开菜单"
-          aria-expanded={mounted}
-          onClick={openDrawer}
-          className="flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <Menu className="size-5" />
-        </button>
-        <img src={logo} alt="" className="size-5" />
-        <span className="text-sm font-semibold tracking-tight">Toby</span>
-      </header>
-      <main className="min-w-0 flex-1 overflow-hidden">
-        <Outlet />
-      </main>
-
-      {mounted && (
-        <div className="fixed inset-0 z-50">
-          {/* The scrim spans the viewport; the panel covers all but a
-              right-hand strip, which stays tappable for closing. */}
+    <PreviewProvider>
+      <div className="flex h-dvh flex-col">
+        <header className="flex h-12 shrink-0 items-center gap-1.5 border-b bg-card/80 px-3 backdrop-blur">
           <button
             type="button"
-            aria-label="关闭菜单"
-            className={`absolute inset-0 cursor-pointer bg-black/40 transition-opacity duration-300 ease-out ${
-              shown ? "opacity-100" : "opacity-0"
-            }`}
-            onClick={closeDrawer}
-          />
-          <aside
-            aria-label="侧边导航"
-            className={`absolute inset-y-0 left-0 flex w-[calc(100%-3rem)] flex-col bg-card p-4 shadow-2xl transition-transform duration-300 ease-out ${
-              shown ? "translate-x-0" : "-translate-x-full"
-            }`}
+            aria-label="打开菜单"
+            aria-expanded={mounted}
+            onClick={openDrawer}
+            className="flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
-            <div className="flex items-center gap-2.5 px-2 py-3">
-              <img src={logo} alt="" className="size-6" />
-              <span className="text-sm font-semibold tracking-tight">Toby</span>
-            </div>
-            <NavPills onNavigate={closeDrawer} />
+            <Menu className="size-5" />
+          </button>
+          <img src={logo} alt="" className="size-5" />
+          <span className="text-sm font-semibold tracking-tight">Toby</span>
+        </header>
+        <main className="min-w-0 flex-1 overflow-hidden">
+          <Outlet />
+        </main>
+        <PreviewPanel />
+
+        {mounted && (
+          <div className="fixed inset-0 z-50">
+            {/* The scrim spans the viewport; the panel covers all but a
+              right-hand strip, which stays tappable for closing. */}
             <button
               type="button"
-              onClick={logout}
-              disabled={logoutMutation.isPending}
-              className="mt-auto flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+              aria-label="关闭菜单"
+              className={`absolute inset-0 cursor-pointer bg-black/40 transition-opacity duration-300 ease-out ${
+                shown ? "opacity-100" : "opacity-0"
+              }`}
+              onClick={closeDrawer}
+            />
+            <aside
+              aria-label="侧边导航"
+              className={`absolute inset-y-0 left-0 flex w-[calc(100%-3rem)] flex-col bg-card p-4 shadow-2xl transition-transform duration-300 ease-out ${
+                shown ? "translate-x-0" : "-translate-x-full"
+              }`}
             >
-              <LogOut className="size-[18px] shrink-0" />
-              退出登录
-            </button>
-          </aside>
-        </div>
-      )}
-    </div>
+              <div className="flex items-center gap-2.5 px-2 py-3">
+                <img src={logo} alt="" className="size-6" />
+                <span className="text-sm font-semibold tracking-tight">
+                  Toby
+                </span>
+              </div>
+              <NavPills onNavigate={closeDrawer} />
+              <button
+                type="button"
+                onClick={logout}
+                disabled={logoutMutation.isPending}
+                className="mt-auto flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+              >
+                <LogOut className="size-[18px] shrink-0" />
+                退出登录
+              </button>
+            </aside>
+          </div>
+        )}
+      </div>
+    </PreviewProvider>
   );
 }

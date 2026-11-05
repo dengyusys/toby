@@ -1,5 +1,6 @@
 import {
   createAuthClient,
+  createChatClient,
   createLedgerClient,
   createSystemClient,
 } from "@toby/contract";
@@ -10,3 +11,4 @@ import {
 export const systemClient = createSystemClient("");
 export const ledgerClient = createLedgerClient("");
 export const authClient = createAuthClient("");
+export const chatClient = createChatClient("");
