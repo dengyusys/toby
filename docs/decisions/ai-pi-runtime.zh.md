@@ -29,9 +29,11 @@
    弹回——转换可能改类型甚至截断,所以没有任何数据能凭转换本身进入域,
    仍由手写校验把关。`format` 关键字在边界只是注解(draft 2020-12 默认),
    格式语义同样留在域校验。AI 输出——包括工具参数——永远是非受信输入。
-2. **一切真实效果走 proposal → 用户确认 → 事务执行。** 共享的提案确认
-   状态机在 `infrastructure/actions-kernel/` (`registry.ts`);
-   agent 永不直写、永不替用户确认。
+2. **一切真实效果都经 actions kernel 事务落地。** 写入分级
+   ([write-confirmation-tiers.zh.md](write-confirmation-tiers.zh.md)):
+   追加类操作立即执行、带撤回窗口;破坏类操作仍走 proposal → 用户确认
+   → 执行。内核位于 `infrastructure/actions-kernel/` (`registry.ts`);
+   agent 永不直写、永不替用户确认、也永不替用户撤回。
 3. **禁区能力是缺位,不是被拦。** 没有 shell 工具、没有文件系统工具、
    没有直连数据库工具——它们作为工具定义根本不存在。
 

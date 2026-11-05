@@ -23,16 +23,16 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 ```mermaid
 flowchart LR
     U(("User")) --> W["Two web apps (React SPAs:<br/>PC at / and mobile at /m/)"]
-    W -->|"read-only APIs / proposals (HTTP)"| S["Toby server · single process (Fastify)<br/>vertical domains · proposal lifecycle (actions kernel)"]
+    W -->|"read-only APIs / write cards (HTTP)"| S["Toby server · single process (Fastify)<br/>vertical domains · write lifecycle (actions kernel)"]
     S --> DB[("Databases via the adapter port<br/>SQLite (default) · MySQL (optional)<br/>only the server writes")]
-    S -->|"kind-gated tools; writes only via proposals"| AI(("AI via pi-ai / pi-agent-core"))
+    S -->|"kind-gated tools; writes only via the actions kernel"| AI(("AI via pi-ai / pi-agent-core"))
 ```
 
 - The web apps reach data only through server APIs; they never touch the file system.
-- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete must pass **proposal confirmation** — run by the shared **actions kernel** in `infrastructure/actions-kernel/` (`registry.ts`) (one state machine: create / confirm / expire; ledger is live on it; semantics: [actions-kernel.md](decisions/actions-kernel.md)).
+- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete runs through the shared **actions kernel** in `infrastructure/actions-kernel/` (`registry.ts`) — additive operations execute immediately with a revert window, destructive operations pass proposal confirmation (tiering: [write-confirmation-tiers.md](decisions/write-confirmation-tiers.md); ledger is live on it; semantics: [actions-kernel.md](decisions/actions-kernel.md)).
 - AI tools carry a safety kind (read-only / write-intent) and run behind a policy gate; real effects still require proposal confirmation (docs/decisions/ai-pi-runtime.md).
 - Root `scripts/` only orchestrates dev and multi-process startup; it never touches data.
-- The remaining business domains (chat, greeting, schedule, notes, todo, memory, library) land one at a time; each establishes its contract doc in `docs/features/` on arrival. Proposal confirmation is already a shared kernel (see above), not a domain.
+- The remaining business domains (chat, greeting, schedule, notes, todo, memory, library) land one at a time; each establishes its contract doc in `docs/features/` on arrival. The write kernel is already shared (see above), not a domain.
 
 ## Repository layout
 
@@ -64,9 +64,9 @@ test/             # root HTTP integration tests
 - `pnpm run start`: builds both web apps, then the server serves pages (`/` and `/m/`) and APIs from one process on `8629`.
 - The server listens on loopback only by default; Docker binds `127.0.0.1:8629` only, with `./data` mounted as a volume.
 
-## APIs and the proposal data flow (target shape)
+## APIs and the write data flow (target shape)
 
-One write, end to end (endpoint contracts are finalized in each domain's `features/` doc):
+One write, end to end (endpoint contracts are finalized in each domain's `features/` doc). The sequence below is the **gated tier** (destructive operations); the immediate tier (additive) runs the same transactional write at once and returns a born-confirmed card with a revert window — see the [tier decision](decisions/write-confirmation-tiers.md):
 
 ```mermaid
 sequenceDiagram
@@ -103,10 +103,10 @@ Two non-inferable details: the AI's draft passes shape, domain, and semantic val
 ## Data boundaries
 
 - `data/` is production data: nobody touches it by default; maintenance requires explicit user instruction, with SHA-256 compared before and after any move or restore.
-- Daily reads go only through server APIs; daily writes only through proposal confirmation. Clients, AI, and scripts never connect to a database directly.
+- Daily reads go only through server APIs; daily writes only through the actions kernel — immediate or confirmed tier. Clients, AI, and scripts never connect to a database directly.
 - Explicit `false` and numeric `0` are valid data, never treated as missing.
 - The server edits field by field: `NULL` means missing, omitted on read; unrelated fields stay untouched.
-- A multi-field commit is one database transaction; failure or interruption rolls back via the database. No user history, no undo.
+- A multi-field commit is one database transaction; failure or interruption rolls back via the database. No user history; the only rewind is the immediate tier's revert window — deliberately not general undo.
 - Each domain owns one database — a SQLite file `data/<domain>.db`, or a MySQL schema `toby_<domain>` when that dialect is on (see the [db adapter decision](decisions/db-adapter.md)); databases are never shared across domains.
 
 ## Security and dependency direction
@@ -129,8 +129,8 @@ Domain organization discipline:
 
 Security boundaries:
 
-- HTTP write paths must go through proposal confirmation; any write endpoint bypassing it is a defect. Ledger is live on it; later domains reuse the same actions kernel (`infrastructure/actions-kernel/` (`registry.ts`)).
-- The AI gets no file paths, no data contents, and no shell; its tools are kind-gated, and write-intent tools only produce proposals (docs/decisions/ai-pi-runtime.md). Secrets live only in local environment config, never inside web bundles.
+- HTTP write paths must go through the actions kernel — immediate (additive) or confirmed (destructive) per tier; any write endpoint bypassing the kernel is a defect. Ledger is live on it; later domains reuse the same kernel (`infrastructure/actions-kernel/` (`registry.ts`)).
+- The AI gets no file paths, no data contents, and no shell; its tools are kind-gated, and write-intent tools only produce write drafts — the effect still goes through the kernel, immediate or confirmed per tier (docs/decisions/ai-pi-runtime.md). Secrets live only in local environment config, never inside web bundles.
 - Introducing new runtimes (Python etc.) requires an ADR first.
 - These import disciplines are machine-enforced by `test/boundaries.test.ts`.
 
@@ -145,17 +145,18 @@ Security boundaries:
 
 Terms this repository uses with a specific meaning; one line each — the authoritative definition lives where the term is introduced.
 
-| Term                           | Meaning                                                                                                                                                             |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| proposal / proposal card       | A short-lived, user-confirmable write suggestion; nothing is written until confirmed                                                                                |
-| actions kernel                 | The shared proposal-confirmation state machine in `infrastructure/actions-kernel/` (`registry.ts`) (30 s tacit-approval window, TTL backstop, single-flight commit) |
-| safety kind                    | A tool's registered class: `read-only` (no state change) or `write-intent` (effect only via proposal); a `costly` kind is reserved for the future                   |
-| gate (policy / shape / health) | Enforcement points: policy = tool kinds an agent may call; shape = Zod schema check; health = dev startup readiness                                                 |
-| trust boundary                 | Deterministic server-side validation — the AI's output (and every other foreign input) is untrusted until it passes                                                 |
-| adapter port                   | "Port" as in ports-and-adapters: the interface behind which SQLite / MySQL swap                                                                                     |
-| composition root               | `apps/server/src/app.ts` — the only place cross-domain wiring happens                                                                                               |
-| vertical domain slice          | One business = one directory owning its routes, service, store, and rules                                                                                           |
-| modular monolith               | Modules isolated in code, assembled and run by one process                                                                                                          |
-| single-flight                  | Concurrent confirms and the sweeper share one execution                                                                                                             |
-| error body                     | The one error shape: `{ statusCode, message, error }` plus a machine-readable `errorCode` (the sanitized 500 keeps only `statusCode` and `message`)                 |
-| sweeper                        | The periodic task that auto-writes due proposals and prunes expired ones                                                                                            |
+| Term                           | Meaning                                                                                                                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| proposal / proposal card       | The gated tier's short-lived, user-confirmable write suggestion; nothing is written until confirmed. Immediate-tier cards are born confirmed — receipts with a revert window                                        |
+| write tier                     | Which lane an operation takes: immediate (additive — executes at once, card born confirmed, revert window) or gated (destructive — proposal confirmation)                                                           |
+| actions kernel                 | The shared write state machine in `infrastructure/actions-kernel/` (`registry.ts`) — single write path for both tiers (execute-then-journal / journal-then-execute; 30 s tacit window, TTL backstop, single-flight) |
+| safety kind                    | A tool's registered class: `read-only` (no state change) or `write-intent` (effect only via proposal); a `costly` kind is reserved for the future                                                                   |
+| gate (policy / shape / health) | Enforcement points: policy = tool kinds an agent may call; shape = Zod schema check; health = dev startup readiness                                                                                                 |
+| trust boundary                 | Deterministic server-side validation — the AI's output (and every other foreign input) is untrusted until it passes                                                                                                 |
+| adapter port                   | "Port" as in ports-and-adapters: the interface behind which SQLite / MySQL swap                                                                                                                                     |
+| composition root               | `apps/server/src/app.ts` — the only place cross-domain wiring happens                                                                                                                                               |
+| vertical domain slice          | One business = one directory owning its routes, service, store, and rules                                                                                                                                           |
+| modular monolith               | Modules isolated in code, assembled and run by one process                                                                                                                                                          |
+| single-flight                  | Concurrent confirms and the sweeper share one execution                                                                                                                                                             |
+| error body                     | The one error shape: `{ statusCode, message, error }` plus a machine-readable `errorCode` (the sanitized 500 keeps only `statusCode` and `message`)                                                                 |
+| sweeper                        | The periodic task that auto-writes due proposals and prunes expired ones                                                                                                                                            |

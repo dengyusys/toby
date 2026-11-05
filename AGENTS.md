@@ -8,7 +8,7 @@ Instructions for AI coding agents working in this repository.
 
 ## Project overview
 
-Self-hosted personal assistant: the user says one sentence, the AI drafts a constrained proposal, the user confirms, and only then the server writes. Product: [README.md](README.md) · architecture: [docs/system-overview.md](docs/system-overview.md) · per-domain contracts: [docs/features/](docs/features/).
+Self-hosted personal assistant: the user says one sentence, the AI drafts a constrained write; additive operations land at once (revertible within minutes), destructive operations still wait for confirmation — every write goes through the actions kernel transactionally. Product: [README.md](README.md) · architecture: [docs/system-overview.md](docs/system-overview.md) · per-domain contracts: [docs/features/](docs/features/).
 
 Before implementing: find the currently authoritative doc (feature docs + ADRs) in `docs/features/` and `docs/decisions/`, and for UI work the visual rules in `docs/design/` — do not trust memory; check for an existing implementation — do not build a parallel one.
 
@@ -76,6 +76,6 @@ If one change touches several rows, run all the checks those rows list.
 
 - Everything under `data/` is production data. Nobody touches it by default; only maintenance tasks the user explicitly names may touch it. Before and after moving or restoring data, compare **SHA-256** checksums.
 - Only the server (`apps/server`) writes to the databases. Web, AI, and scripts never connect to a database directly.
-- Every create/update/delete goes through the "AI proposal → user confirmation → server transactional write" pipeline; any write endpoint that bypasses it is a defect. AI tools are registered with a safety kind (read-only / write-intent — write-intent tools only produce proposals) and policy-gated; prohibited capabilities (database, shell, file paths) are absent as tool definitions. See docs/decisions/ai-pi-runtime.md.
+- Every create/update/delete goes through the actions kernel, transactionally: additive operations execute immediately with a revert window, destructive operations still pass proposal → user confirmation (docs/decisions/write-confirmation-tiers.md); any write endpoint that bypasses the kernel is a defect. AI tools are registered with a safety kind (read-only / write-intent — write-intent tools only produce write drafts) and policy-gated; prohibited capabilities (database, shell, file paths) are absent as tool definitions. See docs/decisions/ai-pi-runtime.md.
 - API keys, tokens, certificate private keys, server credentials, personal sensitive data, full production logs: never enter source code, docs, tests, snapshots, or commits — nowhere.
 - If code and docs disagree and the conflict involves data / security / public interfaces: stop and ask the user; do not pick a side yourself.

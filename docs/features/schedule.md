@@ -6,7 +6,7 @@ English | [简体中文](schedule.zh.md)
 
 ## Responsibilities and boundaries
 
-Natural language in the chat becomes a constrained, verifiable schedule-modification proposal; field-level old/new values shown; nothing writes until confirmation (explicit button / tacit approval by the next message / the 30-second deadline, whichever comes first).
+Natural language in the chat becomes a constrained, verifiable schedule write; field-level old/new values shown. Writes are tiered: field writes are immediate — they land at once as born-confirmed cards with a revert window; tracker create / archive / amend are gated — nothing writes until confirmation (explicit button / tacit approval by the next message / the 30-second deadline, whichever comes first).
 
 - Schedule content rides on **trackers**: nothing preinstalled, no built-in categories — what to track is created by the user through conversation (proposal-based); definitions are data, so adding or adjusting fields needs no code change.
 - **Owns**: tracker create/archive/amend (proposal-based), read queries, proposal generation and confirmation, AI parsing and validation, conflict detection and transactions.
@@ -38,4 +38,4 @@ All JSON; errors follow the server's standard error body.
 - Tracker amendments may only add or disable fields, keeping at least one active; disabling is a definition flag — historical data is kept as-is.
 - Reads are tolerant, writes are strict: historical unregistered enum values still display; writes always validate against the current definition.
 - Commit re-reads target fields inside a transaction, compares against the proposal's expectation, then writes through a serial queue; any mismatch rejects the whole proposal with zero changes.
-- Four proposal actions: field writes, create tracker, archive tracker, amend tracker; TTL 10 minutes, auto-write after 30 seconds uncancelled (same commit path).
+- Four write actions, tiered ([write-confirmation-tiers](../decisions/write-confirmation-tiers.md)): field writes are immediate (at-once execution, born-confirmed card, revert window); create / archive / amend tracker are gated — TTL 10 minutes, auto-write after 30 seconds uncancelled (same commit path).

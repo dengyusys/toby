@@ -1,21 +1,21 @@
 # Toby
 
-**Self-hosted AI assistant: it proposes, you confirm, only then does it write.**
+**Self-hosted AI assistant: everyday writes land at once (revertible); destructive ones still wait for your confirm.**
 
 English | [简体中文](README.zh.md)
 
-Say one sentence — your money, schedule, and notes fall into place. The AI turns your words into a structured **proposal card** (what to record, where, and with which values); you review it; only then does the server perform a deterministic write. Nothing lands in storage before your confirmation — and the AI has no write access of its own.
+Say one sentence — your money, schedule, and notes fall into place. The AI turns your words into a structured **write card** (what to record, where, and with which values) and the server performs a deterministic, transactional write. Everyday additive writes land immediately — the card is a receipt with a minutes-long revert window; destructive operations (rewriting your notes, redefining trackers) still show a confirm card first. Every write goes through the actions kernel — and the AI has no write access of its own.
 
 ```text
       ┌─ You ──────────────────────────────────────────┐
       │ Yesterday's lunch cost 30                      │
       └────────────────────────────────────────────────┘
 
-      ┌─ Toby · proposal draft ────────────────────────┐
+      ┌─ Toby · written ✓ ─────────────────────────────┐
       │ Expense · Dining · ¥30.00                      │
       │ Date 2026-10-22 · Account not linked           │
       │                                                │
-      │ [ Confirm ]      [ Cancel ]                    │
+      │ [ Revert (within 10 min) ]                     │
       └────────────────────────────────────────────────┘
 ```
 
@@ -23,7 +23,7 @@ Say one sentence — your money, schedule, and notes fall into place. The AI tur
 
 **Available today**
 
-- One-sentence bookkeeping: speak (or type) an expense or income; the AI drafts the entry, you confirm the proposal card
+- One-sentence bookkeeping: speak (or type) an expense or income; it lands at once as a receipt card with a revert window
 - Login protection for deployments, PC (`/`) and mobile (`/m/`) web apps
 - Self-hosted and single-user: your data stays in local SQLite files on your machine
 

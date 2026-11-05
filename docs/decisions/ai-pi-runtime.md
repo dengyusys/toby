@@ -37,11 +37,12 @@ as the agent loop. The guardrails below are part of the deal.
    draft 2020-12 default), so format semantics likewise stay in domain
    validation. AI output — including tool arguments — is untrusted input,
    always.
-2. **Every real effect goes through proposal → user confirmation →
-   transactional execution.** The shared actions kernel (the
-   proposal-confirmation state machine) lives in `infrastructure/actions-kernel/`
-   (`registry.ts`); agents never write directly and never confirm on the
-   user's behalf.
+2. **Every real effect goes through the actions kernel, transactionally.**
+   Writes are tiered ([write-confirmation-tiers.md](write-confirmation-tiers.md)):
+   additive operations execute immediately with a revert window; destructive
+   operations still pass proposal → user confirmation → execution. The kernel
+   lives in `infrastructure/actions-kernel/` (`registry.ts`); agents never
+   write directly, never confirm, and never revert on the user's behalf.
 3. **Prohibited capabilities are absent, not blocked.** There is no shell
    tool, no file-system tool, no direct-database tool — they do not exist
    as tool definitions at all.

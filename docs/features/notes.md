@@ -6,7 +6,7 @@ English | [简体中文](notes.zh.md)
 
 ## Responsibilities and boundaries
 
-Passing thoughts, resolutions, and memos said in the chat become Markdown notes under `data/notes/` after proposal confirmation — a "flip through the notebook" experience, openable in any editor.
+Passing thoughts, resolutions, and memos said in the chat become Markdown notes under `data/notes/` — appends land at once, destructive primitives pass proposal confirmation — a "flip through the notebook" experience, openable in any editor.
 
 - **Dual-track storage**: a monthly journal (`YYYY-MM.md`, day sections + paragraph-block notes, written by the system) and topic notebooks (any non-monthly `.md`; the filename is the topic — collections the owner maintains by hand; the system only does named continuation and opening new notebooks).
 - One note = one passage of the owner's original words; no title line, no type word, no classification.
@@ -39,5 +39,5 @@ All JSON; errors follow the server's standard error body.
 - Topic naming has no failure path: a list hit → append to that notebook; a miss → open a new one (the card says "new"); an illegal AI-proposed name → degrade to a monthly add with a trace.
 - Server-side validation of new topic names (length, path separators, leading dot, monthly-name squatting) doubles as the only path-traversal defense.
 - Intent boundaries: writing note content → this domain; viewing/summarizing/reviewing → the agent's read-only tools.
-- Proposal TTL 10 minutes; uncancelled after 30 seconds the server auto-writes, same path as manual confirmation.
+- Writes are tiered ([write-confirmation-tiers](../decisions/write-confirmation-tiers.md)): monthly add / append and topic new / append are immediate — executed at once, born-confirmed card with a revert window; rewrite / remove / merge are gated — TTL 10 minutes, uncancelled after 30 seconds the server auto-writes, same path as manual confirmation.
 - Reads: an absent monthly file answers `exists: false`, never 404; an oversized notebook truncates with a marker.

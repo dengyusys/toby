@@ -6,7 +6,7 @@ English | [简体中文](memory.zh.md)
 
 ## Responsibilities and boundaries
 
-Say "remember I don't eat cilantro" in the chat, get a memory proposal card (save/remove actions), confirm, and it writes into `data/memory.db`.
+Say "remember I don't eat cilantro" in the chat, get a memory write card (save/remove actions); upsert lands at once, remove writes after confirmation into `data/memory.db`.
 
 - Stores only **long-term information** that shapes the agent's service: preferences, constraints, personal facts, important decisions, ongoing matters. One-shot items belong to the todo board, daily check-ins to schedule, diary musings to notes.
 - Consumed in two directions: **hybrid retrieval** injected before each domain's proposal generation, and the agent's read-only memory tool.
@@ -40,4 +40,4 @@ All JSON (the context endpoint returns text/plain); errors follow the server's s
 - Sensitive content (regex hits for keys, ID numbers) is never sent to the external embedding service — literal retrieval only.
 - Memory content goes to an external service for vectorization, the same exposure class as chat text sent to the AI.
 - Distillation output goes through the same proposal review.
-- Proposal lifecycle: generation writes nothing, commit is idempotent, cancelled proposals refuse commit, expiry answers 410.
+- Writes are tiered ([write-confirmation-tiers](../decisions/write-confirmation-tiers.md)): upsert is immediate — executed at once, born-confirmed card with a revert window; remove is gated — generation writes nothing, commit is idempotent, cancelled proposals refuse commit, expiry answers 410.

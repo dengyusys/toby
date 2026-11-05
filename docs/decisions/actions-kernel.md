@@ -16,6 +16,18 @@ for every write would turn the conversation back into a form-filling
 session; the window keeps the flow while keeping the pen in the user's
 hand, because one "cancel" — before the deadline — stops everything.
 
+## Two orderings (tiers)
+
+Since [write-confirmation-tiers.md](write-confirmation-tiers.md) the kernel runs two
+orderings. **Gated** (destructive operations) is the flow described below:
+journal first, execute on confirm. **Immediate** (additive operations) inverts
+it — execute the transaction at once, then journal: the card is born confirmed
+with the same before/after snapshot plus a `revertUntil` window (10 minutes by
+default); a revert applies the snapshot in one transaction and refuses if a
+later write has touched the same record. Single-flight and idempotency apply to
+both; the tacit window and the sweeper's auto-write exist only for the gated
+tier.
+
 ## The semantics (load-bearing)
 
 - **30-second tacit-approval window.** A pending proposal auto-executes
