@@ -13,11 +13,14 @@ import cookie from "@fastify/cookie";
 import fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import pino from "pino";
 import { authPlugin } from "./domains/auth/auth.plugin.ts";
-import { ledgerPlugin } from "./domains/ledger/ledger.plugin.ts";
+import { chatPlugin } from "./domains/chat/chat.plugin.ts";
+import type { ChatLedgerPort } from "./domains/chat/types.ts";
+import { createLedgerDomain } from "./domains/ledger/ledger.plugin.ts";
 import { systemPlugin } from "./domains/system/system.plugin.ts";
 import { tracesPlugin } from "./domains/traces/traces.plugin.ts";
 import type { TobyConfig } from "./infrastructure/config/config.ts";
 import { createTobyAgentFactory } from "./infrastructure/model/agent.ts";
+import { createPiAiClient } from "./infrastructure/model/client.ts";
 import { createTraceBus } from "./infrastructure/trace/bus.ts";
 import type { Clock } from "./infrastructure/clock.ts";
 import { REQUEST_BODY_LIMIT_BYTES } from "./infrastructure/http/body-limit.ts";
@@ -69,6 +72,22 @@ export function productionDomains(options: {
   const agentFactory = config.ai
     ? createTobyAgentFactory(config.ai, { reporter: traceBus })
     : undefined;
+  const aiClient = config.ai
+    ? createPiAiClient(config.ai, { reporter: traceBus })
+    : undefined;
+  // The ledger domain is built here so the composition root can adapt its
+  // service into chat's port — the only cross-domain wiring, done with
+  // structural types, never domain-to-domain imports.
+  const ledgerDomain = createLedgerDomain({
+    config,
+    clock,
+    ...(agentFactory ? { agentFactory } : {}),
+  });
+  const chatLedgerPort: ChatLedgerPort = {
+    recordFromText: (text) => ledgerDomain.service.createProposal({ text }),
+    months: () => ledgerDomain.service.months(),
+    monthReport: (month) => ledgerDomain.service.monthReport(month),
+  };
   return [
     async (app) => {
       // Default-secure from here on: every `/api` route registered after
@@ -77,12 +96,15 @@ export function productionDomains(options: {
       await app.register(auth.plugin);
     },
     (app) => app.register(systemPlugin({ clock })),
+    (app) => app.register(ledgerDomain.plugin),
     (app) =>
       app.register(
-        ledgerPlugin({
+        chatPlugin({
           config,
           clock,
           ...(agentFactory ? { agentFactory } : {}),
+          ...(aiClient ? { aiClient } : {}),
+          ledger: chatLedgerPort,
         }),
       ),
     (app) => app.register(tracesPlugin({ bus: traceBus })),

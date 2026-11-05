@@ -1,6 +1,6 @@
 /**
  * Ledger domain assembly: the store (owning its database), the service
- * (running the proposal sweeper) and the routes. AI disabled (no
+ * (running the record pruner) and the routes. AI disabled (no
  * TOBY_AI_MODEL) keeps the extractor undefined: the service then answers
  * the one-sentence path with 501. A shared agentFactory (traced, from the
  * composition root) takes precedence over the locally built one.
@@ -15,7 +15,11 @@ import {
 } from "../../infrastructure/model/agent.ts";
 import { createLedgerExtractor, type LedgerExtractor } from "./extraction.ts";
 import { ledgerRoutes } from "./ledger.routes.ts";
-import { createLedgerService, type LedgerTiming } from "./ledger.service.ts";
+import {
+  createLedgerService,
+  type LedgerService,
+  type LedgerTiming,
+} from "./ledger.service.ts";
 import { createLedgerStore } from "./store.ts";
 
 export interface LedgerPluginOptions {
@@ -25,11 +29,23 @@ export interface LedgerPluginOptions {
   extractor?: LedgerExtractor;
   /** A shared agent factory (the composition root passes a traced one). */
   agentFactory?: TobyAgentFactory;
-  /** Test seam: proposal-timing knobs instead of the kernel defaults. */
+  /** Test seam: write-timing knobs instead of the kernel defaults. */
   timing?: LedgerTiming;
 }
 
-export function ledgerPlugin(options: LedgerPluginOptions): FastifyPluginAsync {
+/** The assembled ledger domain: its mount step and its service handle. */
+export interface LedgerDomain {
+  readonly plugin: FastifyPluginAsync;
+  readonly service: LedgerService;
+}
+
+/**
+ * Builds the whole ledger domain and returns both its plugin and its
+ * service — the composition root hands the service to other domains'
+ * ports (chat); mounting still happens through the plugin so lifecycle
+ * (pruner, store close) stays in one place.
+ */
+export function createLedgerDomain(options: LedgerPluginOptions): LedgerDomain {
   const clock = options.clock ?? Date.now;
   const store = createLedgerStore({ config: options.config, clock });
   const buildExtractor = (): LedgerExtractor | undefined => {
@@ -50,14 +66,19 @@ export function ledgerPlugin(options: LedgerPluginOptions): FastifyPluginAsync {
     extractor,
     timing: options.timing,
   });
-  return async (app) => {
+  const plugin: FastifyPluginAsync = async (app) => {
     await app.register(ledgerRoutes, { service });
     service.start();
-    // Teardown ordering: the sweeper (and any sweep still running) must
+    // Teardown ordering: the pruner (and any prune still running) must
     // finish before the store closes the database. Do not reorder.
     app.addHook("onClose", async () => {
       await service.stop();
       await store.close();
     });
   };
+  return { plugin, service };
+}
+
+export function ledgerPlugin(options: LedgerPluginOptions): FastifyPluginAsync {
+  return createLedgerDomain(options).plugin;
 }
