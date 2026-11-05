@@ -26,8 +26,7 @@
 | `GET /api/ledger/months`                     | 有记录的月份列表(降序)                                             |
 | `GET /api/ledger/transactions?month=YYYY-MM` | 月度交易 + 汇总(收支合计、分类合计)                                |
 | `POST /api/ledger/proposals`                 | 一句话(AI,可多笔)或结构化单笔(确定性路径)生成提案;不确定则返回追问 |
-| `POST /api/ledger/proposals/:id/commit`      | 确认:整批原子落库(幂等)                                            |
-| `POST /api/ledger/proposals/:id/cancel`      | 取消提案                                                           |
+| `POST /api/ledger/proposals/:id/revert`      | 撤回窗口内撤销已落库的整批(有后续改动则拒绝)                       |
 | `DELETE /api/ledger/transactions/:id`        | 删除单笔交易(用户主动发起;id 不存在答 404 `TRANSACTION_NOT_FOUND`) |
 
 ## 关键规则

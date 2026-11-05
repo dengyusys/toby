@@ -72,9 +72,9 @@ export function createLedgerExtractor(deps: {
 
       const submitEntries = defineTool("write-intent", {
         name: "submit_entries",
-        label: "提交记账草稿",
+        label: "提交记账条目",
         description:
-          "提交从用户语句中提取的记账条目草稿。草稿进入待确认提案,不会直接写入账本。",
+          "提交从用户语句中提取的记账条目。通过校验后立即写入账本,短时间内用户可撤销。",
         parameters: LEDGER_ENTRIES_TOOL_SCHEMA,
         execute: async (_toolCallId, params) => {
           // Last write wins: a corrected resubmit replaces the earlier
@@ -84,7 +84,7 @@ export function createLedgerExtractor(deps: {
             content: [
               {
                 type: "text",
-                text: `已记录 ${params.entries.length} 条草稿,等待用户确认。`,
+                text: `已提交 ${params.entries.length} 条,立即记入账本。`,
               },
             ],
             details: { count: params.entries.length },

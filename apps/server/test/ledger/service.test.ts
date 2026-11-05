@@ -1,8 +1,8 @@
 /**
- * Ledger service against a fake store and an injected clock: the proposal
- * lifecycle — auto-write after the confirmation window, single-flight and
- * idempotent commit, cancel semantics, expiry, memory pruning — and the
- * sweeper's start/stop lifecycle.
+ * Ledger service against a fake store and an injected clock: the
+ * immediate-tier write lifecycle — execute-at-once receipts, the revert
+ * window, conflict semantics, retention — and the pruner's start/stop
+ * lifecycle.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -18,18 +18,20 @@ import type {
 } from "../../src/domains/ledger/extraction.ts";
 import type {
   LedgerEntry,
-  LedgerProposalView,
+  LedgerReceiptView,
 } from "../../src/domains/ledger/types.ts";
 import { AiError } from "../../src/infrastructure/model/errors.ts";
 
 // The store methods the service actually calls; fakes satisfy that slice.
 type LedgerStoreLike = Pick<
   LedgerStore,
-  "insertTransactions" | "listMonths" | "listMonthTransactions"
+  | "insertTransactions"
+  | "revertTransactions"
+  | "listMonths"
+  | "listMonthTransactions"
 >;
 
-const AUTO_WRITE_MS = 30_000;
-const TTL_MS = 600_000;
+const REVERT_WINDOW_MS = 600_000;
 const RETENTION_MS = 3_600_000;
 
 function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
@@ -48,18 +50,35 @@ interface StoreCall {
   entries: readonly LedgerEntry[];
 }
 
-function fakeStore(options: { failFirstWrites?: number } = {}) {
+function fakeStore(options: { failWrites?: boolean } = {}) {
   const calls: StoreCall[] = [];
-  let writes = 0;
+  const reverted: number[][] = [];
+  /** Simulated stored rows: ids the "database" still holds. */
+  const stored = new Set<number>();
   let nextId = 1;
   const store: LedgerStoreLike = {
     async insertTransactions(entries) {
-      writes += 1;
-      if (writes <= (options.failFirstWrites ?? 0)) {
+      if (options.failWrites) {
         throw new Error("store down");
       }
       calls.push({ entries });
-      return entries.map(() => nextId++);
+      const ids = entries.map(() => {
+        const id = nextId++;
+        stored.add(id);
+        return id;
+      });
+      return ids;
+    },
+    async revertTransactions(ids) {
+      reverted.push([...ids]);
+      // Conflict semantics: every row of the batch must still be there.
+      if (ids.some((id) => !stored.has(id))) {
+        return false;
+      }
+      for (const id of ids) {
+        stored.delete(id);
+      }
+      return true;
     },
     async listMonths() {
       return [];
@@ -68,7 +87,13 @@ function fakeStore(options: { failFirstWrites?: number } = {}) {
       return [];
     },
   };
-  return { store, calls };
+  return {
+    store,
+    calls,
+    reverted,
+    stored,
+    deleteRow: (id: number) => stored.delete(id),
+  };
 }
 
 function makeService(store: LedgerStoreLike, extractor?: LedgerExtractor) {
@@ -77,8 +102,7 @@ function makeService(store: LedgerStoreLike, extractor?: LedgerExtractor) {
     store: store as unknown as LedgerStore,
     clock: () => nowMs,
     timing: {
-      autoWriteDelayMs: AUTO_WRITE_MS,
-      ttlMs: TTL_MS,
+      revertWindowMs: REVERT_WINDOW_MS,
       retentionMs: RETENTION_MS,
     },
     extractor,
@@ -103,142 +127,86 @@ const structuredBody: ProposalBody = {
   },
 };
 
-// Structured-path helper: narrows the proposal|follow-up union.
-async function propose(service: LedgerService): Promise<LedgerProposalView> {
+// Structured-path helper: narrows the receipt|follow-up union.
+async function record(service: LedgerService): Promise<LedgerReceiptView> {
   const result = await service.createProposal(structuredBody);
   if (!("proposal_id" in result)) {
-    throw new Error("expected a proposal from the structured path");
+    throw new Error("expected a receipt from the structured path");
   }
   return result;
 }
 
-describe("ledger service proposal lifecycle", () => {
-  it("creates a normalized pending proposal from the structured path", async () => {
-    const { service } = makeService(fakeStore().store);
-    const view = await propose(service);
-    expect(view.status).toBe("pending");
-    expect(view.entries).toEqual([entry()]);
-    expect(view.entries[0]!.amount).toBe(2500);
-  });
-
-  it("manual commit writes once; re-commit echoes the same result", async () => {
+describe("ledger service immediate writes", () => {
+  it("executes the structured path at once and returns a born-confirmed receipt", async () => {
     const { store, calls } = fakeStore();
-    const { service } = makeService(store);
-    const view = await propose(service);
-    const first = await service.commit(view.proposal_id);
-    expect(first).toEqual({
-      proposal_id: view.proposal_id,
-      status: "committed",
-      written: 1,
-      transaction_ids: [1],
-      committed_at: first.committed_at,
-    });
-    const second = await service.commit(view.proposal_id);
-    expect(second).toEqual(first);
-    expect(calls).toHaveLength(1);
-  });
-
-  it("auto-writes pending proposals past the confirmation window via sweep", async () => {
-    const { store, calls } = fakeStore();
-    const { service, advance } = makeService(store);
-    const view = await propose(service);
-    advance(AUTO_WRITE_MS - 1);
-    await service.sweep();
-    expect(calls).toHaveLength(0); // inside the confirmation window: no write
-    advance(1);
-    await service.sweep();
-    expect(calls).toHaveLength(1); // window elapsed, not cancelled: written
-    // A late manual commit is idempotent, not a second write.
-    const result = await service.commit(view.proposal_id);
-    expect(result.written).toBe(1);
-    expect(calls).toHaveLength(1);
-  });
-
-  it("cancel inside the window prevents any write; commit afterwards is 409", async () => {
-    const { store, calls } = fakeStore();
-    const { service, advance } = makeService(store);
-    const view = await propose(service);
-    advance(AUTO_WRITE_MS - 1);
-    await expect(service.cancel(view.proposal_id)).resolves.toEqual({
-      proposal_id: view.proposal_id,
-      status: "cancelled",
-    });
-    await service.sweep(); // past the window now, but cancelled: nothing written
-    expect(calls).toHaveLength(0);
-    await expect(service.commit(view.proposal_id)).rejects.toMatchObject({
-      code: "PROPOSAL_CANCELLED",
-      statusCode: 409,
-    });
-  });
-
-  it("cancel is idempotent; cancelling a committed proposal is 409", async () => {
-    const { store } = fakeStore();
-    const { service } = makeService(store);
-    const view = await propose(service);
-    await service.commit(view.proposal_id);
-    await expect(service.cancel(view.proposal_id)).rejects.toMatchObject({
-      code: "PROPOSAL_COMMITTED",
-      statusCode: 409,
-    });
-
-    const other = await propose(service);
-    expect((await service.cancel(other.proposal_id)).status).toBe("cancelled");
-    expect((await service.cancel(other.proposal_id)).status).toBe("cancelled");
-  });
-
-  it("a failing write is retried by the sweeper until it succeeds", async () => {
-    const { store, calls } = fakeStore({ failFirstWrites: 2 });
-    const { service, advance } = makeService(store);
-    const view = await propose(service);
-    // Manual commit fails with the store down.
-    await expect(service.commit(view.proposal_id)).rejects.toThrow(
-      "store down",
+    const { service, nowMs } = makeService(store);
+    const receipt = await record(service);
+    expect(calls).toHaveLength(1); // written before the reply exists
+    expect(receipt.status).toBe("committed");
+    expect(receipt.entries).toEqual([entry()]);
+    expect(receipt.entries[0]!.amount).toBe(2500);
+    expect(receipt.written).toBe(1);
+    expect(receipt.transaction_ids).toEqual([1]);
+    expect(receipt.committed_at).toBe(new Date(nowMs()).toISOString());
+    expect(receipt.revert_until).toBe(
+      new Date(nowMs() + REVERT_WINDOW_MS).toISOString(),
     );
-    advance(AUTO_WRITE_MS);
-    await service.sweep(); // retry 1: still failing
-    expect(calls).toHaveLength(0);
-    await service.sweep(); // retry 2: succeeds
-    expect(calls).toHaveLength(1);
-    expect((await service.commit(view.proposal_id)).written).toBe(1);
   });
 
-  it("expired proposals answer 410 on commit and cancel", async () => {
-    const { store } = fakeStore();
-    const { service, advance } = makeService(store);
-    const view = await propose(service);
-    advance(TTL_MS + 1);
-    await expect(service.commit(view.proposal_id)).rejects.toMatchObject({
-      code: "PROPOSAL_EXPIRED",
-      statusCode: 410,
+  it("a failing write rejects the create call and leaves no receipt behind", async () => {
+    const { store } = fakeStore({ failWrites: true });
+    const { service } = makeService(store);
+    await expect(record(service)).rejects.toThrow("store down");
+  });
+
+  it("revert inside the window removes exactly the batch", async () => {
+    const { store, reverted } = fakeStore();
+    const { service } = makeService(store);
+    const receipt = await record(service);
+    const outcome = await service.revert(receipt.proposal_id);
+    expect(outcome).toEqual({
+      proposal_id: receipt.proposal_id,
+      status: "reverted",
+      reverted_at: expect.any(String),
     });
-    await expect(service.cancel(view.proposal_id)).rejects.toMatchObject({
-      code: "PROPOSAL_EXPIRED",
-      statusCode: 410,
+    expect(reverted).toEqual([[1]]);
+  });
+
+  it("revert is idempotent: a settled revert echoes its outcome", async () => {
+    const { store, reverted } = fakeStore();
+    const { service } = makeService(store);
+    const receipt = await record(service);
+    const first = await service.revert(receipt.proposal_id);
+    const second = await service.revert(receipt.proposal_id);
+    expect(second).toEqual(first);
+    expect(reverted).toHaveLength(1);
+  });
+
+  it("a later write touching the batch refuses the revert (newer write wins)", async () => {
+    const { store, deleteRow } = fakeStore();
+    const { service } = makeService(store);
+    const receipt = await record(service);
+    deleteRow(1); // the user deleted one row of the batch in the meantime
+    await expect(service.revert(receipt.proposal_id)).rejects.toMatchObject({
+      code: "REVERT_CONFLICT",
+      statusCode: 409,
     });
   });
 
-  it("sweep expires stale pending proposals and prunes old records", async () => {
+  it("revert past the window reports 410 and the write stands", async () => {
     const { store } = fakeStore();
     const { service, advance } = makeService(store);
-    const view = await propose(service);
-    advance(TTL_MS + 1);
-    await service.sweep();
-    // Expired but retained: still a 410, not a 404.
-    await expect(service.commit(view.proposal_id)).rejects.toMatchObject({
+    const receipt = await record(service);
+    advance(REVERT_WINDOW_MS + 1);
+    await expect(service.revert(receipt.proposal_id)).rejects.toMatchObject({
       code: "PROPOSAL_EXPIRED",
       statusCode: 410,
-    });
-    advance(RETENTION_MS + 1);
-    service.sweep();
-    await expect(service.commit(view.proposal_id)).rejects.toMatchObject({
-      code: "PROPOSAL_NOT_FOUND",
-      statusCode: 404,
     });
   });
 
   it("unknown proposals are 404; text without an extractor answers 501", async () => {
     const { service } = makeService(fakeStore().store);
-    await expect(service.commit("missing")).rejects.toMatchObject({
+    await expect(service.revert("missing")).rejects.toMatchObject({
       code: "PROPOSAL_NOT_FOUND",
       statusCode: 404,
     });
@@ -266,49 +234,14 @@ describe("ledger service proposal lifecycle", () => {
   });
 });
 
-describe("ledger service sweeper lifecycle", () => {
-  it("stop waits for the sweep in flight; ticks never overlap a running sweep", async () => {
+describe("ledger service pruner lifecycle", () => {
+  it("start ticks without overlap and stop resolves cleanly", async () => {
     vi.useFakeTimers();
     try {
-      let release!: () => void;
-      const gate = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      let writes = 0;
-      const store: LedgerStoreLike = {
-        async insertTransactions(entries) {
-          writes += 1;
-          await gate; // the store is slow until released
-          return entries.map((_, index) => index + 1);
-        },
-        async listMonths() {
-          return [];
-        },
-        async listMonthTransactions() {
-          return [];
-        },
-      };
-      const { service, advance } = makeService(store);
-      await propose(service);
-      await propose(service);
-      advance(AUTO_WRITE_MS); // both proposals are due
-
+      const { service } = makeService(fakeStore().store);
       service.start();
-      await vi.advanceTimersByTimeAsync(1_000); // tick: sweep starts, blocks
-      expect(writes).toBe(1);
-      await vi.advanceTimersByTimeAsync(3_000); // ticks skip while it runs
-      expect(writes).toBe(1);
-
-      let stopped = false;
-      const stopping = service.stop().then(() => {
-        stopped = true;
-      });
-      await vi.advanceTimersByTimeAsync(0);
-      expect(stopped).toBe(false); // still waiting for the sweep
-      release();
-      await stopping;
-      // The sweep in flight finished both due proposals before stop resolved.
-      expect(writes).toBe(2);
+      await vi.advanceTimersByTimeAsync(3_500); // a few prune ticks
+      await expect(service.stop()).resolves.toBeUndefined();
     } finally {
       vi.useRealTimers();
     }
@@ -327,17 +260,15 @@ describe("ledger service one-sentence path", () => {
     return { texts, extractor };
   }
 
-  function makeAiService(
-    draft: () => LedgerDraft | Promise<LedgerDraft>,
-    store: LedgerStoreLike = fakeStore().store,
-  ) {
+  function makeAiService(draft: () => LedgerDraft | Promise<LedgerDraft>) {
+    const fakeStoreResult = fakeStore();
     const fake = fakeExtractor(draft);
-    const harness = makeService(store, fake.extractor);
-    return { ...harness, ...fake };
+    const harness = makeService(fakeStoreResult.store, fake.extractor);
+    return { ...harness, ...fake, calls: fakeStoreResult.calls };
   }
 
-  it("turns a sentence into a normalized proposal via the extractor", async () => {
-    const { service, texts } = makeAiService(() => ({
+  it("turns a sentence into one landed batch via the extractor", async () => {
+    const { service, texts, calls } = makeAiService(() => ({
       entries: [
         entry({
           date: "2026-10-19",
@@ -359,9 +290,10 @@ describe("ledger service one-sentence path", () => {
       text: "昨晚外卖35,今天退了个12块5",
     });
     if (!("entries" in result)) {
-      throw new Error("expected a proposal");
+      throw new Error("expected a receipt");
     }
-    expect(result.status).toBe("pending");
+    expect(result.status).toBe("committed");
+    expect(result.written).toBe(2);
     expect(result.entries).toEqual([
       entry({
         date: "2026-10-19",
@@ -379,14 +311,17 @@ describe("ledger service one-sentence path", () => {
       }),
     ]);
     expect(texts).toEqual(["昨晚外卖35,今天退了个12块5"]);
+    expect(calls).toHaveLength(1); // one atomic batch, already landed
   });
 
   it("returns the AI's clarifying question instead of guessing", async () => {
-    const { service } = makeAiService(() => ({
+    const { service, calls } = makeAiService(() => ({
       question: "这笔是支出还是收入?",
     }));
     const result = await service.createProposal({ text: "book 25" });
     expect(result).toEqual({ question: "这笔是支出还是收入?" });
+    // A question writes nothing — the user retries with more detail.
+    expect(calls).toHaveLength(0);
   });
 
   it("maps extractor failures to 501/502 domain errors", async () => {
