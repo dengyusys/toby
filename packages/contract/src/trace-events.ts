@@ -4,54 +4,27 @@
  * apps/server/src/infrastructure/trace/types.ts (same convention as the
  * domain clients: server response shapes are duplicated here, not
  * imported). Types only — the EventSource subscription lives in apps/web.
+ *
+ * Carried values are pi-ai verbatim (messages, usage, stopReason — see
+ * pi-messages.ts); Toby's own fields (started_at, duration_ms, …) stay
+ * snake_case.
  */
+
+import type {
+  PiAssistantMessage,
+  PiStopReason,
+  PiSystemMessage,
+  PiToolResultMessage,
+  PiUsage,
+  PiUserMessage,
+} from "./pi-messages.ts";
 
 /** Which AI path produced the run. */
 export type TraceRunKind = "agent" | "single-shot";
 
-export interface TraceUsage {
-  input: number;
-  output: number;
-  total_tokens: number;
-  /** Best available total cost (provider-billed when reported, else catalog estimate). */
-  cost_total: number;
-}
-
-/** A tool declaration as it was sent to the model. */
-export interface TraceToolDeclaration {
-  name: string;
-  description?: string;
-  parameters?: unknown;
-}
-
-export interface TraceToolCall {
-  id: string;
-  name: string;
-  /** Raw arguments as JSON text ("" when the model sent none). */
-  arguments: string;
-}
-
-/** A transcript message, normalized away from the provider SDK's shapes. */
+/** A transcript message, exactly as pi-ai produced it. */
 export type TraceMessage =
-  | { role: "system"; text: string; tools?: TraceToolDeclaration[] }
-  | { role: "user"; text: string }
-  | {
-      role: "assistant";
-      text: string;
-      thinking?: string;
-      tool_calls: TraceToolCall[];
-      stop_reason?: string;
-      duration_ms?: number;
-      usage?: TraceUsage;
-    }
-  | {
-      role: "tool_result";
-      tool_call_id: string;
-      tool_name?: string;
-      content: string;
-      is_error?: boolean;
-    }
-  | { role: "unknown"; raw: unknown };
+  PiSystemMessage | PiUserMessage | PiAssistantMessage | PiToolResultMessage;
 
 /** Self-contained: a subscriber that missed run-started can still render it. */
 export interface TraceRunStarted {
@@ -72,12 +45,13 @@ export interface TraceRunFinished {
   started_at: string;
   duration_ms: number;
   status: "succeeded" | "failed";
+  /** The run's pi-ai transcript verbatim, system prompt included. */
   messages: TraceMessage[];
   result_text?: string;
   error?: string;
-  stop_reason?: string;
+  stopReason?: PiStopReason;
   turns?: number;
-  usage?: TraceUsage;
+  usage?: PiUsage;
 }
 
 export type TraceEvent =

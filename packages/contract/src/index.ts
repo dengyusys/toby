@@ -7,18 +7,18 @@ export type {
 } from "./system-client.ts";
 export { createLedgerClient } from "./ledger-client.ts";
 export type {
-  LedgerCancelResult,
   LedgerCategorySummary,
   LedgerClient,
-  LedgerCommitResult,
+  LedgerDeleteResult,
   LedgerEntry,
   LedgerEntryInput,
   LedgerEntryType,
   LedgerFollowUp,
   LedgerMonthReport,
   LedgerProposalResult,
-  LedgerProposalStatus,
-  LedgerProposalView,
+  LedgerReceiptStatus,
+  LedgerReceiptView,
+  LedgerRevertResult,
   LedgerTransactionRow,
 } from "./ledger-client.ts";
 export { createAuthClient } from "./auth-client.ts";
@@ -27,13 +27,38 @@ export type {
   AuthLoginResult,
   AuthSessionInfo,
 } from "./auth-client.ts";
+export { createChatClient } from "./chat-client.ts";
+export type {
+  ChatClient,
+  ChatIntent,
+  ChatItem,
+  ChatMessageItem,
+  ChatSessionView,
+  ChatTurnPage,
+  ChatTurnView,
+  InspectLinkItem,
+  NoticeItem,
+  ProposalCardItem,
+} from "./chat-client.ts";
+export type {
+  PiAssistantMessage,
+  PiImageContent,
+  PiStopReason,
+  PiSystemMessage,
+  PiTextContent,
+  PiThinkingContent,
+  PiToolCall,
+  PiToolDeclaration,
+  PiToolReference,
+  PiToolResultMessage,
+  PiTranscriptMessage,
+  PiUsage,
+  PiUserMessage,
+} from "./pi-messages.ts";
 export type {
   TraceEvent,
   TraceMessage,
   TraceRunFinished,
   TraceRunKind,
   TraceRunStarted,
-  TraceToolCall,
-  TraceToolDeclaration,
-  TraceUsage,
 } from "./trace-events.ts";

@@ -65,18 +65,16 @@ describe("createLedgerClient", () => {
     expect(JSON.parse(String(init?.body))).toEqual({ text: "午饭花了25" });
   });
 
-  it("commit and cancel hit their proposal endpoints with empty bodies", async () => {
+  it("revert hits its endpoint with an empty body", async () => {
     const fetchMock = stubFetch();
     const client = createLedgerClient("");
-    await client.commitProposal("lp-1");
-    await client.cancelProposal("lp-1");
-    const urls = fetchMock.mock.calls.map(
-      (call) => (call as unknown[])[0] as string,
-    );
-    expect(urls).toEqual([
-      "/api/ledger/proposals/lp-1/commit",
-      "/api/ledger/proposals/lp-1/cancel",
-    ]);
+    await client.revertProposal("lp-1");
+    const [url, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit | undefined,
+    ];
+    expect(url).toBe("/api/ledger/proposals/lp-1/revert");
+    expect(init?.method).toBe("POST");
   });
 
   it("encodes the month into the transactions query", async () => {
@@ -119,7 +117,7 @@ describe("createLedgerClient", () => {
     );
     const client = createLedgerClient("");
     const error = (await client
-      .commitProposal("lp-late")
+      .revertProposal("lp-late")
       .catch((thrown: unknown) => thrown)) as ApiError;
     expect(error).toBeInstanceOf(ApiError);
     expect(error.status).toBe(410);

@@ -26,11 +26,11 @@ One endpoint, session-guarded like every `/api` route (transcripts are personal 
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `GET /api/traces/stream` | SSE: `trace` events (`run-started` / `run-finished`), heartbeat comments every 15 s, `: connected` frame on open |
 
-Event payloads (`TraceEvent`, snake_case, mirrored in `packages/contract/src/trace-events.ts`):
+Event payloads (`TraceEvent`, mirrored in `packages/contract/src/trace-events.ts`): carried pi-ai values are verbatim — field names, casing, content blocks exactly as the runtime produced them (the same vocabulary the chat item stream replays); Toby's own fields (`started_at`, `duration_ms`, `label`, …) stay snake_case:
 
 - `run-started` → `{type, run: {id, kind, label, model, prompt, started_at}}`
-- `run-finished` → `{type, run: {…started fields, duration_ms, status: "succeeded"\|"failed", messages, result_text?, error?, stop_reason?, turns?, usage?}}`
-- `messages` entries are normalized away from the provider SDK (`system` with optional tool declarations, `user`, `assistant` with `tool_calls`/`thinking`/`usage`, `tool_result`, or `unknown` with the raw value).
+- `run-finished` → `{type, run: {…started fields, duration_ms, status: "succeeded"\|"failed", messages, result_text?, error?, stopReason?, turns?, usage?}}`
+- `messages` entries are pi-ai messages verbatim (`system` with optional `toolsAdded`, `user`, `assistant` with `content` blocks `thinking`/`toolCall`/`text` plus `usage`/`stopReason`, `toolResult` with `toolCallId`); `usage` and `stopReason` are verbatim pi-ai values too.
 
 ## Key rules
 

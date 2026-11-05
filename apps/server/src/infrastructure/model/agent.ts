@@ -25,6 +25,7 @@ import type {
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type {
   AssistantMessage,
+  Message,
   Models,
   Model,
   SimpleStreamOptions,
@@ -38,8 +39,7 @@ import type { AiRuntimeConfig } from "./types.ts";
 import { AiError } from "./errors.ts";
 import { resolveCatalogModel } from "./catalog.ts";
 import { textOf } from "./client.ts";
-import { traceMessagesOf, traceUsage } from "../trace/normalize.ts";
-import type { TraceMessage, TraceReporter } from "../trace/types.ts";
+import type { TraceReporter } from "../trace/types.ts";
 
 /** Safety classification every Toby tool must carry. */
 export type ToolKind = "read-only" | "write-intent";
@@ -116,6 +116,14 @@ export interface TobyAgentRunResult {
   /** Final stop reason; "none" when no assistant message was produced. */
   readonly stopReason: StopReason | "none";
   readonly usage?: Usage;
+  /**
+   * The run's pi-ai transcript verbatim (system prompt + user prompt +
+   * assistant turns with thinking/tool calls + tool results) — the same
+   * snapshot the trace feed reports. Consumers persist the roles they
+   * need: the chat domain stores user/assistant/toolResult as message
+   * items, zero-translation (docs/features/chat.md).
+   */
+  readonly messages: readonly Message[];
 }
 
 /** A prepared agent: one prompt in, a settled outcome out. */
@@ -264,13 +272,15 @@ function createTobyAgent(
       const stopReason: StopReason | "none" = assistant?.stopReason ?? "none";
       const text = textOf(assistant);
       const usage = assistant?.usage;
+      // One frozen snapshot serves both the trace feed and the result's
+      // verbatim transcript; later mutations cannot rewrite history.
+      const messages: readonly Message[] = [...agent.state.messages];
 
-      // The trace capture mirrors both exits: run-finished carries the full
-      // transcript (system prompt + tool declarations included) so the
-      // monitor needs no store of its own.
-      const snapshot = (): TraceMessage[] =>
-        traceMessagesOf(agent.state.messages);
-      const reportedUsage = usage ? traceUsage(usage) : undefined;
+      // The trace capture mirrors both exits: run-finished carries the
+      // verbatim pi-ai transcript (system prompt + tool declarations
+      // included) so the monitor needs no store of its own.
+      const snapshot = (): readonly Message[] => messages;
+      const reportedUsage = usage;
 
       try {
         if (stopReason === "error") {
@@ -284,7 +294,9 @@ function createTobyAgent(
           status: "succeeded",
           messages: snapshot(),
           result_text: text,
-          stop_reason: stopReason,
+          // "none" is our own no-assistant-message marker, not a pi-ai
+          // stop reason; the wire only carries the real ones.
+          ...(stopReason !== "none" ? { stopReason } : {}),
           turns,
           ...(reportedUsage ? { usage: reportedUsage } : {}),
         });
@@ -294,13 +306,14 @@ function createTobyAgent(
           turnCapped,
           stopReason,
           ...(usage ? { usage } : {}),
+          messages,
         };
       } catch (error) {
         capture?.finish({
           status: "failed",
           messages: snapshot(),
           error: error instanceof Error ? error.message : String(error),
-          stop_reason: stopReason,
+          ...(stopReason !== "none" ? { stopReason } : {}),
           turns,
           ...(reportedUsage ? { usage: reportedUsage } : {}),
         });

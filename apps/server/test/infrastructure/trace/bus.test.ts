@@ -38,7 +38,7 @@ describe("createTraceBus", () => {
     now = 2_500;
     capture.finish({
       status: "succeeded",
-      messages: [{ role: "user", text: "午饭 25" }],
+      messages: [{ role: "user", content: "午饭 25", timestamp: 1 }],
       result_text: "done",
       turns: 1,
     });
@@ -54,7 +54,7 @@ describe("createTraceBus", () => {
         started_at: new Date(1_000).toISOString(),
         duration_ms: 1_500,
         status: "succeeded",
-        messages: [{ role: "user", text: "午饭 25" }],
+        messages: [{ role: "user", content: "午饭 25", timestamp: 1 }],
         result_text: "done",
         turns: 1,
       },

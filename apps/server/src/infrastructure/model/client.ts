@@ -29,8 +29,7 @@ import type {
 } from "./types.ts";
 import { AiError } from "./errors.ts";
 import { resolveCatalogModel } from "./catalog.ts";
-import { traceMessageOf } from "../trace/normalize.ts";
-import type { TraceMessage, TraceReporter } from "../trace/types.ts";
+import type { TraceReporter } from "../trace/types.ts";
 
 /** The catalog-resolved model this client talks to. */
 type ResolvedModel = Model<string>;
@@ -155,12 +154,31 @@ export function createPiAiClient(
         [...messages].reverse().find((message) => message.role === "user")
           ?.content ?? "",
     });
-    const conversation = (): TraceMessage[] =>
-      messages.map((message): TraceMessage =>
-        message.role === "assistant"
-          ? { role: "assistant", text: message.content, tool_calls: [] }
-          : { role: message.role, text: message.content },
-      );
+    // The trace transcript replays pi-ai shapes verbatim: the request's
+    // messages are rebuilt as minimal well-formed pi-ai messages and the
+    // provider's reply joins them as-is.
+    const conversation = (): Message[] =>
+      messages.map((message): Message => {
+        const timestamp = Date.now();
+        if (message.role === "assistant") {
+          // History replay only: the request path never sends assistant
+          // turns today, so a minimal well-formed message is enough.
+          return {
+            role: "assistant",
+            content: [{ type: "text", text: message.content }],
+            api: model.api,
+            provider: model.provider,
+            model: model.id,
+            usage: ZERO_USAGE,
+            stopReason: "stop",
+            timestamp,
+          };
+        }
+        if (message.role === "system") {
+          return { role: "system", content: message.content, timestamp };
+        }
+        return { role: "user", content: message.content, timestamp };
+      });
 
     const signal = AbortSignal.timeout(config.timeoutMs);
     const reply = await models.complete(model, toContext(model, messages), {
@@ -168,10 +186,7 @@ export function createPiAiClient(
       temperature: options?.temperature ?? 0,
       signal,
     });
-    const transcript = (): TraceMessage[] => [
-      ...conversation(),
-      traceMessageOf(reply),
-    ];
+    const transcript = (): Message[] => [...conversation(), reply];
 
     try {
       if (reply.stopReason === "error" || reply.stopReason === "aborted") {
@@ -188,7 +203,7 @@ export function createPiAiClient(
         status: "succeeded",
         messages: transcript(),
         result_text: text,
-        stop_reason: reply.stopReason,
+        stopReason: reply.stopReason,
       });
       return text;
     } catch (error) {
@@ -196,7 +211,7 @@ export function createPiAiClient(
         status: "failed",
         messages: transcript(),
         error: error instanceof Error ? error.message : String(error),
-        stop_reason: reply.stopReason,
+        stopReason: reply.stopReason,
       });
       throw error;
     }

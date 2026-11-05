@@ -1,7 +1,9 @@
 /**
- * Ledger domain client: typed access to the proposal pipeline and the month
- * views. Mirrors the server's response shapes — amounts are integer cents,
- * dates are "YYYY-MM-DD" strings.
+ * Ledger domain client: typed access to the immediate-tier write path and
+ * the month views. Mirrors the server's response shapes — amounts are
+ * integer cents, dates are "YYYY-MM-DD" strings. Recording lands at once;
+ * the returned receipt is born confirmed and revertible until
+ * `revert_until`.
  */
 
 import { endpoint, requestJson } from "./request-json.ts";
@@ -28,32 +30,31 @@ export interface LedgerEntryInput {
   note?: string;
 }
 
-export type LedgerProposalStatus =
-  "pending" | "committed" | "cancelled" | "expired";
+/** Card statuses the ledger can emit: born confirmed, possibly reverted. */
+export type LedgerReceiptStatus = "committed" | "reverted";
 
-export interface LedgerProposalView {
+/** The born-confirmed receipt of a write that has already landed. */
+export interface LedgerReceiptView {
   proposal_id: string;
-  status: LedgerProposalStatus;
+  status: LedgerReceiptStatus;
   created_at: string;
-  auto_write_at: string;
-  expires_at: string;
+  committed_at: string;
+  /** Until when a revert may still undo the batch. */
+  revert_until: string;
+  reverted_at?: string;
+  written: number;
+  transaction_ids: number[];
   entries: LedgerEntry[];
 }
 
-export interface LedgerCommitResult {
+/** Result of reverting a landed batch inside its window. */
+export interface LedgerRevertResult {
   proposal_id: string;
-  status: "committed";
-  written: number;
-  transaction_ids: number[];
-  committed_at: string;
+  status: "reverted";
+  reverted_at: string;
 }
 
-export interface LedgerCancelResult {
-  proposal_id: string;
-  status: "cancelled";
-}
-
-/** Result of a user-initiated delete (the sole non-proposal write). */
+/** Result of a user-initiated delete (the sole non-card write). */
 export interface LedgerDeleteResult {
   transaction_id: number;
   status: "deleted";
@@ -65,8 +66,8 @@ export interface LedgerFollowUp {
   question: string;
 }
 
-/** A proposal, or the AI asking for clarification. */
-export type LedgerProposalResult = LedgerProposalView | LedgerFollowUp;
+/** A landed receipt, or the AI asking for clarification. */
+export type LedgerProposalResult = LedgerReceiptView | LedgerFollowUp;
 
 export interface LedgerTransactionRow extends LedgerEntry {
   id: number;
@@ -88,13 +89,12 @@ export interface LedgerMonthReport {
 }
 
 export interface LedgerClient {
-  createStructuredProposal(
-    entry: LedgerEntryInput,
-  ): Promise<LedgerProposalView>;
-  /** One-sentence AI path: a proposal, or a clarifying question. */
+  /** Lands the batch at once; the receipt is born confirmed. */
+  createStructuredProposal(entry: LedgerEntryInput): Promise<LedgerReceiptView>;
+  /** One-sentence AI path: a landed receipt, or a clarifying question. */
   createTextProposal(text: string): Promise<LedgerProposalResult>;
-  commitProposal(id: string): Promise<LedgerCommitResult>;
-  cancelProposal(id: string): Promise<LedgerCancelResult>;
+  /** Undo a landed batch inside its revert window; conflicts answer 409. */
+  revertProposal(id: string): Promise<LedgerRevertResult>;
   /** Delete one stored transaction by id; unknown ids 404. */
   deleteTransaction(id: number): Promise<LedgerDeleteResult>;
   /** Months that have records, descending. */
@@ -105,7 +105,7 @@ export interface LedgerClient {
 export function createLedgerClient(baseUrl: string): LedgerClient {
   return {
     createStructuredProposal: (entry) =>
-      requestJson<LedgerProposalView>(
+      requestJson<LedgerReceiptView>(
         endpoint(baseUrl, "/api/ledger/proposals"),
         {
           method: "POST",
@@ -122,19 +122,11 @@ export function createLedgerClient(baseUrl: string): LedgerClient {
           body: JSON.stringify({ text }),
         },
       ),
-    commitProposal: (id) =>
-      requestJson<LedgerCommitResult>(
+    revertProposal: (id) =>
+      requestJson<LedgerRevertResult>(
         endpoint(
           baseUrl,
-          `/api/ledger/proposals/${encodeURIComponent(id)}/commit`,
-        ),
-        { method: "POST" },
-      ),
-    cancelProposal: (id) =>
-      requestJson<LedgerCancelResult>(
-        endpoint(
-          baseUrl,
-          `/api/ledger/proposals/${encodeURIComponent(id)}/cancel`,
+          `/api/ledger/proposals/${encodeURIComponent(id)}/revert`,
         ),
         { method: "POST" },
       ),

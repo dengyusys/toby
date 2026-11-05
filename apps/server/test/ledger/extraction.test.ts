@@ -71,6 +71,9 @@ function makeFakeFactory(steps: readonly Step[]) {
                   total: 0,
                 },
               },
+              // Extraction ignores the transcript; the field exists to
+              // satisfy the result contract.
+              messages: [],
             };
           }
           const entry = toolsByName.get(step.tool);
@@ -111,6 +114,7 @@ function makeFakeFactory(steps: readonly Step[]) {
               total: 0,
             },
           },
+          messages: [],
         };
       },
     };

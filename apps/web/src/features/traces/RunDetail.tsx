@@ -1,16 +1,39 @@
 /**
  * The selected run's full record: summary header, the prompt, the message
- * transcript (system prompt with tool declarations, user inputs, assistant
- * turns with thinking/tool calls, tool results), the outcome, and the raw
- * event JSON for anything the pretty views do not cover.
+ * transcript in pi-ai verbatim shapes (system prompt with tool
+ * declarations, user inputs, assistant content blocks — thinking, tool
+ * calls, text — and tool results), the outcome, and the raw event JSON
+ * for anything the pretty views do not cover.
  */
 
 import type { ReactNode } from "react";
-import type { TraceMessage } from "@toby/contract";
+import type {
+  PiAssistantMessage,
+  PiImageContent,
+  PiSystemMessage,
+  PiTextContent,
+  PiThinkingContent,
+  PiToolCall,
+  PiToolResultMessage,
+  PiUserMessage,
+  TraceMessage,
+} from "@toby/contract";
 import { formatDuration } from "./format.ts";
 import type { TraceRun } from "./trace-stream-context.ts";
 
 const MONO = "whitespace-pre-wrap break-all font-mono text-xs leading-relaxed";
+
+type ContentBlock = PiTextContent | PiImageContent;
+
+/** Flatten a verbatim content value to display text ("[图片]" for images). */
+function flattenText(content: string | readonly ContentBlock[]): string {
+  if (typeof content === "string") {
+    return content;
+  }
+  return content
+    .map((block) => (block.type === "text" ? block.text : "[图片]"))
+    .join("\n");
+}
 
 export function RunDetail({
   run,
@@ -66,22 +89,22 @@ export function RunDetail({
                   <dd>{run.turns}</dd>
                 </>
               )}
-              {run.stop_reason !== undefined && (
+              {run.stopReason !== undefined && (
                 <>
                   <dt className="text-muted-foreground">停止原因</dt>
-                  <dd className="font-mono">{run.stop_reason}</dd>
+                  <dd className="font-mono">{run.stopReason}</dd>
                 </>
               )}
               {run.usage && (
                 <>
                   <dt className="text-muted-foreground">Tokens</dt>
                   <dd className="tabular-nums">
-                    共 {run.usage.total_tokens}(入 {run.usage.input} / 出{" "}
+                    共 {run.usage.totalTokens}(入 {run.usage.input} / 出{" "}
                     {run.usage.output})
                   </dd>
                   <dt className="text-muted-foreground">费用</dt>
                   <dd className="tabular-nums">
-                    ${run.usage.cost_total.toFixed(6)}
+                    ${run.usage.cost.total.toFixed(6)}
                   </dd>
                 </>
               )}
@@ -143,103 +166,165 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function MessageView({ message }: { message: TraceMessage }) {
   switch (message.role) {
     case "system":
-      return (
-        <MessageFrame label="系统提示词" tone="muted">
-          <p className={MONO}>{message.text}</p>
-          {message.tools && message.tools.length > 0 && (
-            <details className="mt-2">
-              <summary className="cursor-pointer text-[10px] text-muted-foreground">
-                工具声明({message.tools.length})
-              </summary>
-              <div className="mt-2 flex flex-col gap-2">
-                {message.tools.map((tool) => (
-                  <div key={tool.name} className="rounded-lg border p-3">
-                    <p className="font-mono text-xs font-medium">{tool.name}</p>
-                    {tool.description && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {tool.description}
-                      </p>
-                    )}
-                    {tool.parameters !== undefined && (
-                      <pre className={`${MONO} mt-2`}>
-                        {JSON.stringify(tool.parameters, null, 2)}
-                      </pre>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
-        </MessageFrame>
-      );
+      return <SystemView message={message} />;
     case "user":
-      return (
-        <MessageFrame label="用户" tone="plain">
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">
-            {message.text}
-          </p>
-        </MessageFrame>
-      );
+      return <UserView message={message} />;
     case "assistant":
-      return (
-        <MessageFrame label="助手" tone="plain">
-          {message.thinking !== undefined && message.thinking.length > 0 && (
-            <details className="mb-2">
-              <summary className="cursor-pointer text-[10px] text-muted-foreground">
-                思考过程
-              </summary>
-              <pre className={`${MONO} mt-2`}>{message.thinking}</pre>
-            </details>
-          )}
-          {message.text.length > 0 && (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">
-              {message.text}
-            </p>
-          )}
-          {message.tool_calls.map((call) => (
-            <div
-              key={call.id}
-              className="mt-2 rounded-lg border bg-muted/40 p-3"
-            >
-              <p className="font-mono text-xs font-medium">
-                调用工具:{call.name}
-              </p>
-              {call.arguments.length > 0 && (
-                <pre className={`${MONO} mt-1`}>{call.arguments}</pre>
-              )}
-            </div>
-          ))}
-          {(message.usage !== undefined ||
-            message.duration_ms !== undefined) && (
-            <p className="mt-2 text-[10px] tabular-nums text-muted-foreground">
-              {message.duration_ms !== undefined &&
-                `${formatDuration(message.duration_ms)}`}
-              {message.usage !== undefined &&
-                ` · ${message.usage.total_tokens} tokens`}
-            </p>
-          )}
-        </MessageFrame>
-      );
-    case "tool_result":
-      return (
-        <MessageFrame
-          label={`工具结果${message.tool_name ? `:${message.tool_name}` : ""}`}
-          tone={message.is_error ? "error" : "muted"}
-        >
-          <pre
-            className={`${MONO} ${message.is_error ? "text-destructive" : ""}`}
-          >
-            {message.content}
-          </pre>
-        </MessageFrame>
-      );
-    case "unknown":
+      return <AssistantView message={message} />;
+    case "toolResult":
+      return <ToolResultView message={message} />;
+    default:
+      // Defensive: an unexpected role still shows, never hides.
       return (
         <MessageFrame label="未识别消息" tone="muted">
-          <pre className={MONO}>{JSON.stringify(message.raw, null, 2)}</pre>
+          <pre className={MONO}>{JSON.stringify(message, null, 2)}</pre>
         </MessageFrame>
       );
   }
+}
+
+function SystemView({ message }: { message: PiSystemMessage }) {
+  const tools = message.toolsAdded ?? [];
+  return (
+    <MessageFrame label="系统提示词" tone="muted">
+      <p className={MONO}>{flattenText(message.content)}</p>
+      {tools.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[10px] text-muted-foreground">
+            工具声明({tools.length})
+          </summary>
+          <div className="mt-2 flex flex-col gap-2">
+            {tools.map((tool) => (
+              <div key={tool.name} className="rounded-lg border p-3">
+                <p className="font-mono text-xs font-medium">{tool.name}</p>
+                {tool.description && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {tool.description}
+                  </p>
+                )}
+                {tool.parameters !== undefined && (
+                  <pre className={`${MONO} mt-2`}>
+                    {JSON.stringify(tool.parameters, null, 2)}
+                  </pre>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </MessageFrame>
+  );
+}
+
+function UserView({ message }: { message: PiUserMessage }) {
+  return (
+    <MessageFrame label="用户" tone="plain">
+      <p className="whitespace-pre-wrap text-sm leading-relaxed">
+        {flattenText(message.content)}
+      </p>
+    </MessageFrame>
+  );
+}
+
+function AssistantView({ message }: { message: PiAssistantMessage }) {
+  // Content blocks render in order: thinking, tool calls, text — exactly
+  // the order the model produced them.
+  const thinking = message.content.filter(
+    (block): block is PiThinkingContent => block.type === "thinking",
+  );
+  const toolCalls = message.content.filter(
+    (block): block is PiToolCall => block.type === "toolCall",
+  );
+  const texts = message.content.filter(
+    (block): block is PiTextContent => block.type === "text",
+  );
+  return (
+    <MessageFrame label="助手" tone="plain">
+      {thinking.map((block, index) =>
+        block.thinking.length > 0 ? (
+          <details key={`thinking-${index}`} className="mb-2">
+            <summary className="cursor-pointer text-[10px] text-muted-foreground">
+              思考过程{block.redacted ? "(已脱敏)" : ""}
+            </summary>
+            <pre className={`${MONO} mt-2`}>{block.thinking}</pre>
+          </details>
+        ) : null,
+      )}
+      {message.content.map((block, index) =>
+        block.type === "toolCall" ? (
+          <ToolCallView key={block.id ?? `call-${index}`} call={block} />
+        ) : null,
+      )}
+      {texts.map((block, index) => (
+        <p
+          key={`text-${index}`}
+          className="whitespace-pre-wrap text-sm leading-relaxed"
+        >
+          {block.text}
+        </p>
+      ))}
+      {(message.usage !== undefined || message.durationMs !== undefined) && (
+        <p className="mt-2 text-[10px] tabular-nums text-muted-foreground">
+          {message.durationMs !== undefined &&
+            `${formatDuration(message.durationMs)}`}
+          {message.usage !== undefined &&
+            ` · ${message.usage.totalTokens} tokens`}
+        </p>
+      )}
+      {toolCalls.length === 0 &&
+        texts.length === 0 &&
+        thinking.length === 0 && (
+          <p className="text-xs text-muted-foreground">(空回复)</p>
+        )}
+    </MessageFrame>
+  );
+}
+
+function ToolCallView({ call }: { call: PiToolCall }) {
+  return (
+    <div className="mt-2 rounded-lg border bg-muted/40 p-3">
+      <p className="font-mono text-xs font-medium">
+        调用工具:{call.name}
+        <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+          {call.id}
+        </span>
+      </p>
+      {call.argumentsError !== undefined ? (
+        <pre className={`${MONO} mt-1 text-destructive`}>
+          {call.argumentsError}
+        </pre>
+      ) : (
+        Object.keys(call.arguments).length > 0 && (
+          <pre className={`${MONO} mt-1`}>
+            {JSON.stringify(call.arguments, null, 2)}
+          </pre>
+        )
+      )}
+    </div>
+  );
+}
+
+function ToolResultView({ message }: { message: PiToolResultMessage }) {
+  return (
+    <MessageFrame
+      label={`工具结果:${message.toolName}`}
+      tone={message.isError ? "error" : "muted"}
+    >
+      <pre className={`${MONO} ${message.isError ? "text-destructive" : ""}`}>
+        {flattenText(message.content)}
+      </pre>
+      {message.details !== undefined && (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-[10px] text-muted-foreground">
+            工具详情
+          </summary>
+          <pre className={`${MONO} mt-1`}>
+            {JSON.stringify(message.details, null, 2)}
+          </pre>
+        </details>
+      )}
+    </MessageFrame>
+  );
 }
 
 function MessageFrame({

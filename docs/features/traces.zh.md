@@ -26,11 +26,11 @@ AI 运行时(docs/decisions/ai-pi-runtime.md)的可观测性配套:每次模型�
 | ------------------------ | ----------------------------------------------------------------------------------------------- |
 | `GET /api/traces/stream` | SSE:`trace` 事件(`run-started` / `run-finished`),每 15 秒心跳注释,连接建立即发 `: connected` 帧 |
 
-事件载荷(`TraceEvent`,snake_case,镜像于 `packages/contract/src/trace-events.ts`):
+事件载荷(`TraceEvent`,镜像于 `packages/contract/src/trace-events.ts`):携带的 pi-ai 值一律原样——字段名、大小写、content 块结构与运行时产出完全一致(与对话 item 流同一套词汇);Toby 自有字段(`started_at`、`duration_ms`、`label` 等)保持 snake_case:
 
 - `run-started` → `{type, run: {id, kind, label, model, prompt, started_at}}`
-- `run-finished` → `{type, run: {…started 字段, duration_ms, status: "succeeded"\|"failed", messages, result_text?, error?, stop_reason?, turns?, usage?}}`
-- `messages` 条目已从 provider SDK 的结构归一化(`system` 可带工具声明、`user`、`assistant` 带 `tool_calls`/`thinking`/`usage`、`tool_result`,或原样保留的 `unknown`)。
+- `run-finished` → `{type, run: {…started 字段, duration_ms, status: "succeeded"\|"failed", messages, result_text?, error?, stopReason?, turns?, usage?}}`
+- `messages` 条目为 pi-ai 消息原样(`system` 可带 `toolsAdded`、`user`、`assistant` 的 `content` 块含 `thinking`/`toolCall`/`text` 并附 `usage`/`stopReason`、`toolResult` 带 `toolCallId`);`usage` 与 `stopReason` 同为 pi-ai 原样值。
 
 ## 关键规则
 
