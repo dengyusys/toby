@@ -77,24 +77,43 @@ const FINISHED = {
     started_at: "2026-11-03T12:00:00.000Z",
     duration_ms: 1200,
     status: "succeeded",
+    // pi-ai verbatim transcript: field names and content blocks exactly as
+    // the runtime produced them.
     messages: [
-      { role: "system", text: "你是记账助手" },
-      { role: "user", text: "午饭 25" },
+      { role: "system", content: "你是记账助手", timestamp: 1 },
+      { role: "user", content: "午饭 25", timestamp: 2 },
       {
         role: "assistant",
-        text: "",
-        tool_calls: [
-          {
-            id: "c1",
-            name: "submit_entries",
-            arguments: '{\n  "entries": []\n}',
-          },
+        content: [
+          { type: "toolCall", id: "c1", name: "submit_entries", arguments: {} },
         ],
+        model: "faux-1",
+        usage: {
+          input: 100,
+          output: 50,
+          totalTokens: 150,
+          cost: { input: 0.00008, output: 0.000043, total: 0.000123 },
+        },
+        stopReason: "toolUse",
+        timestamp: 3,
+      },
+      {
+        role: "toolResult",
+        toolCallId: "c1",
+        toolName: "submit_entries",
+        content: [{ type: "text", text: "已提交 1 条,立即记入账本。" }],
+        isError: false,
+        timestamp: 4,
       },
     ],
     result_text: "已记录 1 条草稿",
     turns: 1,
-    usage: { input: 100, output: 50, total_tokens: 150, cost_total: 0.000123 },
+    usage: {
+      input: 100,
+      output: 50,
+      totalTokens: 150,
+      cost: { input: 0.00008, output: 0.000043, total: 0.000123 },
+    },
   },
 } as const;
 
@@ -120,10 +139,13 @@ it("opens a run's transcript from the list, then returns", async () => {
   });
   fireEvent.click(row);
   expect((await screen.findAllByText("成功")).length).toBeGreaterThan(0);
-  // The detail view: transcript messages and the final reply.
+  // The detail view: verbatim transcript messages and the final reply.
   expect(screen.getByText("你是记账助手")).toBeInTheDocument();
   expect(screen.getByText("调用工具:submit_entries")).toBeInTheDocument();
   expect(screen.getByText("已记录 1 条草稿")).toBeInTheDocument();
+  // The tool result pairs back by toolCallId and renders its content.
+  expect(screen.getByText("工具结果:submit_entries")).toBeInTheDocument();
+  expect(screen.getByText("已提交 1 条,立即记入账本。")).toBeInTheDocument();
   // The duration shows in both the list row and the detail header.
   expect((await screen.findAllByText("1.2s")).length).toBeGreaterThan(0);
 

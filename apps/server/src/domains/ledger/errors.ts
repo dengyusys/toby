@@ -6,6 +6,7 @@ export type LedgerErrorCode =
   | "INVALID_ENTRY"
   | "INVALID_MONTH"
   | "TRANSACTION_NOT_FOUND"
+  | "REVERT_CONFLICT"
   | "AI_UNAVAILABLE"
   | "AI_REQUEST_FAILED";
 

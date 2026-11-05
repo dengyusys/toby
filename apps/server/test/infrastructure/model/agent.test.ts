@@ -344,21 +344,22 @@ describe("createTobyAgentFactory", () => {
         status: string;
         result_text?: string;
         messages: readonly { role: string }[];
-        usage?: { total_tokens: number };
+        usage?: { totalTokens: number };
       };
     };
     expect(finished.run.status).toBe("succeeded");
     expect(finished.run.result_text).toBe("done");
-    // The whole transcript survives: system prompt, user prompt, the
-    // tool-calling assistant turn, the tool result, the final answer.
+    // The whole verbatim pi-ai transcript survives: system prompt, user
+    // prompt, the tool-calling assistant turn, the tool result, the final
+    // answer — roles in pi-ai's own casing.
     expect(finished.run.messages.map((message) => message.role)).toEqual([
       "system",
       "user",
       "assistant",
-      "tool_result",
+      "toolResult",
       "assistant",
     ]);
-    expect(finished.run.usage?.total_tokens).toBeGreaterThan(0);
+    expect(finished.run.usage?.totalTokens).toBeGreaterThan(0);
   });
 
   it("reports failed runs with the error message", async () => {

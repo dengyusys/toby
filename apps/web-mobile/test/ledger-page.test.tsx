@@ -1,7 +1,8 @@
 /**
  * Ledger page flow (mobile) with fetch stubbed to the ledger endpoints:
- * the conversational recording panel and the month calendar. Mobile owns
- * its own page; this file mirrors the PC test deliberately.
+ * the month calendar and its day panel (the conversation lives on the
+ * chat page now — test/chat-page.test.tsx). Mobile owns its own page;
+ * this file mirrors the PC test deliberately.
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -10,7 +11,6 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { LedgerPage } from "../src/features/ledger/LedgerPage.tsx";
-import { ChatPage } from "../src/features/chat/ChatPage.tsx";
 
 const MONTHS = { months: ["2026-10"] };
 const REPORT = {
@@ -33,19 +33,26 @@ const REPORT = {
 };
 const FOLLOW_UP = { question: "这笔用的哪个账户?" };
 
-// Fresh proposals get unique ids and future timestamps (the countdown must
-// not reach zero inside a test); commit/cancel echo the id from the URL.
-let proposalCounter = 0;
+// Fresh receipts get unique ids and a future revert window (the countdown
+// must not reach zero inside a test); revert echoes the id from the URL.
+let receiptCounter = 0;
 
-function proposalStub() {
-  proposalCounter += 1;
+function receiptStub(
+  options: { windowClosed?: boolean; windowMs?: number } = {},
+) {
+  receiptCounter += 1;
   const now = Date.now();
+  const windowMs = options.windowClosed
+    ? -1_000
+    : (options.windowMs ?? 600_000);
   return {
-    proposal_id: `lp-test-${proposalCounter}`,
-    status: "pending",
+    proposal_id: `lp-test-${receiptCounter}`,
+    status: "committed",
     created_at: new Date(now).toISOString(),
-    auto_write_at: new Date(now + 30_000).toISOString(),
-    expires_at: new Date(now + 600_000).toISOString(),
+    committed_at: new Date(now).toISOString(),
+    revert_until: new Date(now + windowMs).toISOString(),
+    written: 1,
+    transaction_ids: [2],
     entries: [
       {
         date: "2026-10-20",
@@ -67,9 +74,17 @@ const calls: { url: string; init?: RequestInit }[] = [];
 
 function routeFetch({
   textResults = ["follow-up"],
-}: { textResults?: ("follow-up" | "proposal")[] } = {}): void {
+  windowClosed = false,
+  windowMs,
+  revertFails = false,
+}: {
+  textResults?: ("follow-up" | "receipt")[];
+  windowClosed?: boolean;
+  windowMs?: number;
+  revertFails?: boolean;
+} = {}): void {
   calls.length = 0;
-  proposalCounter = 0;
+  receiptCounter = 0;
   // One queued outcome per text proposal, in order; exhausted → follow-up.
   const queue = [...textResults];
   vi.stubGlobal(
@@ -78,6 +93,19 @@ function routeFetch({
       const url = String(input);
       calls.push({ url, init });
       const requestBody = init?.body ? JSON.parse(String(init.body)) : {};
+      if (url.endsWith("/revert") && revertFails) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              statusCode: 409,
+              message: "a later write touched this batch",
+              error: "Conflict",
+              errorCode: "REVERT_CONFLICT",
+            }),
+            { status: 409 },
+          ),
+        );
+      }
       const body = url.endsWith("/api/ledger/months")
         ? MONTHS
         : init?.method === "DELETE"
@@ -88,22 +116,18 @@ function routeFetch({
             }
           : url.startsWith("/api/ledger/transactions")
             ? REPORT
-            : url.endsWith("/commit")
+            : url.endsWith("/revert")
               ? {
                   proposal_id: proposalIdFromUrl(url),
-                  status: "committed",
-                  written: 1,
-                  transaction_ids: [2],
-                  committed_at: new Date().toISOString(),
+                  status: "reverted",
+                  reverted_at: new Date().toISOString(),
                 }
-              : url.endsWith("/cancel")
-                ? { proposal_id: proposalIdFromUrl(url), status: "cancelled" }
-                : typeof requestBody.text === "string"
-                  ? (queue.shift() ?? textResults.at(-1) ?? "follow-up") ===
-                    "follow-up"
-                    ? FOLLOW_UP
-                    : proposalStub()
-                  : proposalStub();
+              : typeof requestBody.text === "string"
+                ? (queue.shift() ?? textResults.at(-1) ?? "follow-up") ===
+                  "follow-up"
+                  ? FOLLOW_UP
+                  : receiptStub({ windowClosed, windowMs })
+                : receiptStub({ windowClosed, windowMs });
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -125,69 +149,9 @@ function renderPage() {
   );
 }
 
-function renderChatPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <ChatPage />
-    </QueryClientProvider>,
-  );
-}
-
-async function sendSentence(
-  user: ReturnType<typeof userEvent.setup>,
-  text: string,
-) {
-  await user.type(screen.getByLabelText("对话输入"), text);
-  await user.click(screen.getByRole("button", { name: "发送" }));
-}
-
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-});
-
-it("sends a sentence and shows the AI follow-up question in the stream", async () => {
-  routeFetch();
-  const user = userEvent.setup();
-  renderChatPage();
-
-  // Empty conversation: the hero headline sits centered until the first send.
-  expect(screen.getByText("有什么我能帮你的吗？")).toBeInTheDocument();
-
-  await sendSentence(user, "午饭花了25");
-
-  const sent = calls.find(({ url }) => url.endsWith("/api/ledger/proposals"));
-  expect(JSON.parse(String(sent?.init?.body))).toEqual({
-    text: "午饭花了25",
-  });
-  expect(await screen.findByText("午饭花了25")).toBeInTheDocument();
-  expect(await screen.findByText("这笔用的哪个账户?")).toBeInTheDocument();
-  expect(screen.queryByText("有什么我能帮你的吗？")).not.toBeInTheDocument();
-});
-
-it("turns a sentence into a proposal card that commits and dismisses", async () => {
-  routeFetch({ textResults: ["proposal"] });
-  const user = userEvent.setup();
-  renderChatPage();
-
-  await sendSentence(user, "昨天午饭25");
-  expect(await screen.findByText(/后自动记入/)).toBeInTheDocument();
-
-  await user.click(screen.getByRole("button", { name: "确认记入" }));
-  expect(await screen.findByText("已确认写入")).toBeInTheDocument();
-  expect(
-    calls.some(({ url }) =>
-      url.endsWith("/api/ledger/proposals/lp-test-1/commit"),
-    ),
-  ).toBe(true);
-
-  // The card stays until dismissed.
-  expect(screen.getByText("提案确认")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "知道了" }));
-  expect(screen.queryByText("提案确认")).not.toBeInTheDocument();
 });
 
 it("renders the month ledger with day subtotals and a day panel", async () => {
@@ -246,26 +210,4 @@ it("deletes a day-panel transaction through the inline confirm", async () => {
   expect(
     await screen.findByRole("button", { name: "删除 餐饮 ¥25.50" }),
   ).toBeInTheDocument();
-});
-
-it("folds a follow-up answer onto the sentence that was asked about", async () => {
-  routeFetch({ textResults: ["follow-up", "proposal"] });
-  const user = userEvent.setup();
-  renderChatPage();
-
-  await sendSentence(user, "晚饭吃了8块钱");
-  expect(await screen.findByText("这笔用的哪个账户?")).toBeInTheDocument();
-
-  // The fragment answer folds onto the original sentence before dispatch.
-  await sendSentence(user, "微信");
-  const sent = calls
-    .filter(({ url }) => url.endsWith("/api/ledger/proposals"))
-    .map(({ init }) => JSON.parse(String(init?.body)));
-  expect(sent).toEqual([
-    { text: "晚饭吃了8块钱" },
-    { text: "晚饭吃了8块钱，微信" },
-  ]);
-  // The user bubble shows only the fragment as typed.
-  expect(screen.getByText("微信")).toBeInTheDocument();
-  expect(await screen.findByText("提案确认")).toBeInTheDocument();
 });

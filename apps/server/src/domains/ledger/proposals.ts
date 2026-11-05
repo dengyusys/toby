@@ -1,8 +1,9 @@
 /**
- * Ledger adapter over the shared actions kernel: the ledger's proposal
- * state machine is the kernel instantiated with this domain's entry batch
- * as the payload and its commit result as the outcome, viewed through the
- * ledger's HTTP contract shapes.
+ * Ledger adapter over the shared actions kernel, immediate tier only
+ * (docs/decisions/write-confirmation-tiers.md): the entry batch executes
+ * transactionally at once, the kernel journals a born-confirmed record
+ * with a revert window, and this adapter views both through the ledger's
+ * HTTP contract shapes.
  */
 
 import {
@@ -10,45 +11,66 @@ import {
   type ActionRecord,
 } from "../../infrastructure/actions-kernel/registry.ts";
 import type {
-  LedgerCancelResult,
-  LedgerCommitResult,
   LedgerEntry,
-  LedgerProposalView,
+  LedgerReceiptView,
+  LedgerRevertResult,
 } from "./types.ts";
 
-/** Performs the actual transactional write for a proposal batch. */
+/** Performs the actual transactional write for one batch. */
 export type ProposalWriter = (entries: readonly LedgerEntry[]) => Promise<{
   written: number;
   transaction_ids: readonly number[];
 }>;
 
+/** The kernel-level journal entry for one landed batch. */
+export interface LedgerBatchOutcome {
+  readonly written: number;
+  readonly transaction_ids: readonly number[];
+  readonly committed_at: string;
+}
+
 export interface ProposalRegistryDeps {
   now: () => number;
-  autoWriteDelayMs?: number;
-  ttlMs?: number;
+  revertWindowMs?: number;
   retentionMs?: number;
 }
 
 export interface ProposalRegistry {
-  add(id: string, entries: readonly LedgerEntry[]): LedgerProposalView;
-  get(id: string): LedgerProposalView | undefined;
-  commit(id: string, writer: ProposalWriter): Promise<LedgerCommitResult>;
-  cancel(id: string): Promise<LedgerCancelResult>;
-  /** Pending proposals past their auto-write moment, not yet expired. */
-  dueForAutoWrite(): readonly string[];
-  /** Mark expired; prune records past their retention horizon. */
+  /** Run the batch now; the returned receipt is born confirmed. */
+  execute(
+    id: string,
+    entries: readonly LedgerEntry[],
+    writer: ProposalWriter,
+  ): Promise<LedgerReceiptView>;
+  /** Apply the batch's before-snapshot inside the revert window. */
+  revert(
+    id: string,
+    compensator: (outcome: LedgerBatchOutcome) => Promise<void>,
+  ): Promise<LedgerRevertResult>;
+  /** Prune records past their retention horizon. */
   sweep(): void;
 }
 
-type KernelRecord = ActionRecord<readonly LedgerEntry[], LedgerCommitResult>;
+type KernelRecord = ActionRecord<readonly LedgerEntry[], LedgerBatchOutcome>;
 
-function toView(record: KernelRecord): LedgerProposalView {
+function toView(record: KernelRecord): LedgerReceiptView {
+  // Born confirmed: the outcome exists from the moment of journalling,
+  // so the fallbacks below only satisfy the optional-field checker.
+  const outcome = record.result;
   return {
     proposal_id: record.id,
-    status: record.status,
+    status: record.status === "reverted" ? "reverted" : "committed",
     created_at: new Date(record.createdAtMs).toISOString(),
-    auto_write_at: new Date(record.autoWriteAtMs).toISOString(),
-    expires_at: new Date(record.expiresAtMs).toISOString(),
+    committed_at:
+      outcome?.committed_at ?? new Date(record.createdAtMs).toISOString(),
+    revert_until: new Date(
+      record.revertUntilMs ?? record.createdAtMs,
+    ).toISOString(),
+    ...(record.revertedAtMs
+      ? { reverted_at: new Date(record.revertedAtMs).toISOString() }
+      : {}),
+    written: outcome?.written ?? 0,
+    transaction_ids: outcome?.transaction_ids ?? [],
     entries: record.payload,
   };
 }
@@ -58,35 +80,37 @@ export function createProposalRegistry(
 ): ProposalRegistry {
   const kernel = createActionRegistry<
     readonly LedgerEntry[],
-    LedgerCommitResult
+    LedgerBatchOutcome
   >(deps);
   return {
-    add(id, entries) {
-      return toView(kernel.add(id, entries));
-    },
-    get(id) {
-      const record = kernel.get(id);
-      return record ? toView(record) : undefined;
-    },
-    async commit(id, writer) {
-      return kernel.commit(id, async (entries) => {
-        const { written, transaction_ids } = await writer(entries);
+    async execute(id, entries, writer) {
+      await kernel.execute(id, entries, async (batch) => {
+        const { written, transaction_ids } = await writer(batch);
         return {
-          proposal_id: id,
-          status: "committed",
           written,
           transaction_ids,
           committed_at: new Date(deps.now()).toISOString(),
         };
       });
+      const record = kernel.get(id);
+      if (!record) {
+        // Unreachable: execute() above just journalled this id.
+        throw new Error(`journal lost record ${id} immediately after write`);
+      }
+      return toView(record);
     },
-    async cancel(id) {
-      const cancelled = await kernel.cancel(id);
-      return { proposal_id: cancelled.id, status: cancelled.status };
+
+    async revert(id, compensator) {
+      const outcome = await kernel.revert(id, async (_entries, result) =>
+        compensator(result),
+      );
+      return {
+        proposal_id: outcome.id,
+        status: outcome.status,
+        reverted_at: new Date(outcome.revertedAtMs).toISOString(),
+      };
     },
-    dueForAutoWrite() {
-      return kernel.dueForAutoWrite();
-    },
+
     sweep() {
       kernel.sweep();
     },

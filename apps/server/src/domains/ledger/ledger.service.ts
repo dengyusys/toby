@@ -1,10 +1,12 @@
 /**
- * Ledger service: the use-case layer tying validation, the proposal
- * registry and the store together. Recording always goes through a
- * proposal; the user-initiated delete is the one direct write (its
- * explicit UI confirmation replaces the proposal stage). Month reports
- * aggregate store rows in pure TypeScript. The clock is injected so tests
- * can drive auto-write, expiry and pruning.
+ * Ledger service: the use-case layer tying validation, the write registry
+ * and the store together. Recording is immediate-tier
+ * (docs/decisions/write-confirmation-tiers.md): a validated batch executes
+ * transactionally at once and the receipt is born confirmed with a revert
+ * window; the user-initiated delete is the one direct write (its explicit
+ * UI confirmation stands in for the card path). Month reports aggregate
+ * store rows in pure TypeScript. The clock is injected so tests can drive
+ * the revert window and pruning.
  */
 
 import { randomUUID } from "node:crypto";
@@ -21,18 +23,18 @@ import {
 } from "./extraction.ts";
 import { normalizeEntry } from "./validation.ts";
 import type {
-  LedgerCancelResult,
   LedgerCategorySummary,
-  LedgerCommitResult,
   LedgerDeleteResult,
+  LedgerEntry,
   LedgerMonthReport,
-  LedgerProposalView,
+  LedgerReceiptView,
+  LedgerRevertResult,
   LedgerTransactionRow,
 } from "./types.ts";
 
 const MONTH_PATTERN = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
 
-const SWEEP_INTERVAL_MS = 1_000;
+const PRUNE_INTERVAL_MS = 1_000;
 
 /** Aggregate one month's rows into the report shape (pure function). */
 export function buildMonthReport(
@@ -75,17 +77,16 @@ export function buildMonthReport(
 }
 
 /**
- * Proposal-timing knobs, overridable per test via the plugin options;
+ * Write-timing knobs, overridable per test via the plugin options;
  * production uses the kernel defaults (empty overrides).
  */
 export interface LedgerTiming {
-  autoWriteDelayMs?: number;
-  ttlMs?: number;
+  revertWindowMs?: number;
   retentionMs?: number;
 }
 
-/** A proposal, or the AI asking the user one clarifying question. */
-export type LedgerProposalResult = LedgerProposalView | LedgerFollowUp;
+/** A landed receipt, or the AI asking the user one clarifying question. */
+export type LedgerProposalResult = LedgerReceiptView | LedgerFollowUp;
 
 /** One message for every 501 AI_UNAVAILABLE path. */
 const AI_UNCONFIGURED_MESSAGE =
@@ -105,16 +106,15 @@ function aiHttpError(error: AiError): LedgerRequestError {
 export interface LedgerService {
   /** `body` has already passed the route's shape schema (dto/). */
   createProposal(body: ProposalBody): Promise<LedgerProposalResult>;
-  commit(id: string): Promise<LedgerCommitResult>;
-  cancel(id: string): Promise<LedgerCancelResult>;
+  /** Apply the batch's before-snapshot inside the revert window. */
+  revert(id: string): Promise<LedgerRevertResult>;
   deleteTransaction(rawId: string): Promise<LedgerDeleteResult>;
   months(): Promise<{ months: readonly string[] }>;
   monthReport(month: string | undefined): Promise<LedgerMonthReport>;
-  sweep(): Promise<void>;
-  /** Starts the proposal sweeper timer. */
+  /** Starts the record pruner timer. */
   start(): void;
   /**
-   * Stops the sweeper timer and waits for a sweep still in flight, so the
+   * Stops the pruner timer and waits for a prune still in flight, so the
    * store can close behind it.
    */
   stop(): Promise<void>;
@@ -130,15 +130,24 @@ export function createLedgerService(deps: {
   const { store, clock, extractor } = deps;
   const registry: ProposalRegistry = createProposalRegistry({
     now: clock,
-    autoWriteDelayMs: deps.timing?.autoWriteDelayMs,
-    ttlMs: deps.timing?.ttlMs,
+    revertWindowMs: deps.timing?.revertWindowMs,
     retentionMs: deps.timing?.retentionMs,
   });
   let timer: NodeJS.Timeout | undefined;
-  /** The sweep the timer started and that has not settled yet. */
-  let sweeping: Promise<void> | undefined;
+  /** The prune the timer started and that has not settled yet. */
+  let pruning: Promise<void> | undefined;
 
-  // The one-sentence branch: extract → (question | entries) → proposal.
+  function executeBatch(
+    id: string,
+    entries: readonly LedgerEntry[],
+  ): Promise<LedgerReceiptView> {
+    return registry.execute(id, entries, async (batch) => {
+      const transaction_ids = await store.insertTransactions(batch);
+      return { written: batch.length, transaction_ids };
+    });
+  }
+
+  // The one-sentence branch: extract → (question | entries) → receipt.
   async function createFromText(
     rawText: string,
   ): Promise<LedgerProposalResult> {
@@ -169,25 +178,7 @@ export function createLedgerService(deps: {
     if ("question" in draft) {
       return draft;
     }
-    return registry.add(randomUUID(), draft.entries);
-  }
-
-  async function commit(id: string): Promise<LedgerCommitResult> {
-    return registry.commit(id, (entries) =>
-      store.insertTransactions(entries).then((transaction_ids) => ({
-        written: entries.length,
-        transaction_ids,
-      })),
-    );
-  }
-
-  async function sweep(): Promise<void> {
-    for (const id of registry.dueForAutoWrite()) {
-      // A failing write leaves the proposal pending; the next sweep
-      // retries it until the TTL backstop expires the proposal.
-      await commit(id).catch(() => undefined);
-    }
-    registry.sweep();
+    return executeBatch(randomUUID(), draft.entries);
   }
 
   return {
@@ -196,13 +187,22 @@ export function createLedgerService(deps: {
         return createFromText(body.text);
       }
       const entry = normalizeEntry(body.entry);
-      return registry.add(randomUUID(), [entry]);
+      return executeBatch(randomUUID(), [entry]);
     },
 
-    commit,
-
-    cancel(id) {
-      return registry.cancel(id);
+    async revert(id) {
+      return registry.revert(id, async (outcome) => {
+        const untouched = await store.revertTransactions(
+          outcome.transaction_ids,
+        );
+        if (!untouched) {
+          throw new LedgerRequestError(
+            "REVERT_CONFLICT",
+            409,
+            "a later write touched this batch — the newer write wins",
+          );
+        }
+      });
     },
 
     async deleteTransaction(rawId) {
@@ -245,31 +245,29 @@ export function createLedgerService(deps: {
       return buildMonthReport(month, rows);
     },
 
-    sweep,
-
-    // A 1 s tick bounds the auto-write moment's timing error to about a
-    // second. Runs until the application shuts down; a tick that finds the
-    // previous sweep still running skips, so sweeps never overlap.
+    // A 1 s tick prunes journalled records past their retention horizon,
+    // keeping memory bounded. Runs until the application shuts down; a
+    // tick that finds the previous prune still running skips, so prunes
+    // never overlap.
     start() {
       timer = setInterval(() => {
-        if (sweeping) {
+        if (pruning) {
           return;
         }
-        // sweep swallows commit failures internally; this catch only guards
-        // future edits that let something else throw — Node 22 kills the
-        // process on an unhandled rejection.
-        sweeping = sweep()
+        pruning = (async () => {
+          registry.sweep();
+        })()
           .catch(() => undefined)
           .finally(() => {
-            sweeping = undefined;
+            pruning = undefined;
           });
-      }, SWEEP_INTERVAL_MS);
+      }, PRUNE_INTERVAL_MS);
       timer.unref();
     },
 
     async stop() {
       clearInterval(timer);
-      await sweeping;
+      await pruning;
     },
   };
 }

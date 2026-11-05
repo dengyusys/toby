@@ -37,12 +37,8 @@ export const ledgerRoutes: FastifyPluginAsync<LedgerRoutesOptions> = async (
     service.createProposal(parseBody(PROPOSAL_BODY_SCHEMA, request)),
   );
 
-  app.post<IdParams>("/api/ledger/proposals/:id/commit", (request) =>
-    service.commit(request.params.id),
-  );
-
-  app.post<IdParams>("/api/ledger/proposals/:id/cancel", (request) =>
-    service.cancel(request.params.id),
+  app.post<IdParams>("/api/ledger/proposals/:id/revert", (request) =>
+    service.revert(request.params.id),
   );
 
   app.delete<IdParams>("/api/ledger/transactions/:id", (request) =>

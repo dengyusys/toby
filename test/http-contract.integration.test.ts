@@ -159,7 +159,7 @@ describe("http contract (api)", () => {
 });
 
 describe("http contract (ledger flow)", () => {
-  it("records a transaction end to end through the proposal pipeline", async () => {
+  it("records a transaction end to end: immediate write, revert, delete", async () => {
     const created = await fetch(`${baseUrl}/api/ledger/proposals`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -175,24 +175,55 @@ describe("http contract (ledger flow)", () => {
       }),
     });
     expect(created.status).toBe(200);
-    const proposal = (await created.json()) as {
+    const receipt = (await created.json()) as {
       status: string;
       proposal_id: string;
+      written: number;
+      revert_until: string;
       entries: { amount: number }[];
     };
-    expect(proposal.status).toBe("pending");
-    expect(proposal.entries[0]!.amount).toBe(2500);
-
-    const commit = await fetch(
-      `${baseUrl}/api/ledger/proposals/${proposal.proposal_id}/commit`,
-      { method: "POST" },
-    );
-    expect(commit.status).toBe(200);
-    const committed = (await commit.json()) as { written: number };
-    expect(committed.written).toBe(1);
+    // Immediate tier: the batch has already landed when the reply arrives.
+    expect(receipt.status).toBe("committed");
+    expect(receipt.written).toBe(1);
+    expect(receipt.entries[0]!.amount).toBe(2500);
+    expect(!Number.isNaN(Date.parse(receipt.revert_until))).toBe(true);
 
     const months = await fetch(`${baseUrl}/api/ledger/months`);
     expect(await months.json()).toEqual({ months: ["2026-10"] });
+
+    // Revert inside the window removes the batch.
+    const revert = await fetch(
+      `${baseUrl}/api/ledger/proposals/${receipt.proposal_id}/revert`,
+      { method: "POST" },
+    );
+    expect(revert.status).toBe(200);
+    expect(await revert.json()).toMatchObject({
+      proposal_id: receipt.proposal_id,
+      status: "reverted",
+    });
+    const afterRevert = await fetch(`${baseUrl}/api/ledger/months`);
+    expect(await afterRevert.json()).toEqual({ months: [] });
+
+    // A second write; the user-initiated delete removes the row; repeat 404s.
+    const second = await fetch(`${baseUrl}/api/ledger/proposals`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        entry: {
+          date: "2026-10-20",
+          type: "expense",
+          category: "餐饮",
+          account: "现金",
+          amount: "25",
+          note: "integration probe",
+        },
+      }),
+    });
+    expect(second.status).toBe(200);
+    const secondReceipt = (await second.json()) as {
+      transaction_ids: number[];
+    };
+    const transactionId = secondReceipt.transaction_ids[0]!;
 
     const report = await fetch(
       `${baseUrl}/api/ledger/transactions?month=2026-10`,
@@ -205,8 +236,6 @@ describe("http contract (ledger flow)", () => {
     expect(body.transactions).toHaveLength(1);
     expect(body.expense_total).toBe(2500);
 
-    // User-initiated delete removes the row; a repeated delete 404s.
-    const transactionId = body.transactions[0]!.id;
     const deleted = await fetch(
       `${baseUrl}/api/ledger/transactions/${transactionId}`,
       { method: "DELETE" },

@@ -2,7 +2,7 @@
 
 English | [简体中文](chat.zh.md)
 
-> Target contract (domain not yet implemented): responsibilities, interface, and key rules; implementation details live in code and tests.
+> Live contract: responsibilities, interface, and key rules; implementation details live in code and tests. The attachment endpoints land in their own follow-up wave.
 
 ## Responsibilities and boundaries
 
@@ -16,7 +16,7 @@ The app's single chat box: one sentence in, intent classification routes it — 
 
 - Exactly one ongoing conversation: restored on refresh; no session switching/creation/deletion (the session API exists to recover this one conversation).
 - Every reply is an ordered stream of items: pi-ai-shaped transcript messages (user / assistant / toolResult, paired by `toolCallId`) plus toby items — proposal cards, inspect links, notices; attachment references ride on the user message, the routing intent rides as turn metadata beside the stream, and the frontend renders the stream in order.
-- Per-domain browsing never regresses: PC activity rail + preview panels; mobile left navigation drawer + three-page pager (notes/chat/board resident).
+- Per-domain browsing never regresses: PC preview panels opened from inspect links and pushed preview cards (nothing persistent beside the chat); mobile left navigation drawer + full-screen preview panels, three-page pager (notes/chat/board resident) when those domains land.
 
 The shape of one turn — pairing rides on `toolCallId`, provenance on `sourceToolCallId`:
 

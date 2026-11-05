@@ -30,8 +30,7 @@ nonsense (bad amount, impossible date, blank category) is answered by the domain
 | `GET /api/ledger/months`                     | Months with records (newest first)                                                                                |
 | `GET /api/ledger/transactions?month=YYYY-MM` | Monthly transactions + summary (income/expense totals, by category)                                               |
 | `POST /api/ledger/proposals`                 | One sentence (AI, multi-entry) or a structured single entry (deterministic path); uncertainty returns a follow-up |
-| `POST /api/ledger/proposals/:id/commit`      | Confirm: atomic batch write (idempotent)                                                                          |
-| `POST /api/ledger/proposals/:id/cancel`      | Cancel the proposal                                                                                               |
+| `POST /api/ledger/proposals/:id/revert`      | Undo a landed batch inside its revert window (refuses on conflict)                                                |
 | `DELETE /api/ledger/transactions/:id`        | Delete one stored transaction (user-initiated; unknown ids answer 404 `TRANSACTION_NOT_FOUND`)                    |
 
 ## Key rules
