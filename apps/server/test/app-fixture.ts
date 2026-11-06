@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import pino from "pino";
-import { createApp, type DomainMount } from "../src/app.ts";
+import { createApp, type DomainMount } from "../src/composition-root.ts";
 import type {
   PathConfig,
   TobyConfig,

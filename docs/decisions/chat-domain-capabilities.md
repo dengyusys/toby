@@ -5,7 +5,7 @@ English | [简体中文](chat-domain-capabilities.zh.md)
 ## Why
 
 **Landing a domain edits five chat files plus a hand-written adapter in
-`app.ts`.** Concretely, adding `schedule` means:
+`composition-root.ts`.** Concretely, adding `schedule` means:
 
 - `chat/types.ts` — extend the `ChatIntent` union, add a
   `ChatScheduleReceipt`;
@@ -14,7 +14,7 @@ English | [简体中文](chat-domain-capabilities.zh.md)
   entry, add a port dependency;
 - `chat/agent.ts` — add three read-only tools, a rules snippet, an
   `inspectTargetOf` case;
-- `app.ts` — hand-write the adapter that fits the schedule service into
+- `composition-root.ts` — hand-write the adapter that fits the schedule service into
   the port.
 
 Chat holds the set of domain names; it should only hold the shape of a
@@ -86,14 +86,14 @@ Decisions embedded there, stated plainly:
 
 ## What each touch point becomes
 
-| File              | Before                                                                         | After                                                                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `chat/types.ts`   | `ChatIntent` union, `ChatLedgerReceipt`, month/day summaries, `ChatLedgerPort` | all deleted; `ChatIntent` = `string`, items unchanged                                                                                                                              |
-| `chat/intent.ts`  | `INTENTS` array, hand-written prompt section                                   | enum and intent lines derived from the registry at plugin assembly; the frame, `none` line, and folding rules stay                                                                 |
-| `chat/service.ts` | `route()` if-chain, `ON_THE_WAY` map, port dependency                          | `route()` looks up `capabilities.get(intent)`; absent → none-agent (a stale/unregistered intent string degrades to `none`, never 404); `ON_THE_WAY` deleted                        |
-| `chat/agent.ts`   | three ledger tools, `inspectTargetOf`, format helpers                          | a generic none-agent: toolset = registry's concatenated tools, rules = base rules + each capability's snippets; ledger's tools/helpers move to `domains/ledger/chat-capability.ts` |
-| `app.ts`          | hand-written `chatLedgerPort` adapter                                          | `capabilities: [ledgerChatCapability(ledgerDomain.service)]` — one line per domain                                                                                                 |
-| `domains/ledger/` | nothing chat-related                                                           | `chat-capability.ts`: the write outcome, the three tools, `inspectTarget`, using ledger's own types                                                                                |
+| File                  | Before                                                                         | After                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chat/types.ts`       | `ChatIntent` union, `ChatLedgerReceipt`, month/day summaries, `ChatLedgerPort` | all deleted; `ChatIntent` = `string`, items unchanged                                                                                                                              |
+| `chat/intent.ts`      | `INTENTS` array, hand-written prompt section                                   | enum and intent lines derived from the registry at plugin assembly; the frame, `none` line, and folding rules stay                                                                 |
+| `chat/service.ts`     | `route()` if-chain, `ON_THE_WAY` map, port dependency                          | `route()` looks up `capabilities.get(intent)`; absent → none-agent (a stale/unregistered intent string degrades to `none`, never 404); `ON_THE_WAY` deleted                        |
+| `chat/agent.ts`       | three ledger tools, `inspectTargetOf`, format helpers                          | a generic none-agent: toolset = registry's concatenated tools, rules = base rules + each capability's snippets; ledger's tools/helpers move to `domains/ledger/chat-capability.ts` |
+| `composition-root.ts` | hand-written `chatLedgerPort` adapter                                          | `capabilities: [ledgerChatCapability(ledgerDomain.service)]` — one line per domain                                                                                                 |
+| `domains/ledger/`     | nothing chat-related                                                           | `chat-capability.ts`: the write outcome, the three tools, `inspectTarget`, using ledger's own types                                                                                |
 
 Assembly-time validation, fail-fast at boot: duplicate `intent` ids or an
 empty tools-plus-rules signature throw inside `chatPlugin` before the first
@@ -113,7 +113,7 @@ import). This preserves the red lines:
 2. Infrastructure stays business-agnostic — `intentDescription` is
    business vocabulary, so the contract sits at the composition layer,
    not in `infrastructure/`.
-3. Cross-domain wiring still happens only in `app.ts`, shrunk to the
+3. Cross-domain wiring still happens only in `composition-root.ts`, shrunk to the
    registry list.
 
 ## Contract changes (`packages/contract`, both webs)
@@ -160,7 +160,7 @@ domain — the smallest migration):
 1. `src/chat-capability.ts` + boundary-test leaf rule;
 2. chat's five files convert to registry-driven, `ChatLedgerPort` deleted;
 3. `domains/ledger/chat-capability.ts` (write outcome, tools, inspect)
-   replaces the `app.ts` adapter;
+   replaces the `composition-root.ts` adapter;
 4. contract: `ChatIntent`/`ProposalCardItem` open up; both webs switch to
    renderer registries;
 5. tests: ledger capability tested in the ledger domain; chat tests mount

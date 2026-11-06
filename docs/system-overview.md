@@ -113,7 +113,7 @@ Two non-inferable details: the AI's draft passes shape, domain, and semantic val
 
 ```mermaid
 flowchart TB
-    BOOT["app.ts (composition root)<br/>one line per domain; all cross-domain wiring lives here"]
+    BOOT["composition-root.ts<br/>one line per domain; all cross-domain wiring lives here"]
     INFRA["infrastructure/<br/>config (TOBY_*) · http (body limits / error body / no-store / dual-SPA static)<br/>model (AI runtime) · actions-kernel (proposal kernel) · db (adapter port: sqlite / mysql)"]
     DOM["domains/*<br/>business domains, landing one by one"]
     BOOT --> INFRA
@@ -122,7 +122,7 @@ flowchart TB
 
 Domain organization discipline:
 
-- Every domain under `domains/` contains its own plugin (self-assembly), routes, services, stores, and pure business files; **domains never import each other** — cross-domain wiring happens only in the composition root `apps/server/src/app.ts`.
+- Every domain under `domains/` contains its own plugin (self-assembly), routes, services, stores, and pure business files; **domains never import each other** — cross-domain wiring happens only in the composition root `apps/server/src/composition-root.ts`.
 - A domain's `types.ts` stays pure: no HTTP adapter, no infrastructure, no `node:` imports.
 - `infrastructure/` never imports business domains; database opening is provided by `infrastructure/db` and consumed by domain stores.
 - Adding a business domain needs no rule registration — the boundary tests in `test/boundaries.test.ts` discover domains from the filesystem.
@@ -154,7 +154,7 @@ Terms this repository uses with a specific meaning; one line each — the author
 | gate (policy / shape / health) | Enforcement points: policy = tool kinds an agent may call; shape = Zod schema check; health = dev startup readiness                                                                                                 |
 | trust boundary                 | Deterministic server-side validation — the AI's output (and every other foreign input) is untrusted until it passes                                                                                                 |
 | adapter port                   | "Port" as in ports-and-adapters: the interface behind which SQLite / MySQL swap                                                                                                                                     |
-| composition root               | `apps/server/src/app.ts` — the only place cross-domain wiring happens                                                                                                                                               |
+| composition root               | `apps/server/src/composition-root.ts` — the only place cross-domain wiring happens                                                                                                                                  |
 | vertical domain slice          | One business = one directory owning its routes, service, store, and rules                                                                                                                                           |
 | modular monolith               | Modules isolated in code, assembled and run by one process                                                                                                                                                          |
 | single-flight                  | Concurrent confirms and the sweeper share one execution                                                                                                                                                             |

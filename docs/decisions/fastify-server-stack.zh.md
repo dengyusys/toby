@@ -16,7 +16,7 @@ Fastify 恰好把承重的那几样作为普通、成文、标准的部件交给
 
 ## 在本仓库中
 
-- `src/app.ts` 是组合根:HTTP 外壳(请求体上限、错误边界、not-found 回答、
+- `src/composition-root.ts` 是组合根:HTTP 外壳(请求体上限、错误边界、not-found 回答、
   `no-store`、cookie、SPA 挂载)与域的装配顺序。`src/main.ts` 只负责解析配置、
   监听,以及收到信号时关闭。
 - 每个域保留三种角色文件:`routes.ts`(HTTP 壳,一个 Fastify 插件)、

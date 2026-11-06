@@ -13,7 +13,7 @@ The observability counterpart to the AI runtime (docs/decisions/ai-pi-runtime.md
 
 ## Core concepts
 
-- **Trace bus** (`infrastructure/trace/bus.ts`): fan-out only. The composition root creates one bus and hands the same instance to the AI runtime (as its reporter) and this domain (as its stream source) — the only cross-domain wiring, done in `app.ts`.
+- **Trace bus** (`infrastructure/trace/bus.ts`): fan-out only. The composition root creates one bus and hands the same instance to the AI runtime (as its reporter) and this domain (as its stream source) — the only cross-domain wiring, done in `composition-root.ts`.
 - **Two events per run**: `run-started` goes out the moment a call begins (prompt visible under a running marker); `run-finished` closes it with the full transcript — system prompt and tool declarations, user inputs, assistant turns with thinking/tool calls, tool results — plus outcome, usage (tokens, cost), and duration. `run-finished` is self-contained: a client that somehow missed `run-started` can still render the run.
 - **Capture points**: `createTobyAgentFactory` (kind `agent`, label from the spec's `name`, e.g. `ledger-extraction`) and `createPiAiClient` (kind `single-shot`, label `complete`; a JSON retry is its own run with the correction prompt visible).
 - **The panel** (`apps/web` only): a right-side drawer the layout's top-right button toggles — no page switch, it splits the main area beside the current page. The SPA holds one EventSource for the whole logged-in session (mounted with the gated routes), so runs keep flowing in on every page — the drawer is a view over that stream, accumulating in the browser (capped). `apps/web-mobile` deliberately has no panel.

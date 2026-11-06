@@ -113,7 +113,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-    BOOT["app.ts(组合根)<br/>每域一行装配,跨域接线只在这里"]
+    BOOT["composition-root.ts<br/>每域一行装配,跨域接线只在这里"]
     INFRA["infrastructure/<br/>config(TOBY_*)·http(请求体上限/错误体/no-store/双 SPA 静态)<br/>model(AI 运行时)·actions-kernel(提案内核)·db(适配 port:sqlite / mysql)"]
     DOM["domains/*<br/>业务域,逐个落地"]
     BOOT --> INFRA
@@ -122,7 +122,7 @@ flowchart TB
 
 域组织纪律:
 
-- `domains/` 下每个域自含插件(自装配)、路由、service、store 与纯业务文件;**域与域互不导入**,跨域接线只发生在组合根 `apps/server/src/app.ts`。
+- `domains/` 下每个域自含插件(自装配)、路由、service、store 与纯业务文件;**域与域互不导入**,跨域接线只发生在组合根 `apps/server/src/composition-root.ts`。
 - 域内 `types.ts` 保持纯净:不导入 HTTP 适配器、infrastructure、`node:` 模块。
 - `infrastructure/` 不导入业务域;开库能力由 `infrastructure/db` 提供,域内 store 消费。
 - 新增业务域无需登记规则——`test/boundaries.test.ts` 的边界测试从文件系统自动发现各域。
@@ -154,7 +154,7 @@ flowchart TB
 | 门控(policy / shape / health gate)      | 三类强制点:policy = agent 可调用的工具分级;shape = Zod schema 校验;health = 开发期启动就绪检查                                                     |
 | 信任边界(trust boundary)                | 服务端确定性校验——AI 输出(以及一切外来输入)通过校验之前都是非受信的                                                                                |
 | 适配 port(adapter port)                 | ports-and-adapters 意义上的 port:SQLite / MySQL 在其后替换的接口                                                                                   |
-| 组合根(composition root)                | `apps/server/src/app.ts` —— 跨域接线唯一发生的地方                                                                                                 |
+| 组合根(composition root)                | `apps/server/src/composition-root.ts` —— 跨域接线唯一发生的地方                                                                                    |
 | 垂直域切片(vertical domain slice)       | 一个业务 = 一个目录,自含路由、service、store 与规则                                                                                                |
 | 模块化单体(modular monolith)            | 模块在代码层隔离,由单进程装配运行                                                                                                                  |
 | 单飞(single-flight)                     | 并发确认与清扫任务合并为同一次执行                                                                                                                 |

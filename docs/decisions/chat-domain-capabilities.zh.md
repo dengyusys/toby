@@ -4,7 +4,7 @@
 
 ## 为什么
 
-**今天落地一个域,要改 chat 的五个文件,外加 `app.ts` 里一段手写适配。**
+**今天落地一个域,要改 chat 的五个文件,外加 `composition-root.ts` 里一段手写适配。**
 具体到加 `schedule`:
 
 - `chat/types.ts`——扩 `ChatIntent` 联合,新增 `ChatScheduleReceipt`;
@@ -13,7 +13,7 @@
   加端口依赖;
 - `chat/agent.ts`——加三个只读工具、一段规则、一个
   `inspectTargetOf` 分支;
-- `app.ts`——手写把 schedule service 适配成端口的代码。
+- `composition-root.ts`——手写把 schedule service 适配成端口的代码。
 
 chat 持有域名字的集合,而它应该只持有"可路由域"的形状。
 
@@ -80,14 +80,14 @@ export interface ChatDomainCapability {
 
 ## 各触点的前后对照
 
-| 文件              | 之前                                                                | 之后                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `chat/types.ts`   | `ChatIntent` 联合、`ChatLedgerReceipt`、月/日汇总、`ChatLedgerPort` | 全部删除;`ChatIntent` = `string`,items 不变                                                                                       |
-| `chat/intent.ts`  | `INTENTS` 数组、手写 prompt 段落                                    | 枚举与意图行在插件装配时由注册表派生;框架、`none` 行、补全规则不动                                                                |
-| `chat/service.ts` | `route()` if 链、`ON_THE_WAY` 表、端口依赖                          | `route()` 查 `capabilities.get(intent)`;查不到 → none-agent(过期/未注册的 intent 字符串降级为 `none`,绝不 404);`ON_THE_WAY` 删除  |
-| `chat/agent.ts`   | 三个 ledger 工具、`inspectTargetOf`、格式化辅助                     | 泛化的 none-agent:工具集 = 注册表工具拼接,规则 = 基础规则 + 各能力片段;ledger 的工具/辅助移入 `domains/ledger/chat-capability.ts` |
-| `app.ts`          | 手写 `chatLedgerPort` 适配                                          | `capabilities: [ledgerChatCapability(ledgerDomain.service)]`——每域一行                                                            |
-| `domains/ledger/` | 与 chat 无关                                                        | `chat-capability.ts`:写结果、三个工具、`inspectTarget`,全部用 ledger 自己的类型                                                   |
+| 文件                  | 之前                                                                | 之后                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `chat/types.ts`       | `ChatIntent` 联合、`ChatLedgerReceipt`、月/日汇总、`ChatLedgerPort` | 全部删除;`ChatIntent` = `string`,items 不变                                                                                       |
+| `chat/intent.ts`      | `INTENTS` 数组、手写 prompt 段落                                    | 枚举与意图行在插件装配时由注册表派生;框架、`none` 行、补全规则不动                                                                |
+| `chat/service.ts`     | `route()` if 链、`ON_THE_WAY` 表、端口依赖                          | `route()` 查 `capabilities.get(intent)`;查不到 → none-agent(过期/未注册的 intent 字符串降级为 `none`,绝不 404);`ON_THE_WAY` 删除  |
+| `chat/agent.ts`       | 三个 ledger 工具、`inspectTargetOf`、格式化辅助                     | 泛化的 none-agent:工具集 = 注册表工具拼接,规则 = 基础规则 + 各能力片段;ledger 的工具/辅助移入 `domains/ledger/chat-capability.ts` |
+| `composition-root.ts` | 手写 `chatLedgerPort` 适配                                          | `capabilities: [ledgerChatCapability(ledgerDomain.service)]`——每域一行                                                            |
+| `domains/ledger/`     | 与 chat 无关                                                        | `chat-capability.ts`:写结果、三个工具、`inspectTarget`,全部用 ledger 自己的类型                                                   |
 
 装配时校验,启动即失败:`intent` 重复或 tools 加 rules 为空,在
 `chatPlugin` 内、第一条消息之前 throw,而不是等第一句话。
@@ -104,7 +104,7 @@ chat)。红线因此保全:
    自己的 service 编译。
 2. infrastructure 保持业务无关——`intentDescription` 是业务词汇,
    所以契约放组合层,不进 `infrastructure/`。
-3. 跨域装配仍只发生在 `app.ts`,收缩为注册表列表。
+3. 跨域装配仍只发生在 `composition-root.ts`,收缩为注册表列表。
 
 ## 契约变更(`packages/contract`、两个 web)
 
@@ -144,7 +144,7 @@ chat)。红线因此保全:
 1. `src/chat-capability.ts` + 边界测试叶子规则;
 2. chat 五个文件改为注册表驱动,删除 `ChatLedgerPort`;
 3. `domains/ledger/chat-capability.ts`(写结果、工具、inspect)取代
-   `app.ts` 适配;
+   `composition-root.ts` 适配;
 4. contract:`ChatIntent`/`ProposalCardItem` 开放;两个 web 换成
    渲染器注册表;
 5. 测试:ledger 能力在 ledger 域内测;chat 测试挂假能力而非假端口;

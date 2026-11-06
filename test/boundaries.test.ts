@@ -175,7 +175,7 @@ const rules: BoundaryRule[] = [
         head !== null &&
         ASSEMBLY_MODULES.some((m) => head === m || head.startsWith(`${m}.`));
       return domainOf(file) !== null && isAssembly
-        ? "assembly lives in app.ts and the domain plugin.ts files"
+        ? "assembly lives in composition-root.ts and the domain plugin.ts files"
         : null;
     },
   },
@@ -200,7 +200,7 @@ const rules: BoundaryRule[] = [
     check: ({ file, resolved }) => {
       if (domainOf(file) === null || resolved === null) return null;
       const rel = path.relative(serverSrc, resolved);
-      return rel === "app.ts" || rel === "main.ts"
+      return rel === "composition-root.ts" || rel === "main.ts"
         ? "domains must not import the app shell or the entry point"
         : null;
     },
@@ -210,9 +210,9 @@ const rules: BoundaryRule[] = [
     check: ({ file, resolved }) => {
       if (resolved === null || !inside(resolved, domainsDir)) return null;
       if (inside(file, domainsDir)) return null; // domain-to-domain has its own rule
-      return path.relative(serverSrc, file) === "app.ts"
+      return path.relative(serverSrc, file) === "composition-root.ts"
         ? null
-        : "cross-domain wiring happens only in the composition root app.ts";
+        : "cross-domain wiring happens only in the composition root composition-root.ts";
     },
   },
   {
@@ -243,7 +243,7 @@ const rules: BoundaryRule[] = [
       const rel = path.relative(serverSrc, resolved);
       const forbidden =
         domainOf(resolved) !== null ||
-        rel === "app.ts" ||
+        rel === "composition-root.ts" ||
         rel === "main.ts" ||
         rel.startsWith("domains/");
       return forbidden

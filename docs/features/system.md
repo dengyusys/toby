@@ -15,7 +15,7 @@ The server's first domain: two minimal read-only endpoints that walk the whole c
 
 - `health` is the liveness probe: the container healthcheck target, always `{"status":"ok"}`. It probes nothing — a readiness check (disk, heap, dependency reachability) is added when a deployment has to act on it.
 - `info` is the runtime identity: version, Node version, start time, uptime — the first thing to check when debugging a deployed instance.
-- Domain template: `types.ts` (pure) + `routes.ts` + `service.ts` + `plugin.ts` (self-assembly), one line in `app.ts`.
+- Domain template: `types.ts` (pure) + `routes.ts` + `service.ts` + `plugin.ts` (self-assembly), one line in `composition-root.ts`.
 
 ## Interface
 

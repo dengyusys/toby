@@ -47,7 +47,7 @@ If one change touches several rows, run all the checks those rows list.
 
 ## Project structure
 
-- `apps/server/` — single server process; composition root `src/app.ts` (`src/main.ts` only boots it); vertical domain slices under `src/domains/<domain>/`. Each domain registers its wire error codes in a closed union in `src/domains/<domain>/errors.ts` — add new codes there and in the web clients, nowhere else.
+- `apps/server/` — single server process; composition root `src/composition-root.ts` (`src/main.ts` only boots it); vertical domain slices under `src/domains/<domain>/`. Each domain registers its wire error codes in a closed union in `src/domains/<domain>/errors.ts` — add new codes there and in the web clients, nowhere else.
 - `apps/web/` (PC, served at `/`) and `apps/web-mobile/` (mobile, `/m/`) — two React SPAs; they never import each other.
 - `packages/contract/` (pure logic) — the only cross-app sharing path; components and styles are owned by each app and never shared.
 - Dependency direction is always `apps → packages`: packages never import apps; the web apps never import `@toby/server`.
@@ -58,7 +58,7 @@ If one change touches several rows, run all the checks those rows list.
 ## Code style
 
 - `apps/web`, `apps/web-mobile`, `packages`: `.ts` runs on Node 22 with no build step — no `enum` / `namespace` / constructor parameter properties; use `import type` (`erasableSyntaxOnly` enforces this).
-- `apps/server`: plain Fastify, built with plain `tsc` — the same erasable-syntax rules as above (no decorators, no constructor parameter properties). Services are closure factories over explicit dependencies (config, clock, store, extractor…), not classes; each domain assembles itself in its `plugin.ts`, and the composition root `src/app.ts` installs the session guard on every `/api` route by default (a route opts out with `config: { public: true }`). Tests drive the app through fastify's `inject`. Logging is pino to stdout — request lifecycle lines plus the error boundary's stack-only 500 report (docs/decisions/server-logging.md); `main.ts` bootstrap failures still print one plain stderr line.
+- `apps/server`: plain Fastify, built with plain `tsc` — the same erasable-syntax rules as above (no decorators, no constructor parameter properties). Services are closure factories over explicit dependencies (config, clock, store, extractor…), not classes; each domain assembles itself in its `plugin.ts`, and the composition root `src/composition-root.ts` installs the session guard on every `/api` route by default (a route opts out with `config: { public: true }`). Tests drive the app through fastify's `inject`. Logging is pino to stdout — request lifecycle lines plus the error boundary's stack-only 500 report (docs/decisions/server-logging.md); `main.ts` bootstrap failures still print one plain stderr line.
 - No Python; introducing it requires an ADR first.
 
 ## Git workflow

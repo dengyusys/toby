@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { productionDomains } from "../../src/app.ts";
+import { productionDomains } from "../../src/composition-root.ts";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
 import { hashPassword } from "../../src/domains/auth/password.ts";
 import { createTestApp } from "../app-fixture.ts";

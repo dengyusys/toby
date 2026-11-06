@@ -1,12 +1,12 @@
 /**
  * Server entry point: resolve the config, assemble the application, listen,
  * and close cleanly on a termination signal. Running this module starts the
- * server — tests import `app.ts` instead. Config failures surface as a plain
- * startup error. The application logs through pino (see `app.ts`); only
+ * server — tests import `composition-root.ts` instead. Config failures surface as a plain
+ * startup error. The application logs through pino (see `composition-root.ts`); only
  * these bootstrap-time failures still print one plain stderr line.
  */
 
-import { createApp } from "./app.ts";
+import { createApp } from "./composition-root.ts";
 import { resolveConfig } from "./infrastructure/config/config.ts";
 
 /** How long a graceful close may take before the process exits anyway. */

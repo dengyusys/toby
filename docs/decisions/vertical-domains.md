@@ -27,7 +27,7 @@ src/
 │   └── ledger/
 │       └── …same shape…
 ├── infrastructure/
-├── app.ts
+├── composition-root.ts
 └── main.ts
 ```
 
@@ -43,7 +43,7 @@ For example, when modifying the ledger feature, the routes, business logic, and 
 
 ## Why domain slices?
 
-**The code structure tracks business change.** Adding a new domain means adding its plugin and registering it in `app.ts`, leaving existing domains untouched; each domain owns its rules, logic, and data access and does not import other domains — cross-domain collaboration is wired in the composition root (`app.ts`) through explicit interfaces, and the import-boundary tests (`test/boundaries.test.ts`) enforce these constraints so they are not left to discipline.
+**The code structure tracks business change.** Adding a new domain means adding its plugin and registering it in `composition-root.ts`, leaving existing domains untouched; each domain owns its rules, logic, and data access and does not import other domains — cross-domain collaboration is wired in the composition root (`composition-root.ts`) through explicit interfaces, and the import-boundary tests (`test/boundaries.test.ts`) enforce these constraints so they are not left to discipline.
 
 **Business logic is easier to understand and test.** A domain's implementation lives in one directory; you don't need to understand the whole project's layering to read it. Business rules that avoid framework and infrastructure dependencies can be plain functions — unit-testable directly, without an HTTP server or a database.
 

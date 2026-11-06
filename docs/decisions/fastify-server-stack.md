@@ -22,7 +22,7 @@ erasable-syntax rules as every other package and compiles with plain `tsc`.
 
 ## In this repository
 
-- `src/app.ts` is the composition root: the HTTP shell (body limit, error
+- `src/composition-root.ts` is the composition root: the HTTP shell (body limit, error
   boundary, not-found answer, `no-store`, cookies, the SPA mounts) and the
   domain order. `src/main.ts` only resolves config, listens, and closes on
   signals.

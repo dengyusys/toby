@@ -13,7 +13,7 @@ AI 运行时(docs/decisions/ai-pi-runtime.md)的可观测性配套:每次模型�
 
 ## 核心概念
 
-- **轨迹总线**(`infrastructure/trace/bus.ts`):只做扇出。组合根创建一个总线实例,同时交给 AI 运行时(作为上报器)和本域(作为流来源)——这是唯一的跨域接线,在 `app.ts` 完成。
+- **轨迹总线**(`infrastructure/trace/bus.ts`):只做扇出。组合根创建一个总线实例,同时交给 AI 运行时(作为上报器)和本域(作为流来源)——这是唯一的跨域接线,在 `composition-root.ts` 完成。
 - **每次调用两个事件**:`run-started` 在调用开始瞬间发出(提示词立即上屏,带运行中标记);`run-finished` 收尾,带完整 transcript——系统提示词与工具声明、用户输入、含思考/工具调用的助手轮次、工具结果——以及结果、用量(tokens、费用)与耗时。`run-finished` 自包含:即使漏掉了 `run-started` 也能独立渲染。
 - **捕获点**:`createTobyAgentFactory`(kind `agent`,label 取 spec 的 `name`,如 `ledger-extraction`)与 `createPiAiClient`(kind `single-shot`,label `complete`;JSON 重试是一次独立调用,纠正提示词清晰可见)。
 - **面板**(仅 `apps/web`):布局右上角按钮开合的右侧抽屉——不跳页面,在当前页面旁分割出主区域。SPA 在整个登录会话期间持有同一个 EventSource(随受守卫路由挂载),任何页面上调用记录都持续流入——抽屉只是这条流的视图,浏览器内积累(有上限)。`apps/web-mobile` 刻意不做面板。
