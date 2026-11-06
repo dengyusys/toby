@@ -14,12 +14,12 @@ import {
   type TobyAgentFactory,
 } from "../../infrastructure/model/agent.ts";
 import { createLedgerExtractor, type LedgerExtractor } from "./extraction.ts";
-import { ledgerRoutes } from "./ledger.routes.ts";
+import { ledgerRoutes } from "./routes.ts";
 import {
   createLedgerService,
   type LedgerService,
   type LedgerTiming,
-} from "./ledger.service.ts";
+} from "./service.ts";
 import { createLedgerStore } from "./store.ts";
 
 export interface LedgerPluginOptions {
@@ -77,8 +77,4 @@ export function createLedgerDomain(options: LedgerPluginOptions): LedgerDomain {
     });
   };
   return { plugin, service };
-}
-
-export function ledgerPlugin(options: LedgerPluginOptions): FastifyPluginAsync {
-  return createLedgerDomain(options).plugin;
 }

@@ -1,13 +1,13 @@
 /**
  * Chat routes: a thin HTTP shell, one service call per handler. Body
- * envelopes are checked here (dto-style inline schemas); everything
- * inside is the domain's call. Every route follows the session guard.
+ * envelopes are checked here with inline schemas; everything inside
+ * is the domain's call. Every route follows the session guard.
  */
 
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { parseBody } from "../../infrastructure/http/body-schema.ts";
-import type { ChatService } from "./chat.service.ts";
+import type { ChatService } from "./service.ts";
 
 export interface ChatRoutesOptions {
   service: ChatService;

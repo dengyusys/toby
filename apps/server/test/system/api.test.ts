@@ -10,7 +10,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { systemPlugin } from "../../src/domains/system/system.plugin.ts";
+import { systemPlugin } from "../../src/domains/system/plugin.ts";
 import { createTestApp } from "../app-fixture.ts";
 
 const tempDir = mkdtempSync(path.join(tmpdir(), "toby-system-"));

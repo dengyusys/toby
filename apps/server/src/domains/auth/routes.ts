@@ -6,6 +6,7 @@
  */
 
 import type { FastifyPluginAsync, preHandlerAsyncHookHandler } from "fastify";
+import { z } from "zod";
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
 import { parseBody } from "../../infrastructure/http/body-schema.ts";
 import {
@@ -13,8 +14,7 @@ import {
   readSessionCookie,
   readSessionCookieToken,
 } from "./cookie.ts";
-import { LOGIN_BODY_SCHEMA } from "./dto/login.dto.ts";
-import { LOGIN_SUCCESS, type AuthService } from "./auth.service.ts";
+import { LOGIN_SUCCESS, type AuthService } from "./service.ts";
 
 /**
  * The session guard as a route preHandler: it matches the raw cookie value
@@ -35,6 +35,13 @@ export interface AuthRoutesOptions {
   service: AuthService;
   config: TobyConfig;
 }
+
+/**
+ * POST /api/auth/login body. `password` stays optional on purpose: a body
+ * without it is a wrong password (401), not a malformed request — the login
+ * page may submit before anything is typed.
+ */
+const LOGIN_BODY_SCHEMA = z.object({ password: z.string().optional() });
 
 export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
   app,

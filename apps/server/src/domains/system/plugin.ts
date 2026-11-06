@@ -5,8 +5,8 @@
 
 import type { FastifyPluginAsync } from "fastify";
 import type { Clock } from "../../infrastructure/clock.ts";
-import { createSystemService } from "./system.service.ts";
-import { systemRoutes } from "./system.routes.ts";
+import { createSystemService } from "./service.ts";
+import { systemRoutes } from "./routes.ts";
 
 export interface SystemPluginOptions {
   clock?: Clock;

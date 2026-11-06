@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import type { Clock } from "../../infrastructure/clock.ts";
 import { AiError } from "../../infrastructure/model/errors.ts";
 import type { LedgerStore } from "./store.ts";
-import type { ProposalBody } from "./dto/create-proposal.dto.ts";
+import type { ProposalBody } from "./schema.ts";
 import { LedgerRequestError } from "./errors.ts";
 import { createProposalRegistry, type ProposalRegistry } from "./proposals.ts";
 import {
@@ -104,7 +104,7 @@ function aiHttpError(error: AiError): LedgerRequestError {
 }
 
 export interface LedgerService {
-  /** `body` has already passed the route's shape schema (dto/). */
+  /** `body` has already passed the route's shape schema (schema.ts). */
   createProposal(body: ProposalBody): Promise<LedgerProposalResult>;
   /** Apply the batch's before-snapshot inside the revert window. */
   revert(id: string): Promise<LedgerRevertResult>;

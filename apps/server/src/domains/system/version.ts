@@ -1,7 +1,7 @@
 /**
- * Server version: read once from the server package.json. Kept out of the
- * controller so it stays a pure HTTP shell — the house layout for every
- * domain (controller / service / pure files).
+ * Server version: read once from the server package.json. Kept out of
+ * routes.ts so it stays a pure HTTP shell — the house layout for every
+ * domain (routes / service / pure files).
  */
 
 import { readFileSync } from "node:fs";

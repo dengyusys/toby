@@ -8,8 +8,8 @@
 import type { FastifyPluginAsync, preHandlerAsyncHookHandler } from "fastify";
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
 import type { Clock } from "../../infrastructure/clock.ts";
-import { createAuthService } from "./auth.service.ts";
-import { authRoutes, makeRequireSession } from "./auth.routes.ts";
+import { createAuthService } from "./service.ts";
+import { authRoutes, makeRequireSession } from "./routes.ts";
 
 export interface AuthPluginOptions {
   config: TobyConfig;

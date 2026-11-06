@@ -1,7 +1,8 @@
 /**
- * The ledger entry draft shape, defined once: the model-facing tool contract
- * and the server's shape gate can never drift. Shape only — semantic checks
- * live in validation.ts.
+ * The ledger wire shapes, defined once: the entry draft (the model-facing
+ * tool contract and the server's shape gate can never drift) and the
+ * proposal request envelope. Shape only — semantic checks live in
+ * validation.ts.
  */
 
 import { z } from "zod";
@@ -65,3 +66,22 @@ export const LEDGER_ENTRIES_TOOL_SCHEMA = z
   .strict();
 
 export type LedgerEntriesToolArgs = z.infer<typeof LEDGER_ENTRIES_TOOL_SCHEMA>;
+
+/**
+ * POST /api/ledger/proposals body: one of the two intake paths. Only the
+ * envelope is checked at the route — `validation.ts` checks an entry against
+ * the same schema the tool hands the model.
+ */
+
+/** A value that must be present; the domain decides what it may be. */
+const present = z.custom<unknown>((value) => value !== undefined);
+
+export const PROPOSAL_BODY_SCHEMA = z.union(
+  [
+    z.object({ text: z.string() }).strict(),
+    z.object({ entry: present }).strict(),
+  ],
+  { error: 'body must carry exactly one of "text" or "entry"' },
+);
+
+export type ProposalBody = z.infer<typeof PROPOSAL_BODY_SCHEMA>;

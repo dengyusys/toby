@@ -5,7 +5,7 @@
  */
 
 import type { FastifyPluginAsync } from "fastify";
-import type { SystemService } from "./system.service.ts";
+import type { SystemService } from "./service.ts";
 
 export interface SystemRoutesOptions {
   service: SystemService;

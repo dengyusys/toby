@@ -15,7 +15,7 @@
 
 - `health` 是存活探针:容器健康检查的目标,永远返回 `{"status":"ok"}`。它不探测任何东西——就绪检查(磁盘、堆、依赖可达性)等有部署需要据此行动时再加。
 - `info` 是运行身份:版本、Node 版本、启动时间、运行时长——排查部署实例时第一眼看它。
-- 域模板:`types.ts`(纯净)+ `<域>.routes.ts` + `<域>.service.ts` + `<域>.plugin.ts`(自装配),`app.ts` 加一行。
+- 域模板:`types.ts`(纯净)+ `routes.ts` + `service.ts` + `plugin.ts`(自装配),`app.ts` 加一行。
 
 ## 接口面
 

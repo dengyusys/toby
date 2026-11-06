@@ -6,11 +6,11 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import type { ProposalBody } from "../../src/domains/ledger/dto/create-proposal.dto.ts";
+import type { ProposalBody } from "../../src/domains/ledger/schema.ts";
 import {
   createLedgerService,
   type LedgerService,
-} from "../../src/domains/ledger/ledger.service.ts";
+} from "../../src/domains/ledger/service.ts";
 import type { LedgerStore } from "../../src/domains/ledger/store.ts";
 import type {
   LedgerDraft,

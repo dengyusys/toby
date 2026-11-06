@@ -11,7 +11,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { ledgerPlugin } from "../../src/domains/ledger/ledger.plugin.ts";
+import { createLedgerDomain } from "../../src/domains/ledger/plugin.ts";
 import type {
   LedgerDraft,
   LedgerExtractor,
@@ -42,12 +42,12 @@ async function buildApp(extractor?: LedgerExtractor): Promise<void> {
     domains: [
       (instance) =>
         instance.register(
-          ledgerPlugin({
+          createLedgerDomain({
             config,
             clock: () => nowMs,
             ...(extractor ? { extractor } : {}),
             timing: { revertWindowMs: REVERT_WINDOW_MS },
-          }),
+          }).plugin,
         ),
     ],
   });

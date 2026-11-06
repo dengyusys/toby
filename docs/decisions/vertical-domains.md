@@ -18,9 +18,9 @@ Traditional layering organizes directories by technical responsibility (`control
 src/
 ├── domains/
 │   ├── schedule/
-│   │   ├── schedule.routes.ts
-│   │   ├── schedule.service.ts
-│   │   ├── schedule.plugin.ts
+│   │   ├── routes.ts
+│   │   ├── service.ts
+│   │   ├── plugin.ts
 │   │   ├── store.ts
 │   │   └── types.ts
 │   └── ledger/
@@ -30,11 +30,13 @@ src/
 └── main.ts
 ```
 
-Role files carry the domain name (`<domain>.routes.ts`, `<domain>.service.ts`,
-`<domain>.plugin.ts`) — it keeps three `service.ts` files from looking
-identical in an editor. Domain vocabulary (`types.ts`, `errors.ts`,
-`store.ts`, `schema.ts`) stays unprefixed: it is scoped by the folder and
-appears once.
+Every file in a domain is a plain, unprefixed name scoped by its folder —
+role files (`routes.ts`, `service.ts`, `plugin.ts`) and vocabulary files
+(`types.ts`, `errors.ts`, `store.ts`, `schema.ts`) alike. There is no dotted
+`<domain>.<role>.ts` suffix: that is the NestJS module-file convention, not
+this layout. Request-body envelopes are checked with schemas inline in the
+routes file that parses them; when another layer needs the body type, the
+schema lives in the domain's `schema.ts` — no `dto/` folder.
 
 For example, when modifying the ledger feature, the routes, business logic, and storage all sit in `domains/ledger/` — no hunting through multiple technical directories.
 

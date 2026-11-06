@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { createSystemService } from "../../src/domains/system/system.service.ts";
+import { createSystemService } from "../../src/domains/system/service.ts";
 
 describe("system service", () => {
   it("health is a constant liveness answer", () => {

@@ -8,7 +8,7 @@
 
 import type { FastifyPluginAsync } from "fastify";
 import type { TraceBus } from "../../infrastructure/trace/types.ts";
-import { tracesRoutes } from "./traces.routes.ts";
+import { tracesRoutes } from "./routes.ts";
 
 export interface TracesPluginOptions {
   bus: TraceBus;

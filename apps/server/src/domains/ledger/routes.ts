@@ -1,13 +1,13 @@
 /**
  * Ledger routes: a thin HTTP shell, one service call per handler. The
- * envelope-only body check happens here (dto/); everything inside is the
- * domain's call. Every route follows the session guard.
+ * envelope-only body check happens here against schema.ts; everything
+ * inside is the domain's call. Every route follows the session guard.
  */
 
 import type { FastifyPluginAsync } from "fastify";
 import { parseBody } from "../../infrastructure/http/body-schema.ts";
-import { PROPOSAL_BODY_SCHEMA } from "./dto/create-proposal.dto.ts";
-import type { LedgerService } from "./ledger.service.ts";
+import { PROPOSAL_BODY_SCHEMA } from "./schema.ts";
+import type { LedgerService } from "./service.ts";
 
 export interface LedgerRoutesOptions {
   service: LedgerService;

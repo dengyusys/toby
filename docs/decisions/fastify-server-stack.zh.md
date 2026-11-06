@@ -19,8 +19,8 @@ Fastify 恰好把承重的那几样作为普通、成文、标准的部件交给
 - `src/app.ts` 是组合根:HTTP 外壳(请求体上限、错误边界、not-found 回答、
   `no-store`、cookie、SPA 挂载)与域的装配顺序。`src/main.ts` 只负责解析配置、
   监听,以及收到信号时关闭。
-- 每个域保留三种角色文件:`<域>.routes.ts`(HTTP 壳,一个 Fastify 插件)、
-  `<域>.service.ts` / `store.ts`(不含 HTTP 导入的闭包工厂)、`<域>.plugin.ts`
+- 每个域保留三种角色文件:`routes.ts`(HTTP 壳,一个 Fastify 插件)、
+  `service.ts` / `store.ts`(不含 HTTP 导入的闭包工厂)、`plugin.ts`
   (装配,并经 `onClose` 管理生命周期)。
 - 会话守卫是一个异步 `preHandler`,由组合根默认装在每条 `/api` 路由上;路由以
   `config: { public: true }` 显式豁免(health 与 auth 端点)。静态页面永远不挂——

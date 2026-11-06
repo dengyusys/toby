@@ -12,12 +12,12 @@
 import cookie from "@fastify/cookie";
 import fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import pino from "pino";
-import { authPlugin } from "./domains/auth/auth.plugin.ts";
-import { chatPlugin } from "./domains/chat/chat.plugin.ts";
+import { authPlugin } from "./domains/auth/plugin.ts";
+import { chatPlugin } from "./domains/chat/plugin.ts";
 import type { ChatLedgerPort } from "./domains/chat/types.ts";
-import { createLedgerDomain } from "./domains/ledger/ledger.plugin.ts";
-import { systemPlugin } from "./domains/system/system.plugin.ts";
-import { tracesPlugin } from "./domains/traces/traces.plugin.ts";
+import { createLedgerDomain } from "./domains/ledger/plugin.ts";
+import { systemPlugin } from "./domains/system/plugin.ts";
+import { tracesPlugin } from "./domains/traces/plugin.ts";
 import type { TobyConfig } from "./infrastructure/config/config.ts";
 import { createTobyAgentFactory } from "./infrastructure/model/agent.ts";
 import { createPiAiClient } from "./infrastructure/model/client.ts";

@@ -15,7 +15,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { chatPlugin } from "../../src/domains/chat/chat.plugin.ts";
+import { chatPlugin } from "../../src/domains/chat/plugin.ts";
 import type {
   ChatLedgerPort,
   IntentClassifier,
@@ -24,7 +24,7 @@ import type {
   LedgerDraft,
   LedgerExtractor,
 } from "../../src/domains/ledger/extraction.ts";
-import { createLedgerDomain } from "../../src/domains/ledger/ledger.plugin.ts";
+import { createLedgerDomain } from "../../src/domains/ledger/plugin.ts";
 import type { TobyAgentFactory } from "../../src/infrastructure/model/agent.ts";
 import type { Message } from "@earendil-works/pi-ai";
 import { createTestApp } from "../app-fixture.ts";
