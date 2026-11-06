@@ -102,24 +102,39 @@ export interface ChatLedgerFollowUp {
   readonly question: string;
 }
 
+/** One ledger line as both report shapes carry it (amount is integer cents). */
+export interface ChatLedgerTransaction {
+  readonly date: string;
+  readonly type: string;
+  readonly category: string;
+  readonly account: string;
+  readonly amount: number;
+  readonly note: string;
+}
+
+/** A category subtotal inside a month or day report. */
+export interface ChatLedgerCategoryTotal {
+  readonly type: string;
+  readonly category: string;
+  readonly total: number;
+}
+
 /** The ledger month summary, trimmed to what the chat agent formats. */
 export interface ChatLedgerMonthSummary {
   readonly month: string;
   readonly income_total: number;
   readonly expense_total: number;
-  readonly categories: readonly {
-    readonly type: string;
-    readonly category: string;
-    readonly total: number;
-  }[];
-  readonly transactions: readonly {
-    readonly date: string;
-    readonly type: string;
-    readonly category: string;
-    readonly account: string;
-    readonly amount: number;
-    readonly note: string;
-  }[];
+  readonly categories: readonly ChatLedgerCategoryTotal[];
+  readonly transactions: readonly ChatLedgerTransaction[];
+}
+
+/** One local day's summary — the same shape as a month's, keyed by date. */
+export interface ChatLedgerDaySummary {
+  readonly date: string;
+  readonly income_total: number;
+  readonly expense_total: number;
+  readonly categories: readonly ChatLedgerCategoryTotal[];
+  readonly transactions: readonly ChatLedgerTransaction[];
 }
 
 /**
@@ -130,6 +145,7 @@ export interface ChatLedgerPort {
   recordFromText(text: string): Promise<ChatLedgerReceipt | ChatLedgerFollowUp>;
   months(): Promise<{ readonly months: readonly string[] }>;
   monthReport(month: string): Promise<ChatLedgerMonthSummary>;
+  dayReport(date: string): Promise<ChatLedgerDaySummary>;
 }
 
 /** Intent classification output: an intent plus a self-contained sentence. */
@@ -146,6 +162,13 @@ export interface IntentClassifier {
   ): Promise<IntentClassification>;
 }
 
+/** One prior exchange replayed to the agent: text only, no tools or cards. */
+export interface ChatHistoryMessage {
+  readonly role: "user" | "assistant";
+  readonly text: string;
+  readonly timestamp: number;
+}
+
 /** The `none`-intent agent's settled run, transcript included. */
 export interface ChatAgentRun {
   /** Final assistant text ("" when none). */
@@ -156,5 +179,8 @@ export interface ChatAgentRun {
 
 /** The `none`-intent agent: read-only tools, bounded rounds, real data. */
 export interface ChatAgent {
-  run(prompt: string): Promise<ChatAgentRun>;
+  run(
+    prompt: string,
+    history: readonly ChatHistoryMessage[],
+  ): Promise<ChatAgentRun>;
 }

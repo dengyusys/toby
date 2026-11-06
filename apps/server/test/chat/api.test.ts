@@ -25,7 +25,10 @@ import type {
   LedgerExtractor,
 } from "../../src/domains/ledger/extraction.ts";
 import { createLedgerDomain } from "../../src/domains/ledger/ledger.plugin.ts";
-import type { TobyAgentFactory } from "../../src/infrastructure/model/agent.ts";
+import type {
+  TobyAgentFactory,
+  TobyAgentSpec,
+} from "../../src/infrastructure/model/agent.ts";
 import type { Message } from "@earendil-works/pi-ai";
 import { createTestApp } from "../app-fixture.ts";
 
@@ -110,6 +113,7 @@ async function buildLedgerBackedApp(): Promise<void> {
     recordFromText: (text) => ledgerDomain.service.createProposal({ text }),
     months: () => ledgerDomain.service.months(),
     monthReport: (month) => ledgerDomain.service.monthReport(month),
+    dayReport: (date) => ledgerDomain.service.dayReport(date),
   };
   const mounts: DomainMount[] = [
     (instance) => instance.register(ledgerDomain.plugin),
@@ -304,23 +308,33 @@ describe("chat api: send and the item stream", () => {
         timestamp: 5,
       },
     ];
-    const agentFactory: TobyAgentFactory = () => ({
-      run: async () => ({
-        text: "这个月吃饭花了 ¥120。",
-        turns: 2,
-        turnCapped: false,
-        stopReason: "stop" as const,
-        usage: {
-          input: 2,
-          output: 2,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 4,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-        messages: runMessages,
-      }),
-    });
+    const specs: TobyAgentSpec[] = [];
+    const agentFactory: TobyAgentFactory = (spec) => {
+      specs.push(spec);
+      return {
+        run: async () => ({
+          text: "这个月吃饭花了 ¥120。",
+          turns: 2,
+          turnCapped: false,
+          stopReason: "stop" as const,
+          usage: {
+            input: 2,
+            output: 2,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 4,
+            cost: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+              total: 0,
+            },
+          },
+          messages: runMessages,
+        }),
+      };
+    };
     const ledgerReads: string[] = [];
     const ledgerPort: ChatLedgerPort = {
       recordFromText: async () => {
@@ -349,6 +363,13 @@ describe("chat api: send and the item stream", () => {
           ],
         };
       },
+      dayReport: async (date) => ({
+        date,
+        income_total: 0,
+        expense_total: 0,
+        categories: [],
+        transactions: [],
+      }),
     };
     await app.close();
     caseCounter += 1;
@@ -407,6 +428,37 @@ describe("chat api: send and the item stream", () => {
       target: "ledger:2026-11",
       label: "2026 年 11 月账单",
     });
+
+    // A second message replays the settled exchange to the agent as
+    // text-only history: the user's words and Toby's final text, never the
+    // tool call, the tool result or the inspect link.
+    classifications = [{ intent: "none", sentence: "那昨天呢" }];
+    const second = await inject("POST", "/api/chat/messages", {
+      text: "那昨天呢",
+    });
+    expect(second.statusCode).toBe(200);
+    expect(specs[1]!.history).toEqual([
+      {
+        role: "user",
+        text: "这个月吃饭花了多少",
+        timestamp: BASE_MS,
+      },
+      {
+        role: "assistant",
+        text: "这个月吃饭花了 ¥120。",
+        timestamp: BASE_MS,
+      },
+    ]);
+
+    // Six hours later the thread is stale: both settled turns are dropped,
+    // so the agent starts a new conversation instead of replaying old news.
+    nowMs = BASE_MS + 6 * 60 * 60 * 1000 + 1;
+    classifications = [{ intent: "none", sentence: "还在吗" }];
+    const third = await inject("POST", "/api/chat/messages", {
+      text: "还在吗",
+    });
+    expect(third.statusCode).toBe(200);
+    expect(specs[2]!.history).toEqual([]);
   });
 
   it("classification failure settles as an honest notice, never a 5xx", async () => {
@@ -529,6 +581,13 @@ describe("chat api: sessions and paging", () => {
     const missing = await inject("GET", "/api/chat/sessions/nope/messages");
     expect(missing.statusCode).toBe(404);
     expect(missing.json().errorCode).toBe("SESSION_NOT_FOUND");
+    // A cursor does not turn a missing session into an empty page.
+    const missingWithCursor = await inject(
+      "GET",
+      "/api/chat/sessions/nope/messages?before=whatever",
+    );
+    expect(missingWithCursor.statusCode).toBe(404);
+    expect(missingWithCursor.json().errorCode).toBe("SESSION_NOT_FOUND");
 
     const outcome = await inject("POST", "/api/chat/messages/nope/outcome", {
       outcome: "reverted",

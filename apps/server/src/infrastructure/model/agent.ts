@@ -124,6 +124,13 @@ export interface TobyAgentPolicy {
   readonly maxTurns: number;
 }
 
+/** One prior exchange replayed before the new prompt (text only). */
+export interface TobyHistoryMessage {
+  readonly role: "user" | "assistant";
+  readonly text: string;
+  readonly timestamp: number;
+}
+
 export interface TobyAgentSpec {
   /** The hand-written identity; the runtime adds the generated sections. */
   readonly preamble: string;
@@ -131,6 +138,8 @@ export interface TobyAgentSpec {
   readonly rules?: readonly string[];
   /** Per-run values (today's date, weekday, ...), rendered last. */
   readonly context?: readonly string[];
+  /** Prior exchanges replayed as plain text before the new prompt. */
+  readonly history?: readonly TobyHistoryMessage[];
   readonly tools: readonly TobyTool[];
   readonly policy: TobyAgentPolicy;
   /** Reply token budget forwarded to the provider request. */
@@ -216,6 +225,54 @@ async function throwForProviderFailure(
 
 export type TobyAgentFactory = (spec: TobyAgentSpec) => TobyAgent;
 
+const EMPTY_USAGE: Usage = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
+
+/**
+ * Prior exchanges as pi-ai messages: user text verbatim, an assistant reply
+ * as one text block. Thinking, tool calls and tool results are not replayed
+ * — history is for what was said, not how a past tool loop ran. The
+ * assistant carrier fields come from the resolved model so every provider
+ * sees a well-formed transcript.
+ */
+function historyMessagesOf(
+  history: readonly TobyHistoryMessage[],
+  model: Model<string>,
+): Message[] {
+  const messages: Message[] = [];
+  for (const entry of history) {
+    const text = entry.text.trim();
+    if (text.length === 0) {
+      continue;
+    }
+    if (entry.role === "user") {
+      messages.push({
+        role: "user",
+        content: text,
+        timestamp: entry.timestamp,
+      });
+      continue;
+    }
+    messages.push({
+      role: "assistant",
+      content: [{ type: "text", text }],
+      api: model.api,
+      provider: model.provider,
+      model: model.id,
+      usage: EMPTY_USAGE,
+      stopReason: "stop",
+      timestamp: entry.timestamp,
+    });
+  }
+  return messages;
+}
+
 export interface TobyAgentFactoryOptions {
   /** Injected in tests; defaults to the shared pi-ai model catalog. */
   readonly streamFn?: StreamFn;
@@ -244,6 +301,7 @@ function createTobyAgent(
   // Rendered once at assembly: preamble + generated <tools> + <rules> +
   // <context>. A prompt naming a tool in hand-written prose fails here.
   const systemPrompt = buildSystemPrompt(spec);
+  const history = historyMessagesOf(spec.history ?? [], model);
 
   return {
     async run(prompt: string): Promise<TobyAgentRunResult> {
@@ -253,6 +311,7 @@ function createTobyAgent(
       const agent = new Agent({
         initialState: {
           systemPrompt,
+          messages: history,
           model,
           tools: spec.tools.map((entry) => entry.tool),
         },

@@ -87,6 +87,43 @@ describe("createTobyAgentFactory", () => {
     expect(result.usage?.totalTokens).toBeGreaterThan(0);
   });
 
+  it("replays text-only history before the new prompt", async () => {
+    const { factory, faux } = makeHarness();
+    faux.appendResponses([fauxAssistantMessage("今天还好")]);
+    const agent = factory({
+      preamble: "sys",
+      history: [
+        { role: "user", text: "昨天花了多少", timestamp: 1 },
+        { role: "assistant", text: "昨天花了 ¥120。", timestamp: 2 },
+      ],
+      tools: [],
+      policy: { allowedKinds: ["read-only"], maxTurns: 2 },
+    });
+    const result = await agent.run("那今天呢");
+
+    expect(result.messages.map((message) => message.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+    ]);
+    expect(result.messages[1]).toMatchObject({
+      role: "user",
+      content: "昨天花了多少",
+      timestamp: 1,
+    });
+    expect(result.messages[2]).toMatchObject({
+      role: "assistant",
+      content: [{ type: "text", text: "昨天花了 ¥120。" }],
+      timestamp: 2,
+    });
+    expect(result.messages[3]).toMatchObject({
+      role: "user",
+      content: [{ type: "text", text: "那今天呢" }],
+    });
+  });
+
   it("renders the tool snippet and guidelines into the system prompt", async () => {
     const { factory, faux } = makeHarness();
     faux.appendResponses([fauxAssistantMessage("done")]);

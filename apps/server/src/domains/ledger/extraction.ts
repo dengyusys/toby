@@ -16,6 +16,7 @@ import {
   type TobyAgentFactory,
 } from "../../infrastructure/model/agent.ts";
 import { AiError } from "../../infrastructure/model/errors.ts";
+import { localDayLabel } from "../../infrastructure/local-date.ts";
 import { LEDGER_ENTRIES_TOOL_SCHEMA } from "./schema.ts";
 import type { LedgerEntry } from "./types.ts";
 import { LedgerInputError, normalizeEntries } from "./validation.ts";
@@ -27,12 +28,6 @@ export interface LedgerFollowUp {
 
 export type LedgerDraft =
   { readonly entries: readonly LedgerEntry[] } | LedgerFollowUp;
-
-const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"] as const;
-
-function localDate(now: Date): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-}
 
 /** Runs one extraction against a prepared agent. Domains inject a factory. */
 export interface LedgerExtractor {
@@ -116,7 +111,7 @@ export function createLedgerExtractor(deps: {
           "「晚饭吃了8块」「打车15」「工资到账8000」这类说法已说清类型与去向:分别记作支出/餐饮、支出/交通、收入/工资,直接提交,不要追问分类。",
           "除工具调用外不要输出正文。",
         ],
-        context: [`今天是 ${localDate(now)}(星期${WEEKDAYS[now.getDay()]})。`],
+        context: [`今天是 ${localDayLabel(now)}。`],
         tools: [submitEntries, askUser],
         policy: {
           allowedKinds: ["read-only", "write-intent"],

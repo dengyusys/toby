@@ -11,8 +11,14 @@ import {
   defineTool,
   type TobyAgentFactory,
 } from "../../infrastructure/model/agent.ts";
+import { localDayLabel } from "../../infrastructure/local-date.ts";
 import type { Clock } from "../../infrastructure/clock.ts";
-import type { ChatAgent, ChatLedgerPort } from "./types.ts";
+import type {
+  ChatAgent,
+  ChatLedgerCategoryTotal,
+  ChatLedgerPort,
+  ChatLedgerTransaction,
+} from "./types.ts";
 
 // Bounded on purpose: a query settles in a couple of tool rounds; more
 // means the model is wandering.
@@ -38,6 +44,21 @@ export function inspectTargetOf(
 
 function formatCents(cents: number): string {
   return (cents / 100).toFixed(2);
+}
+
+/** One transaction line as both ledger tools render it. */
+function formatTransaction(t: ChatLedgerTransaction): string {
+  return `${t.date} ${t.type === "income" ? "收" : "支"} ¥${formatCents(t.amount)} ${t.category}${t.note ? `(${t.note})` : ""}`;
+}
+
+/** Category subtotal lines, shared by the month and day reports. */
+function formatCategories(
+  categories: readonly ChatLedgerCategoryTotal[],
+): string[] {
+  return categories.map(
+    (c) =>
+      `${c.type === "income" ? "收" : "支"}·${c.category} 合计 ¥${formatCents(c.total)}`,
+  );
 }
 
 export interface ChatAgentDeps {
@@ -83,16 +104,10 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
       .strict(),
     execute: async (_toolCallId, params) => {
       const report = await ledger.monthReport(params.month);
-      const lines = report.transactions.map(
-        (t) =>
-          `${t.date} ${t.type === "income" ? "收" : "支"} ¥${formatCents(t.amount)} ${t.category}${t.note ? `(${t.note})` : ""}`,
-      );
+      const lines = report.transactions.map(formatTransaction);
       const text = [
         `${report.month} 月:收入 ¥${formatCents(report.income_total)},支出 ¥${formatCents(report.expense_total)}`,
-        ...report.categories.map(
-          (c) =>
-            `${c.type === "income" ? "收" : "支"}·${c.category} 合计 ¥${formatCents(c.total)}`,
-        ),
+        ...formatCategories(report.categories),
         ...lines.slice(0, 30),
         ...(lines.length > 30
           ? [`(仅显示前 30 笔,共 ${lines.length} 笔)`]
@@ -105,10 +120,41 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
     },
   });
 
+  const ledgerDay = defineTool("read-only", {
+    name: "ledger_day",
+    label: "单日账单",
+    description: "取某一天的收支合计、分类小计和逐笔明细(金额为分)。",
+    promptSnippet: "取某一天的账单明细",
+    promptGuidelines: [
+      "问「今天/昨天/某天」的收支时用它;date 按上下文里的今天换算成 YYYY-MM-DD。",
+    ],
+    parameters: z
+      .object({ date: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) })
+      .strict(),
+    execute: async (_toolCallId, params) => {
+      const report = await ledger.dayReport(params.date);
+      const lines = report.transactions.map(formatTransaction);
+      const text =
+        lines.length === 0
+          ? `${report.date} 没有记账记录。`
+          : [
+              `${report.date}:收入 ¥${formatCents(report.income_total)},支出 ¥${formatCents(report.expense_total)}`,
+              ...formatCategories(report.categories),
+              ...lines.slice(0, 20),
+              ...(lines.length > 20
+                ? [`(仅显示前 20 笔,共 ${lines.length} 笔)`]
+                : []),
+            ].join("\n");
+      return {
+        content: [{ type: "text" as const, text }],
+        details: { date: report.date },
+      };
+    },
+  });
+
   return {
-    async run(prompt) {
+    async run(prompt, history) {
       const now = new Date(clock());
-      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       const agent = agentFactory({
         name: "chat-agent",
         preamble: "你是 Toby,一个私人助手,负责回答问题、查询数据和小聊。",
@@ -117,8 +163,9 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
           "用户要记账、记事、设日程时,温和地说明自己只负责查询,建议直接说那句话(比如「记午饭 30」),系统会自动路由。",
           "回答用简洁的中文。",
         ],
-        context: [`今天是 ${today}。`],
-        tools: [ledgerMonths, ledgerMonthReport],
+        context: [`今天是 ${localDayLabel(now)}。`],
+        history,
+        tools: [ledgerMonths, ledgerMonthReport, ledgerDay],
         policy: {
           allowedKinds: ["read-only"],
           maxTurns: CHAT_AGENT_MAX_TURNS,

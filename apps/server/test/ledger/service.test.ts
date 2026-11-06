@@ -19,6 +19,7 @@ import type {
 import type {
   LedgerEntry,
   LedgerReceiptView,
+  LedgerTransactionRow,
 } from "../../src/domains/ledger/types.ts";
 import { AiError } from "../../src/infrastructure/model/errors.ts";
 
@@ -29,6 +30,7 @@ type LedgerStoreLike = Pick<
   | "revertTransactions"
   | "listMonths"
   | "listMonthTransactions"
+  | "listDayTransactions"
 >;
 
 const REVERT_WINDOW_MS = 600_000;
@@ -50,7 +52,12 @@ interface StoreCall {
   entries: readonly LedgerEntry[];
 }
 
-function fakeStore(options: { failWrites?: boolean } = {}) {
+function fakeStore(
+  options: {
+    failWrites?: boolean;
+    dayRows?: readonly LedgerTransactionRow[];
+  } = {},
+) {
   const calls: StoreCall[] = [];
   const reverted: number[][] = [];
   /** Simulated stored rows: ids the "database" still holds. */
@@ -85,6 +92,9 @@ function fakeStore(options: { failWrites?: boolean } = {}) {
     },
     async listMonthTransactions() {
       return [];
+    },
+    async listDayTransactions() {
+      return options.dayRows ?? [];
     },
   };
   return {
@@ -230,6 +240,50 @@ describe("ledger service immediate writes", () => {
       income_total: 0,
       expense_total: 0,
       categories: [],
+    });
+  });
+
+  it("day reports aggregate one date and reject impossible dates", async () => {
+    const rows: LedgerTransactionRow[] = [
+      {
+        id: 1,
+        date: "2026-10-20",
+        type: "expense",
+        category: "餐饮",
+        account: "微信",
+        amount: 2500,
+        note: "午饭",
+        created_at: "2026-10-20T08:00:00.000Z",
+      },
+      {
+        id: 2,
+        date: "2026-10-20",
+        type: "income",
+        category: "工资",
+        account: "未关联",
+        amount: 800000,
+        note: "",
+        created_at: "2026-10-20T08:00:00.000Z",
+      },
+    ];
+    const { service } = makeService(fakeStore({ dayRows: rows }).store);
+
+    const report = await service.dayReport("2026-10-20");
+    expect(report.date).toBe("2026-10-20");
+    expect(report.transactions).toEqual(rows);
+    expect(report.income_total).toBe(800000);
+    expect(report.expense_total).toBe(2500);
+    expect(report.categories).toEqual([
+      { type: "expense", category: "餐饮", total: 2500 },
+      { type: "income", category: "工资", total: 800000 },
+    ]);
+
+    await expect(service.dayReport("2026-02-30")).rejects.toMatchObject({
+      code: "INVALID_DATE",
+      statusCode: 400,
+    });
+    await expect(service.dayReport("2026-2-3")).rejects.toMatchObject({
+      code: "INVALID_DATE",
     });
   });
 });

@@ -41,31 +41,42 @@ const ledger: ChatLedgerPort = {
     categories: [],
     transactions: [],
   }),
+  dayReport: async () => ({
+    date: "2026-11-06",
+    income_total: 0,
+    expense_total: 0,
+    categories: [],
+    transactions: [],
+  }),
 };
 
-const clock = () => Date.parse("2026-11-06T10:00:00.000Z");
+const clock = () => new Date(2026, 10, 6, 12, 0, 0).getTime();
 
 describe("createChatAgent", () => {
   it("renders the tools section from the tool definitions", async () => {
     specs.length = 0;
     const agent = createChatAgent({ agentFactory, ledger, clock });
-    await agent.run("查一下 11 月的账");
+    await agent.run("查一下 11 月的账", []);
 
     const spec = specs[0]!;
     expect(spec.tools.map((entry) => entry.tool.name)).toEqual([
       "ledger_months",
       "ledger_month_report",
+      "ledger_day",
     ]);
 
     const prompt = buildSystemPrompt(spec);
     expect(prompt).toContain("- ledger_months：列出有记录的月份");
     expect(prompt).toContain("- ledger_month_report：取某个月的账单明细");
+    expect(prompt).toContain("- ledger_day：取某一天的账单明细");
     // The ordering note rides under the tool that starts the chain.
     expect(prompt).toContain(
       "<tools>\n- ledger_months：列出有记录的月份\n  - 查账前先看有哪些月份,再取该月明细。",
     );
     expect(prompt).toContain("<rules>");
-    expect(prompt).toContain("<context>\n今天是 2026-11-06。\n</context>");
+    expect(prompt).toContain(
+      "<context>\n今天是 2026-11-06(星期五)。\n</context>",
+    );
 
     // Hand-written sections never name a tool; <tools> is the one place
     // that does, and it is generated.
