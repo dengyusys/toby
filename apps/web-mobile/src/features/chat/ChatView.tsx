@@ -18,7 +18,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ChatItem, ChatTurnView } from "@toby/contract";
+import type { ChatItem, ChatTurnView, LedgerReceiptView } from "@toby/contract";
 import { chatClient, ledgerClient } from "@/lib/api.ts";
 import { describeError } from "@/features/ledger/ledger-view.ts";
 import { ItemView } from "./ItemView.tsx";
@@ -50,16 +50,27 @@ function pendingToolCallIdsOf(turns: readonly ChatTurnView[]): Set<string> {
   return pending;
 }
 
+/** Narrow an opaque card receipt to the ledger view this build renders. */
+function ledgerReceiptOf(item: ChatItem): LedgerReceiptView | undefined {
+  if (!("type" in item) || item.type !== "proposal_card") {
+    return undefined;
+  }
+  return item.domain === "ledger"
+    ? (item.receipt as LedgerReceiptView)
+    : undefined;
+}
+
 /** Receipt cards with a live revert window drive the countdown ticker. */
 function hasOpenWindow(turns: readonly ChatTurnView[], nowMs: number): boolean {
   return turns.some((turn) =>
-    turn.items.some(
-      (item) =>
-        "type" in item &&
-        item.type === "proposal_card" &&
-        item.receipt.status === "committed" &&
-        Date.parse(item.receipt.revert_until) > nowMs,
-    ),
+    turn.items.some((item) => {
+      const receipt = ledgerReceiptOf(item);
+      return (
+        receipt !== undefined &&
+        receipt.status === "committed" &&
+        Date.parse(receipt.revert_until) > nowMs
+      );
+    }),
   );
 }
 
@@ -145,11 +156,14 @@ export function ChatView() {
               item.proposal_id === result.proposal_id
                 ? {
                     ...item,
-                    receipt: {
-                      ...item.receipt,
-                      status: "reverted" as const,
-                      reverted_at: result.reverted_at,
-                    },
+                    receipt:
+                      ledgerReceiptOf(item) === undefined
+                        ? item.receipt
+                        : {
+                            ...(item.receipt as LedgerReceiptView),
+                            status: "reverted" as const,
+                            reverted_at: result.reverted_at,
+                          },
                   }
                 : item,
             ),

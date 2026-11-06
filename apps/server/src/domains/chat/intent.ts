@@ -7,50 +7,61 @@
  * follow-up fragments onto a self-contained sentence (it sees the recent
  * exchange history), and corrections about the previous turn re-classify
  * naturally — every message is classified fresh against that history.
+ *
+ * The valid intents are registry-derived: each registered capability
+ * contributes its id and one prompt line (src/chat-capability.ts);
+ * "none" is chat's own and always present. Unregistered intents are not
+ * advertised — the classifier cannot return what it was never shown.
  */
 
 import { z } from "zod";
 import type { AiClient } from "../../infrastructure/model/types.ts";
 import type { ChatIntent, IntentClassifier } from "./types.ts";
 
-const INTENTS: readonly ChatIntent[] = [
-  "ledger",
-  "schedule",
-  "memory",
-  "notes",
-  "todo",
-  "none",
-];
+/** The registry slice the classifier needs: identity plus prompt line. */
+export interface IntentDescriptor {
+  readonly intent: ChatIntent;
+  readonly intentDescription: string;
+}
 
-const CLASSIFICATION_SCHEMA = z
-  .object({
-    intent: z.enum(INTENTS as [ChatIntent, ...ChatIntent[]]),
-    sentence: z.string().min(1),
-  })
-  .strict();
+function classificationSchema(
+  descriptors: readonly IntentDescriptor[],
+): z.ZodType<{ intent: string; sentence: string }> {
+  return z
+    .object({
+      intent: z.enum([
+        "none",
+        ...descriptors.map((descriptor) => descriptor.intent),
+      ] as [string, ...string[]]),
+      sentence: z.string().min(1),
+    })
+    .strict();
+}
 
-const SYSTEM_PROMPT = [
-  "你是 Toby 的意图分类器。把用户当前这句话路由到一个意图,并把碎片补全成一句自含的话。",
-  "意图说明:",
-  "- ledger(记账):记一笔钱、查账、问花了多少。",
-  "- schedule(日程):安排、提醒、追踪某件事的日程。",
-  "- memory(记忆):让助手记住或回忆长期偏好、事实。",
-  "- notes(手账):随手记的想法、决心、备忘文字。",
-  "- todo(待办):把一件事放到告示板。",
-  "- none(其他):闲聊、提问、以及上面都不属于的话。",
-  "规则:",
-  "1. sentence 必须自含:用户当前这句是碎片(如「今天呀」「用微信」)时,结合最近对话把它补成完整、可独立理解的句子;是完整句则原样返回。",
-  "2. 用户在纠正上一轮(如「不对,是打车」)时,把纠正后的完整意思放进 sentence。",
-  '3. 只输出 JSON 对象:{"intent":"...","sentence":"..."},不要输出其他任何文字。',
-].join("\n");
+function systemPrompt(descriptors: readonly IntentDescriptor[]): string {
+  return [
+    "你是 Toby 的意图分类器。把用户当前这句话路由到一个意图,并把碎片补全成一句自含的话。",
+    "意图说明:",
+    ...descriptors.map((descriptor) => descriptor.intentDescription),
+    "- none(其他):闲聊、提问、以及上面都不属于的话。",
+    "规则:",
+    "1. sentence 必须自含:用户当前这句是碎片(如「今天呀」「用微信」)时,结合最近对话把它补成完整、可独立理解的句子;是完整句则原样返回。",
+    "2. 用户在纠正上一轮(如「不对,是打车」)时,把纠正后的完整意思放进 sentence。",
+    '3. 只输出 JSON 对象:{"intent":"...","sentence":"..."},不要输出其他任何文字。',
+  ].join("\n");
+}
 
 /** One exchange the classifier sees, newest last. */
 const HISTORY_TURNS = 3;
 
 export function createIntentClassifier(deps: {
   client: AiClient;
+  /** The registered capabilities, in registration order. */
+  intents: readonly IntentDescriptor[];
 }): IntentClassifier {
   const { client } = deps;
+  const schema = classificationSchema(deps.intents);
+  const system = systemPrompt(deps.intents);
   return {
     async classify(text, history) {
       const recent = history.slice(-HISTORY_TURNS);
@@ -72,12 +83,12 @@ export function createIntentClassifier(deps: {
         { role: "user" as const, content: `【当前这句】\n${text}` },
       ];
       const raw = await client.json(
-        [{ role: "system", content: SYSTEM_PROMPT }, ...conversation],
+        [{ role: "system", content: system }, ...conversation],
         { maxTokens: 300 },
       );
       // json() already retried once with a correction prompt; anything
       // still failing validation is the caller's honest-fallback path.
-      const parsed = CLASSIFICATION_SCHEMA.safeParse(raw);
+      const parsed = schema.safeParse(raw);
       if (!parsed.success) {
         throw new Error("classification output failed schema validation");
       }

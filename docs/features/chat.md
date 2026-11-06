@@ -19,7 +19,9 @@ writes directly.
 
 Chat is the router, not the business logic. It owns the conversation store
 (`data/chat.db`, MySQL `toby_chat`) and the turn/item protocol, and reaches
-every other domain through injected ports. It does not own those domains'
+every other domain through the registered capabilities the composition root
+hands it (docs/decisions/chat-domain-capabilities.md) — never through domain
+imports. It does not own those domains'
 rules, the actions kernel, AI transport and credentials, or the previews
 themselves. No domain file imports another business domain.
 
@@ -91,8 +93,8 @@ inspect_link    c2 → ledger:2026-11
 inspect_link    c4 → ledger:2026-10
 ```
 
-A ledger write turn — no agent, no tool calls; the ledger port writes and
-returns the receipt:
+A ledger write turn — no agent, no tool calls; the capability's write path
+lands the receipt:
 
 ```text
 user            "记一笔午饭 30 元"
@@ -102,19 +104,24 @@ proposal_card   born-confirmed receipt + revert_until
 
 ## Routing
 
-| Intent                           | Answered by               | Reply                                      |
-| -------------------------------- | ------------------------- | ------------------------------------------ |
-| ledger                           | ledger domain (immediate) | a receipt card, or one clarifying question |
-| schedule / memory / notes / todo | not landed                | an on-the-way notice                       |
-| none                             | read-only agent           | transcript items plus inspect links        |
+| Intent | Answered by               | Reply                                      |
+| ------ | ------------------------- | ------------------------------------------ |
+| ledger | ledger domain (immediate) | a receipt card, or one clarifying question |
+| none   | read-only agent           | transcript items plus inspect links        |
 
-The intent set is closed (`ChatIntent`); adding one is a contract change.
+The intent set is **registry-derived** (docs/decisions/chat-domain-capabilities.md):
+each registered domain capability contributes its id, one classifier prompt
+line, the write path and its read-only tools; unregistered intents are not
+advertised — the classifier cannot return what it was never shown. Landing a
+new domain is a registration in the composition root, not a chat contract
+change. An intent string the registry no longer knows degrades to the
+read-only agent path, never an error.
 
 - The classifier sees the last three settled exchanges, so a fragment ("今天呀")
   or a correction ("不对,是打车") is folded into a self-contained sentence
   before routing.
 - A failed classification or route settles the turn as `none` with a "say that
-  again" notice. A failed ledger write is a notice, not an exception.
+  again" notice. A failed domain write is a notice, not an exception.
 - Structured AI output rides schema-validated channels (Zod tool arguments, or
   the single-shot `json()` entry): invalid output is corrected once, then
   settles as a notice (see [ai-pi-runtime](../decisions/ai-pi-runtime.md)).
@@ -135,15 +142,23 @@ The intent set is closed (`ChatIntent`); adding one is a contract change.
   inside the result.
 - Failures are honest: unconfigured, timeout, and provider errors become
   fixed-copy notices.
+- The toolset is registry-derived: the registered capabilities' read-only
+  tools, concatenated in registration order, with each capability's rule
+  snippets appended to the agent's base rules.
 - Inspect links are deterministic: a read-only tool call with a known preview
   target becomes an `inspect_link`; the model never writes or annotates them.
-  Today only `ledger_month_report` maps to `ledger:YYYY-MM`.
+  The mapping is the capability's own; today ledger maps `ledger_month_report`
+  to `ledger:YYYY-MM`.
 
 ## Writes and cards
 
 - Every write goes through the actions kernel
   ([write-confirmation-tiers](../decisions/write-confirmation-tiers.md)). The
-  chat domain calls a domain port; it never writes.
+  chat domain calls the owning capability's write path; it never writes. The
+  confirmation copy is the domain's own (`confirmText`), and the card's receipt
+  is an opaque passthrough — each web renders it through its card-renderer
+  registry keyed by the card's `domain`; an unknown id renders a neutral
+  shell.
 - **Immediate tier** (ledger today): the write lands at once; the card is a
   born-confirmed receipt with a ten-minute revert window. Revert is the user's
   click and applies the before-snapshot.
@@ -207,7 +222,7 @@ standard body.
 4. The item union is closed; a new kind is a contract change in
    `@toby/contract` and both webs.
 5. Writes only through the kernel; the chat domain writes only `chat.db`;
-   cross-domain calls go through ports.
+   cross-domain calls go through the registered capabilities.
 6. Intent, card outcome and excerpt are metadata or derived values, never items.
 7. Inspect links are deterministic from tool calls; the model never annotates
    them.

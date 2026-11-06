@@ -14,7 +14,7 @@ import fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import pino from "pino";
 import { authPlugin } from "./domains/auth/plugin.ts";
 import { chatPlugin } from "./domains/chat/plugin.ts";
-import type { ChatLedgerPort } from "./domains/chat/types.ts";
+import { createLedgerChatCapability } from "./domains/ledger/chat-capability.ts";
 import { createLedgerDomain } from "./domains/ledger/plugin.ts";
 import { systemPlugin } from "./domains/system/plugin.ts";
 import { tracesPlugin } from "./domains/traces/plugin.ts";
@@ -75,20 +75,17 @@ export function productionDomains(options: {
   const aiClient = config.ai
     ? createPiAiClient(config.ai, { reporter: traceBus })
     : undefined;
-  // The ledger domain is built here so the composition root can adapt its
-  // service into chat's port — the only cross-domain wiring, done with
-  // structural types, never domain-to-domain imports.
+  // The ledger domain is built here so the composition root can hand
+  // its service to the chat capability — the only cross-domain wiring:
+  // the domain exports a capability object (satisfied structurally, never
+  // importing chat), and this registry line is all a new domain adds
+  // (docs/decisions/chat-domain-capabilities.md).
   const ledgerDomain = createLedgerDomain({
     config,
     clock,
     ...(agentFactory ? { agentFactory } : {}),
   });
-  const chatLedgerPort: ChatLedgerPort = {
-    recordFromText: (text) => ledgerDomain.service.createProposal({ text }),
-    months: () => ledgerDomain.service.months(),
-    monthReport: (month) => ledgerDomain.service.monthReport(month),
-    dayReport: (date) => ledgerDomain.service.dayReport(date),
-  };
+  const chatCapabilities = [createLedgerChatCapability(ledgerDomain.service)];
   return [
     async (app) => {
       // Default-secure from here on: every `/api` route registered after
@@ -105,7 +102,7 @@ export function productionDomains(options: {
           clock,
           ...(agentFactory ? { agentFactory } : {}),
           ...(aiClient ? { aiClient } : {}),
-          ledger: chatLedgerPort,
+          capabilities: chatCapabilities,
         }),
       ),
     (app) => app.register(tracesPlugin({ bus: traceBus })),

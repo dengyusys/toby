@@ -6,17 +6,16 @@
  * (docs/features/chat.md).
  */
 
-import type { LedgerReceiptView } from "./ledger-client.ts";
 import type { PiTranscriptMessage } from "./pi-messages.ts";
 import { endpoint, requestJson } from "./request-json.ts";
 
 /**
- * The routing intents, fixed once at full breadth: schedule / ledger /
- * memory / notes / todo are business domains (not-yet-landed ones answer
- * with an on-the-way notice), everything else routes to the agent.
+ * The routing intent: a registered capability's id, or "none". A string
+ * on the wire — the valid set is server-internal, derived from the
+ * registered domain capabilities (docs/decisions/chat-domain-capabilities.md);
+ * this file stops changing when domains land.
  */
-export type ChatIntent =
-  "ledger" | "schedule" | "memory" | "notes" | "todo" | "none";
+export type ChatIntent = string;
 
 /** A transcript message, exactly as pi-ai produced it. */
 export type ChatMessageItem = PiTranscriptMessage;
@@ -25,9 +24,13 @@ export type ChatMessageItem = PiTranscriptMessage;
 export interface ProposalCardItem {
   readonly type: "proposal_card";
   readonly proposal_id: string;
-  /** The landing domain the card writes into; grows as domains land. */
-  readonly domain: "ledger";
-  readonly receipt: LedgerReceiptView;
+  /** The capability id whose write produced this card. */
+  readonly domain: string;
+  /**
+   * Opaque passthrough: each web narrows it with the domain's own client
+   * types inside its card renderer, keyed by `domain`.
+   */
+  readonly receipt: unknown;
 }
 
 /**

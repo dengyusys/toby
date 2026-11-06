@@ -234,6 +234,24 @@ const rules: BoundaryRule[] = [
         : null,
   },
   {
+    name: "chat-capability stays a leaf (no domain, chat or app imports)",
+    check: ({ file, resolved }) => {
+      if (path.relative(serverSrc, file) !== "chat-capability.ts") {
+        return null;
+      }
+      if (resolved === null) return null;
+      const rel = path.relative(serverSrc, resolved);
+      const forbidden =
+        domainOf(resolved) !== null ||
+        rel === "app.ts" ||
+        rel === "main.ts" ||
+        rel.startsWith("domains/");
+      return forbidden
+        ? "the capability contract stays a leaf: infrastructure type imports only"
+        : null;
+    },
+  },
+  {
     name: "web and web-mobile never import each other",
     check: ({ file, specifier, resolved }) => {
       if (

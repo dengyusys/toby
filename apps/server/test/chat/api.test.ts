@@ -16,14 +16,12 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
 import { chatPlugin } from "../../src/domains/chat/plugin.ts";
-import type {
-  ChatLedgerPort,
-  IntentClassifier,
-} from "../../src/domains/chat/types.ts";
+import type { IntentClassifier } from "../../src/domains/chat/types.ts";
 import type {
   LedgerDraft,
   LedgerExtractor,
 } from "../../src/domains/ledger/extraction.ts";
+import { createLedgerChatCapability } from "../../src/domains/ledger/chat-capability.ts";
 import { createLedgerDomain } from "../../src/domains/ledger/plugin.ts";
 import type {
   TobyAgentFactory,
@@ -46,7 +44,7 @@ let caseCounter = 0;
 
 /** Scripted classification replies, one per send, in order. */
 let classifications: {
-  intent: "ledger" | "schedule" | "memory" | "notes" | "todo" | "none";
+  intent: string;
   sentence: string;
 }[] = [];
 const classifier: IntentClassifier = {
@@ -97,8 +95,11 @@ async function buildChatOnlyApp(
   });
 }
 
-/** Chat + a real ledger domain, wired exactly like the composition root. */
-async function buildLedgerBackedApp(): Promise<void> {
+/** Chat + a real ledger domain, wired exactly like the composition root:
+ * the ledger capability registers, chat never names the domain. */
+async function buildLedgerBackedApp(
+  options: { agentFactory?: TobyAgentFactory } = {},
+): Promise<void> {
   caseCounter += 1;
   nowMs = BASE_MS;
   const config = resolveConfig({
@@ -109,12 +110,6 @@ async function buildLedgerBackedApp(): Promise<void> {
     clock: () => nowMs,
     extractor,
   });
-  const ledgerPort: ChatLedgerPort = {
-    recordFromText: (text) => ledgerDomain.service.createProposal({ text }),
-    months: () => ledgerDomain.service.months(),
-    monthReport: (month) => ledgerDomain.service.monthReport(month),
-    dayReport: (date) => ledgerDomain.service.dayReport(date),
-  };
   const mounts: DomainMount[] = [
     (instance) => instance.register(ledgerDomain.plugin),
     (instance) =>
@@ -123,7 +118,10 @@ async function buildLedgerBackedApp(): Promise<void> {
           config,
           clock: () => nowMs,
           classifier,
-          ledger: ledgerPort,
+          ...(options.agentFactory
+            ? { agentFactory: options.agentFactory }
+            : {}),
+          capabilities: [createLedgerChatCapability(ledgerDomain.service)],
         }),
       ),
   ];
@@ -217,20 +215,20 @@ describe("chat api: send and the item stream", () => {
     ).toBe(false);
   });
 
-  it("not-yet-landed intents answer an on-the-way notice", async () => {
+  it("an intent the registry no longer knows degrades to none, never 404", async () => {
     await buildLedgerBackedApp();
-    for (const intent of ["schedule", "memory", "notes", "todo"] as const) {
-      classifications = [{ intent, sentence: "whatever" }];
-      const response = await inject("POST", "/api/chat/messages", {
-        text: "随手记一下这件事",
-      });
-      const turn = response.json();
-      expect(turn.intent).toBe(intent);
-      const notice = turn.items.at(-1);
-      expect(notice).toMatchObject({ type: "notice" });
-      expect(typeof notice.text).toBe("string");
-      expect(notice.text).toContain("在路上");
-    }
+    // A real classifier cannot return an unregistered id (its enum is
+    // registry-derived); a stale one could. The turn must degrade to the
+    // none path instead of failing.
+    classifications = [{ intent: "schedule", sentence: "whatever" }];
+    const response = await inject("POST", "/api/chat/messages", {
+      text: "随手记一下这件事",
+    });
+    const turn = response.json();
+    expect(turn.intent).toBe("none");
+    const notice = turn.items.at(-1);
+    expect(notice).toMatchObject({ type: "notice" });
+    expect(typeof notice.text).toBe("string");
   });
 
   it("the classifier sees prior exchanges, not the just-persisted one", async () => {
@@ -335,63 +333,10 @@ describe("chat api: send and the item stream", () => {
         }),
       };
     };
-    const ledgerReads: string[] = [];
-    const ledgerPort: ChatLedgerPort = {
-      recordFromText: async () => {
-        throw new Error("not on this path");
-      },
-      months: async () => {
-        ledgerReads.push("months");
-        return { months: ["2026-11"] };
-      },
-      monthReport: async (month) => {
-        ledgerReads.push(`report:${month}`);
-        return {
-          month,
-          income_total: 0,
-          expense_total: 12000,
-          categories: [{ type: "expense", category: "餐饮", total: 12000 }],
-          transactions: [
-            {
-              date: "2026-11-05",
-              type: "expense",
-              category: "餐饮",
-              account: "微信",
-              amount: 12000,
-              note: "",
-            },
-          ],
-        };
-      },
-      dayReport: async (date) => ({
-        date,
-        income_total: 0,
-        expense_total: 0,
-        categories: [],
-        transactions: [],
-      }),
-    };
+    // The ledger capability registers so the transcript's ledger tool
+    // call maps to its inspect link; the canned run never executes tools.
     await app.close();
-    caseCounter += 1;
-    nowMs = BASE_MS;
-    const config = resolveConfig({
-      env: { TOBY_DATA_ROOT: path.join(baseDir, `case-${caseCounter}`) },
-    });
-    app = await createTestApp({
-      config,
-      domains: [
-        (instance) =>
-          instance.register(
-            chatPlugin({
-              config,
-              clock: () => nowMs,
-              classifier,
-              agentFactory,
-              ledger: ledgerPort,
-            }),
-          ),
-      ],
-    });
+    await buildLedgerBackedApp({ agentFactory });
     classifications = [{ intent: "none", sentence: "这个月吃饭花了多少" }];
 
     const response = await inject("POST", "/api/chat/messages", {

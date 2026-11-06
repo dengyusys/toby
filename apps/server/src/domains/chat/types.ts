@@ -1,19 +1,24 @@
 /**
  * Chat domain types: the pure vocabulary of the unified conversation —
- * the closed item union, the turn/session views, and the injected ports
- * this domain calls instead of importing other business domains (the
- * composition root adapts real domains to these shapes; structural typing
- * does the glue). Wire shapes are mirrored by hand in
- * packages/contract/src/chat-client.ts and pi-messages.ts — change both
- * sides together. Message items are pi-ai messages carried verbatim: this
- * file treats them opaquely (a role plus passthrough fields) because the
- * server never interprets transcript content — rendering is the webs'
- * job, and zero-translation replay is the contract.
+ * the closed item union, the turn/session views, and the seams this
+ * domain uses instead of importing other business domains. Routable
+ * domains register through `ChatDomainCapability` objects collected by
+ * the composition root (src/chat-capability.ts); the intent set is
+ * registry-derived, never a union here. Wire shapes are mirrored by hand
+ * in packages/contract/src/chat-client.ts and pi-messages.ts — change
+ * both sides together. Message items are pi-ai messages carried verbatim:
+ * this file treats them opaquely (a role plus passthrough fields) because
+ * the server never interprets transcript content — rendering is the
+ * webs' job, and zero-translation replay is the contract. The same
+ * opacity applies to card receipts: chat copies them through.
  */
 
-/** The routing intents: the full set, fixed once at full breadth. */
-export type ChatIntent =
-  "ledger" | "schedule" | "memory" | "notes" | "todo" | "none";
+/**
+ * The routing intent: a registered capability's id, or "none" (chat's
+ * own small-talk fallback). A string on the wire; the valid set is
+ * server-internal, derived from the registered capabilities.
+ */
+export type ChatIntent = string;
 
 /** A transcript message item — a pi-ai message, verbatim and opaque here. */
 export type ChatMessageItem = { readonly role: string } & Readonly<
@@ -24,8 +29,10 @@ export type ChatMessageItem = { readonly role: string } & Readonly<
 export interface ProposalCardItem {
   readonly type: "proposal_card";
   readonly proposal_id: string;
-  readonly domain: "ledger";
-  readonly receipt: ChatLedgerReceipt;
+  /** The capability id whose write produced this card. */
+  readonly domain: string;
+  /** Opaque passthrough — the webs render it per domain id. */
+  readonly receipt: unknown;
 }
 
 /** A deterministic "view it" chip; the AI never annotates these. */
@@ -71,81 +78,6 @@ export interface ChatTurnPage {
   readonly turns: readonly ChatTurnView[];
   /** Cursor for paging further back in time; absent at the beginning. */
   readonly next_before?: string;
-}
-
-/**
- * The ledger receipt snapshot a proposal card embeds — the ledger wire
- * shape, declared structurally (no cross-domain import; the composition
- * root passes the real ledger service, which satisfies this).
- */
-export interface ChatLedgerReceipt {
-  readonly proposal_id: string;
-  readonly status: "committed" | "reverted";
-  readonly created_at: string;
-  readonly committed_at: string;
-  readonly revert_until: string;
-  readonly reverted_at?: string;
-  readonly written: number;
-  readonly transaction_ids: readonly number[];
-  readonly entries: readonly {
-    readonly date: string;
-    readonly type: "income" | "expense";
-    readonly category: string;
-    readonly account: string;
-    readonly amount: number;
-    readonly note: string;
-  }[];
-}
-
-/** The ledger asking the user one clarifying question (nothing written). */
-export interface ChatLedgerFollowUp {
-  readonly question: string;
-}
-
-/** One ledger line as both report shapes carry it (amount is integer cents). */
-export interface ChatLedgerTransaction {
-  readonly date: string;
-  readonly type: string;
-  readonly category: string;
-  readonly account: string;
-  readonly amount: number;
-  readonly note: string;
-}
-
-/** A category subtotal inside a month or day report. */
-export interface ChatLedgerCategoryTotal {
-  readonly type: string;
-  readonly category: string;
-  readonly total: number;
-}
-
-/** The ledger month summary, trimmed to what the chat agent formats. */
-export interface ChatLedgerMonthSummary {
-  readonly month: string;
-  readonly income_total: number;
-  readonly expense_total: number;
-  readonly categories: readonly ChatLedgerCategoryTotal[];
-  readonly transactions: readonly ChatLedgerTransaction[];
-}
-
-/** One local day's summary — the same shape as a month's, keyed by date. */
-export interface ChatLedgerDaySummary {
-  readonly date: string;
-  readonly income_total: number;
-  readonly expense_total: number;
-  readonly categories: readonly ChatLedgerCategoryTotal[];
-  readonly transactions: readonly ChatLedgerTransaction[];
-}
-
-/**
- * The ledger as the chat domain sees it: recording runs immediately and
- * returns a born-confirmed receipt; reads serve the agent's tools.
- */
-export interface ChatLedgerPort {
-  recordFromText(text: string): Promise<ChatLedgerReceipt | ChatLedgerFollowUp>;
-  months(): Promise<{ readonly months: readonly string[] }>;
-  monthReport(month: string): Promise<ChatLedgerMonthSummary>;
-  dayReport(date: string): Promise<ChatLedgerDaySummary>;
 }
 
 /** Intent classification output: an intent plus a self-contained sentence. */

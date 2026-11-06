@@ -1,13 +1,16 @@
 /**
  * The chat agent's prompt: the runtime renders it from the spec — preamble,
- * generated <tools> lines, domain rules, then the per-run <context>. Tool
- * names appear only in the generated section; the hand-written parts carry
- * behaviour, so a renamed tool cannot leave a stale name in prose.
+ * generated <tools> lines, base rules plus each registered capability's
+ * rule snippets, then the per-run <context>. Tool names appear only in the
+ * generated section; the hand-written parts carry behaviour, so a renamed
+ * tool cannot leave a stale name in prose.
  */
 
+import { z } from "zod";
 import { describe, expect, it } from "vitest";
 import { createChatAgent } from "../../src/domains/chat/agent.ts";
-import type { ChatLedgerPort } from "../../src/domains/chat/types.ts";
+import { defineTool } from "../../src/infrastructure/model/agent.ts";
+import type { ChatDomainCapability } from "../../src/chat-capability.ts";
 import type {
   TobyAgentFactory,
   TobyAgentSpec,
@@ -31,49 +34,56 @@ const agentFactory: TobyAgentFactory = (spec) => {
   };
 };
 
-const ledger: ChatLedgerPort = {
-  recordFromText: async () => ({ question: "记成哪一类?" }),
-  months: async () => ({ months: ["2026-11"] }),
-  monthReport: async () => ({
-    month: "2026-11",
-    income_total: 0,
-    expense_total: 0,
-    categories: [],
-    transactions: [],
+const probe = defineTool("read-only", {
+  name: "probe_lookup",
+  label: "探针",
+  description: "测试用工具。",
+  promptSnippet: "查一个测试值",
+  promptGuidelines: ["先查再答。"],
+  parameters: z.object({ key: z.string() }).strict(),
+  execute: async () => ({
+    content: [{ type: "text" as const, text: "probe" }],
+    details: {},
   }),
-  dayReport: async () => ({
-    date: "2026-11-06",
-    income_total: 0,
-    expense_total: 0,
-    categories: [],
-    transactions: [],
-  }),
+});
+
+const capability: ChatDomainCapability = {
+  intent: "probe",
+  label: "探针域",
+  intentDescription: "- probe(探针):测试用。",
+  handleWrite: async () => ({ kind: "notice", text: "noop" }),
+  tools: [probe],
+  agentRules: ["探针数据只作展示,不外传。"],
+  inspectTarget: () => undefined,
 };
 
 const clock = () => new Date(2026, 10, 6, 12, 0, 0).getTime();
 
 describe("createChatAgent", () => {
-  it("renders the tools section from the tool definitions", async () => {
+  it("composes toolset and rules from the registered capabilities", async () => {
     specs.length = 0;
-    const agent = createChatAgent({ agentFactory, ledger, clock });
-    await agent.run("查一下 11 月的账", []);
+    const agent = createChatAgent({
+      agentFactory,
+      capabilities: [capability],
+      clock,
+    });
+    await agent.run("查一下探针", []);
 
     const spec = specs[0]!;
     expect(spec.tools.map((entry) => entry.tool.name)).toEqual([
-      "ledger_months",
-      "ledger_month_report",
-      "ledger_day",
+      "probe_lookup",
     ]);
 
     const prompt = buildSystemPrompt(spec);
-    expect(prompt).toContain("- ledger_months：列出有记录的月份");
-    expect(prompt).toContain("- ledger_month_report：取某个月的账单明细");
-    expect(prompt).toContain("- ledger_day：取某一天的账单明细");
+    expect(prompt).toContain("- probe_lookup：查一个测试值");
     // The ordering note rides under the tool that starts the chain.
     expect(prompt).toContain(
-      "<tools>\n- ledger_months：列出有记录的月份\n  - 查账前先看有哪些月份,再取该月明细。",
+      "<tools>\n- probe_lookup：查一个测试值\n  - 先查再答。",
     );
     expect(prompt).toContain("<rules>");
+    // Base rules and the capability's snippet land together, base first.
+    expect(prompt).toContain("回答用简洁的中文。");
+    expect(prompt).toContain("探针数据只作展示,不外传。");
     expect(prompt).toContain(
       "<context>\n今天是 2026-11-06(星期五)。\n</context>",
     );
