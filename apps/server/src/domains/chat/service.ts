@@ -14,7 +14,7 @@ import { AiError } from "../../infrastructure/model/errors.ts";
 import { ChatRequestError } from "./errors.ts";
 import { inspectTargetOf } from "./agent.ts";
 import type { RateLimiter } from "./rate-limit.ts";
-import type { ChatStore, StoredTurn } from "./store.ts";
+import type { ChatRepository, StoredTurn } from "./repository.ts";
 import type {
   ChatAgent,
   ChatHistoryMessage,
@@ -138,14 +138,14 @@ export interface ChatService {
 }
 
 export function createChatService(deps: {
-  store: ChatStore;
+  repository: ChatRepository;
   clock: Clock;
   classifier?: IntentClassifier;
   agent?: ChatAgent;
   ledger?: ChatLedgerPort;
   limiter: RateLimiter;
 }): ChatService {
-  const { store, clock } = deps;
+  const { repository, clock } = deps;
 
   /**
    * The recent settled exchanges (the just-persisted turn has no reply yet,
@@ -153,7 +153,7 @@ export function createChatService(deps: {
    * {{user, reply}} pairs, and the agent's text-only transcript.
    */
   async function recentHistoryTurns(sessionId: string): Promise<HistoryTurn[]> {
-    const page = await store.listTurns(sessionId, {
+    const page = await repository.listTurns(sessionId, {
       limit: AGENT_HISTORY_TURNS + 1,
     });
     return page.turns
@@ -274,11 +274,11 @@ export function createChatService(deps: {
           "too many messages, slow down",
         );
       }
-      const session = await store.ensureSession();
+      const session = await repository.ensureSession();
       // The user's words persist before any AI is called; the turn's
       // intent is provisional until routing settles.
       const userItem = userMessageItem(trimmed, clock());
-      const turn = await store.appendUserTurn(session.id, userItem);
+      const turn = await repository.appendUserTurn(session.id, userItem);
 
       let routed: { intent: ChatIntent; items: ChatItem[] };
       if (!deps.classifier) {
@@ -312,8 +312,8 @@ export function createChatService(deps: {
         }
       }
 
-      await store.setTurnIntent(turn.id, routed.intent);
-      await store.completeTurn(turn.id, routed.items);
+      await repository.setTurnIntent(turn.id, routed.intent);
+      await repository.completeTurn(turn.id, routed.items);
       return {
         turn_id: turn.id,
         session_id: session.id,
@@ -324,11 +324,11 @@ export function createChatService(deps: {
     },
 
     async listSessions() {
-      return { sessions: await store.listSessions() };
+      return { sessions: await repository.listSessions() };
     },
 
     async createSession() {
-      const session = await store.createSession();
+      const session = await repository.createSession();
       return {
         session_id: session.id,
         created_at: session.created_at,
@@ -338,7 +338,7 @@ export function createChatService(deps: {
 
     async listMessages(sessionId, options) {
       const limit = parseLimit(options.limit);
-      const page = await store.listTurns(sessionId, {
+      const page = await repository.listTurns(sessionId, {
         limit,
         ...(options.before !== undefined ? { before: options.before } : {}),
       });
@@ -346,7 +346,7 @@ export function createChatService(deps: {
         // An empty page is honest for a live session that has no turns yet
         // (created through the API) or for a cursor at the oldest turn;
         // only a session that does not exist answers 404.
-        const sessions = await store.listSessions();
+        const sessions = await repository.listSessions();
         if (!sessions.some((s) => s.session_id === sessionId)) {
           throw new ChatRequestError(
             "SESSION_NOT_FOUND",
@@ -359,7 +359,7 @@ export function createChatService(deps: {
     },
 
     async deleteSession(id) {
-      const deleted = await store.deleteSession(id);
+      const deleted = await repository.deleteSession(id);
       if (!deleted) {
         throw new ChatRequestError(
           "SESSION_NOT_FOUND",
@@ -371,7 +371,7 @@ export function createChatService(deps: {
     },
 
     async reportOutcome(turnId, outcome) {
-      const turn: StoredTurn | undefined = await store.getTurn(turnId);
+      const turn: StoredTurn | undefined = await repository.getTurn(turnId);
       if (!turn) {
         throw new ChatRequestError(
           "TURN_NOT_FOUND",
@@ -379,7 +379,7 @@ export function createChatService(deps: {
           "turn does not exist",
         );
       }
-      await store.setCardOutcome(turnId, outcome);
+      await repository.setCardOutcome(turnId, outcome);
       return { status: "recorded" as const };
     },
   };

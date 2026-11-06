@@ -1,7 +1,7 @@
 /**
- * Ledger store against a real sqlite database in a temporary directory:
- * lazy open + migrations, batch inserts, month listing, month-window
- * queries, and shutdown close.
+ * Ledger repository against a real sqlite database in a temporary
+ * directory: batch inserts, month listing, month-window queries, day
+ * rows, and the database's lazy open + close lifecycle underneath.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
@@ -9,14 +9,15 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
+import { createLedgerDb, type LedgerDb } from "../../src/domains/ledger/db.ts";
 import {
-  createLedgerStore,
+  createLedgerRepository,
   monthBounds,
-  type LedgerStore,
-} from "../../src/domains/ledger/store.ts";
+  type LedgerRepository,
+} from "../../src/domains/ledger/repository.ts";
 import type { LedgerEntry } from "../../src/domains/ledger/types.ts";
 
-const dataRoot = mkdtempSync(path.join(tmpdir(), "toby-ledger-store-"));
+const dataRoot = mkdtempSync(path.join(tmpdir(), "toby-ledger-repository-"));
 const fixedNow = () => Date.parse("2026-10-20T08:00:00.000Z");
 
 afterAll(async () => {
@@ -24,15 +25,19 @@ afterAll(async () => {
 });
 
 // One isolated database per case: a fresh subdirectory per call. The
-// store opens and migrates its database lazily, exactly as in the app.
+// database opens and migrates lazily, exactly as in the app.
 let caseCounter = 0;
 
-async function openStore(): Promise<LedgerStore> {
+async function openLedger(): Promise<{
+  db: LedgerDb;
+  repository: LedgerRepository;
+}> {
   caseCounter += 1;
   const config = resolveConfig({
     env: { TOBY_DATA_ROOT: path.join(dataRoot, `case-${caseCounter}`) },
   });
-  return createLedgerStore({ config, clock: fixedNow });
+  const db = createLedgerDb({ config });
+  return { db, repository: createLedgerRepository({ db, clock: fixedNow }) };
 }
 
 function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
@@ -47,7 +52,7 @@ function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
   };
 }
 
-describe("ledger store", () => {
+describe("ledger repository", () => {
   it("monthBounds computes exclusive [first, next-first) windows", () => {
     expect(monthBounds("2026-10")).toEqual({
       start: "2026-10-01",
@@ -60,9 +65,9 @@ describe("ledger store", () => {
   });
 
   it("inserts a batch, returns ids, and reads the rows back", async () => {
-    const store = await openStore();
+    const { db, repository } = await openLedger();
     try {
-      const ids = await store.insertTransactions([
+      const ids = await repository.insertTransactions([
         entry({ amount: 2500 }),
         entry({
           date: "2026-10-01",
@@ -74,89 +79,89 @@ describe("ledger store", () => {
       ]);
       expect(ids).toHaveLength(2);
       expect(ids[0]).toBeGreaterThan(0);
-      const rows = await store.listMonthTransactions("2026-10");
+      const rows = await repository.listMonthTransactions("2026-10");
       expect(rows).toHaveLength(2);
       expect(rows[0]!.date).toBe("2026-10-01");
       expect(rows[0]!.type).toBe("income");
       expect(rows[0]!.created_at).toBe("2026-10-20T08:00:00.000Z");
       expect(rows[1]!.amount).toBe(2500);
     } finally {
-      await store.close();
+      await db.close();
     }
   });
 
   it("lists distinct months descending", async () => {
-    const store = await openStore();
+    const { db, repository } = await openLedger();
     try {
-      await store.insertTransactions([
+      await repository.insertTransactions([
         entry({ date: "2026-08-15" }),
         entry({ date: "2026-10-02" }),
         entry({ date: "2026-10-09" }),
         entry({ date: "2025-12-31" }),
       ]);
-      expect(await store.listMonths()).toEqual([
+      expect(await repository.listMonths()).toEqual([
         "2026-10",
         "2026-08",
         "2025-12",
       ]);
     } finally {
-      await store.close();
+      await db.close();
     }
   });
 
   it("month queries never bleed adjacent months", async () => {
-    const store = await openStore();
+    const { db, repository } = await openLedger();
     try {
-      await store.insertTransactions([
+      await repository.insertTransactions([
         entry({ date: "2026-09-30" }),
         entry({ date: "2026-10-01" }),
         entry({ date: "2026-10-31" }),
         entry({ date: "2026-11-01" }),
       ]);
-      const october = await store.listMonthTransactions("2026-10");
+      const october = await repository.listMonthTransactions("2026-10");
       expect(october.map((row) => row.date)).toEqual([
         "2026-10-01",
         "2026-10-31",
       ]);
-      const november = await store.listMonthTransactions("2026-11");
+      const november = await repository.listMonthTransactions("2026-11");
       expect(november.map((row) => row.date)).toEqual(["2026-11-01"]);
     } finally {
-      await store.close();
+      await db.close();
     }
   });
 
   it("day queries return only that date, in insertion order", async () => {
-    const store = await openStore();
+    const { db, repository } = await openLedger();
     try {
-      await store.insertTransactions([
+      await repository.insertTransactions([
         entry({ date: "2026-10-20", amount: 100 }),
         entry({ date: "2026-10-19", amount: 200 }),
         entry({ date: "2026-10-20", amount: 300 }),
       ]);
-      const rows = await store.listDayTransactions("2026-10-20");
+      const rows = await repository.listDayTransactions("2026-10-20");
       expect(rows.map((row) => row.amount)).toEqual([100, 300]);
-      expect(await store.listDayTransactions("2026-10-21")).toEqual([]);
+      expect(await repository.listDayTransactions("2026-10-21")).toEqual([]);
     } finally {
-      await store.close();
+      await db.close();
     }
   });
 
   it("empty database lists no months and empty month windows", async () => {
-    const store = await openStore();
+    const { db, repository } = await openLedger();
     try {
-      expect(await store.listMonths()).toEqual([]);
-      expect(await store.listMonthTransactions("2026-10")).toEqual([]);
+      expect(await repository.listMonths()).toEqual([]);
+      expect(await repository.listMonthTransactions("2026-10")).toEqual([]);
     } finally {
-      await store.close();
+      await db.close();
     }
   });
 
-  it("a closed store stays closed instead of reopening the database", async () => {
-    const store = await openStore();
-    await store.listMonths();
-    await store.close();
-    await expect(store.listMonths()).rejects.toThrow(/closed/);
+  it("a closed database stays closed instead of reopening", async () => {
+    const { db, repository } = await openLedger();
+    await repository.listMonths();
+    await db.close();
+    await expect(repository.listMonths()).rejects.toThrow(/closed/);
     // Closing again is harmless.
-    await store.close();
+    await db.close();
   });
 });

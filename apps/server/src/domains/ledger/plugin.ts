@@ -1,5 +1,6 @@
 /**
- * Ledger domain assembly: the store (owning its database), the service
+ * Ledger domain assembly: the database and the repository over it, the
+ * service
  * (running the record pruner) and the routes. AI disabled (no
  * TOBY_AI_MODEL) keeps the extractor undefined: the service then answers
  * the one-sentence path with 501. A shared agentFactory (traced, from the
@@ -13,6 +14,7 @@ import {
   createTobyAgentFactory,
   type TobyAgentFactory,
 } from "../../infrastructure/model/agent.ts";
+import { createLedgerDb } from "./db.ts";
 import { createLedgerExtractor, type LedgerExtractor } from "./extraction.ts";
 import { ledgerRoutes } from "./routes.ts";
 import {
@@ -20,7 +22,7 @@ import {
   type LedgerService,
   type LedgerTiming,
 } from "./service.ts";
-import { createLedgerStore } from "./store.ts";
+import { createLedgerRepository } from "./repository.ts";
 
 export interface LedgerPluginOptions {
   config: TobyConfig;
@@ -43,11 +45,12 @@ export interface LedgerDomain {
  * Builds the whole ledger domain and returns both its plugin and its
  * service — the composition root hands the service to other domains'
  * ports (chat); mounting still happens through the plugin so lifecycle
- * (pruner, store close) stays in one place.
+ * (pruner, database close) stays in one place.
  */
 export function createLedgerDomain(options: LedgerPluginOptions): LedgerDomain {
   const clock = options.clock ?? Date.now;
-  const store = createLedgerStore({ config: options.config, clock });
+  const db = createLedgerDb({ config: options.config });
+  const repository = createLedgerRepository({ db, clock });
   const buildExtractor = (): LedgerExtractor | undefined => {
     if (options.agentFactory) {
       return createLedgerExtractor({ agentFactory: options.agentFactory });
@@ -61,7 +64,7 @@ export function createLedgerDomain(options: LedgerPluginOptions): LedgerDomain {
   };
   const extractor = options.extractor ?? buildExtractor();
   const service = createLedgerService({
-    store,
+    repository,
     clock,
     extractor,
     timing: options.timing,
@@ -70,10 +73,10 @@ export function createLedgerDomain(options: LedgerPluginOptions): LedgerDomain {
     await app.register(ledgerRoutes, { service });
     service.start();
     // Teardown ordering: the pruner (and any prune still running) must
-    // finish before the store closes the database. Do not reorder.
+    // finish before the database closes. Do not reorder.
     app.addHook("onClose", async () => {
       await service.stop();
-      await store.close();
+      await db.close();
     });
   };
   return { plugin, service };

@@ -1,6 +1,6 @@
 /**
- * Chat store: hand-written SQL over the chat database (data/chat.db on
- * SQLite, toby_chat on MySQL). Sessions → turns → items: one turn is one
+ * Chat repository: hand-written SQL over the chat database (db.ts owns
+ * the connection and schema). Sessions → turns → items: one turn is one
  * exchange (a user message item, then the reply items in order); the
  * user message persists in its own transaction before any AI call, so an
  * interrupted turn honestly shows the user's words and nothing else.
@@ -9,10 +9,9 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { TobyConfig } from "../../infrastructure/config/config.ts";
 import type { Clock } from "../../infrastructure/clock.ts";
-import { createDomainDb } from "../../infrastructure/db/create-db.ts";
-import type { DbDialect, DomainDb } from "../../infrastructure/db/types.ts";
+import type { DomainDb } from "../../infrastructure/db/types.ts";
+import type { ChatDb } from "./db.ts";
 import type {
   ChatIntent,
   ChatItem,
@@ -20,55 +19,6 @@ import type {
   ChatTurnPage,
   ChatTurnView,
 } from "./types.ts";
-
-const CHAT_SCHEMA: Record<DbDialect, readonly string[]> = {
-  sqlite: [
-    `CREATE TABLE IF NOT EXISTS chat_sessions (
-      id TEXT PRIMARY KEY,
-      created_at TEXT NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS chat_turns (
-      seq INTEGER PRIMARY KEY AUTOINCREMENT,
-      id TEXT NOT NULL UNIQUE,
-      session_id TEXT NOT NULL,
-      intent TEXT NOT NULL,
-      card_outcome TEXT,
-      created_at TEXT NOT NULL
-    )`,
-    `CREATE INDEX IF NOT EXISTS idx_chat_turns_session ON chat_turns (session_id, seq)`,
-    `CREATE TABLE IF NOT EXISTS chat_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      turn_id TEXT NOT NULL,
-      seq INTEGER NOT NULL,
-      payload TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    )`,
-    `CREATE INDEX IF NOT EXISTS idx_chat_items_turn ON chat_items (turn_id, seq)`,
-  ],
-  mysql: [
-    `CREATE TABLE IF NOT EXISTS chat_sessions (
-      id VARCHAR(36) PRIMARY KEY,
-      created_at VARCHAR(32) NOT NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS chat_turns (
-      seq INT PRIMARY KEY AUTO_INCREMENT,
-      id VARCHAR(36) NOT NULL UNIQUE,
-      session_id VARCHAR(36) NOT NULL,
-      intent VARCHAR(8) NOT NULL,
-      card_outcome VARCHAR(32),
-      created_at VARCHAR(32) NOT NULL,
-      KEY idx_chat_turns_session (session_id, seq)
-    )`,
-    `CREATE TABLE IF NOT EXISTS chat_items (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      turn_id VARCHAR(36) NOT NULL,
-      seq INT NOT NULL,
-      payload TEXT NOT NULL,
-      created_at VARCHAR(32) NOT NULL,
-      KEY idx_chat_items_turn (turn_id, seq)
-    )`,
-  ],
-};
 
 export interface StoredTurn {
   readonly id: string;
@@ -78,7 +28,7 @@ export interface StoredTurn {
   readonly items: readonly ChatItem[];
 }
 
-export interface ChatStore {
+export interface ChatRepository {
   /** The single ongoing conversation, created on first call. */
   ensureSession(): Promise<{ id: string; created_at: string }>;
   createSession(): Promise<{ id: string; created_at: string }>;
@@ -107,7 +57,6 @@ export interface ChatStore {
   listSessions(): Promise<readonly ChatSessionView[]>;
   /** Deletes one session with all its turns and items, one transaction. */
   deleteSession(id: string): Promise<boolean>;
-  close(): Promise<void>;
 }
 
 interface TurnRow {
@@ -137,30 +86,11 @@ function excerptOf(items: readonly ChatItem[]): string {
   return "(新对话)";
 }
 
-export function createChatStore(deps: {
-  config: TobyConfig;
+export function createChatRepository(deps: {
+  db: ChatDb;
   clock: Clock;
-}): ChatStore {
-  const { config, clock } = deps;
-  let opening: Promise<DomainDb> | undefined;
-  let closed = false;
-
-  function db(): Promise<DomainDb> {
-    if (closed) {
-      return Promise.reject(new Error("chat store is closed"));
-    }
-    opening ??= (async () => {
-      const handle = await createDomainDb(config, "chat");
-      for (const statement of CHAT_SCHEMA[handle.dialect]) {
-        await handle.exec(statement);
-      }
-      return handle;
-    })().catch((error: unknown) => {
-      opening = undefined;
-      throw error;
-    });
-    return opening;
-  }
+}): ChatRepository {
+  const { db, clock } = deps;
 
   async function itemsOfTurns(
     handle: DomainDb,
@@ -196,7 +126,7 @@ export function createChatStore(deps: {
 
   return {
     async ensureSession() {
-      const handle = await db();
+      const handle = await db.open();
       const existing = await handle.query<{ id: string; created_at: string }>(
         "SELECT id, created_at FROM chat_sessions ORDER BY created_at DESC, id DESC LIMIT 1",
       );
@@ -207,12 +137,12 @@ export function createChatStore(deps: {
     },
 
     async createSession() {
-      const handle = await db();
+      const handle = await db.open();
       return createSessionRow(handle, clock);
     },
 
     async appendUserTurn(sessionId, userItem) {
-      const handle = await db();
+      const handle = await db.open();
       const id = randomUUID();
       const createdAt = new Date(clock()).toISOString();
       await handle.transaction(async (tx) => {
@@ -229,7 +159,7 @@ export function createChatStore(deps: {
     },
 
     async setTurnIntent(turnId, intent) {
-      const handle = await db();
+      const handle = await db.open();
       await handle.run("UPDATE chat_turns SET intent = ? WHERE id = ?", [
         intent,
         turnId,
@@ -237,7 +167,7 @@ export function createChatStore(deps: {
     },
 
     async completeTurn(turnId, items) {
-      const handle = await db();
+      const handle = await db.open();
       const createdAt = new Date(clock()).toISOString();
       await handle.transaction(async (tx) => {
         let seq = 1;
@@ -252,7 +182,7 @@ export function createChatStore(deps: {
     },
 
     async setCardOutcome(turnId, outcome) {
-      const handle = await db();
+      const handle = await db.open();
       await handle.run("UPDATE chat_turns SET card_outcome = ? WHERE id = ?", [
         outcome,
         turnId,
@@ -260,7 +190,7 @@ export function createChatStore(deps: {
     },
 
     async getTurn(turnId) {
-      const handle = await db();
+      const handle = await db.open();
       const rows = await handle.query<TurnRow>(
         "SELECT seq, id, session_id, intent, card_outcome, created_at FROM chat_turns WHERE id = ?",
         [turnId],
@@ -282,7 +212,7 @@ export function createChatStore(deps: {
     },
 
     async listTurns(sessionId, options) {
-      const handle = await db();
+      const handle = await db.open();
       // The cursor is a turn id; resolve it to its seq position first.
       let beforeSeq: number | undefined;
       if (options.before !== undefined) {
@@ -323,7 +253,7 @@ export function createChatStore(deps: {
     },
 
     async listSessions() {
-      const handle = await db();
+      const handle = await db.open();
       const sessions = await handle.query<{
         id: string;
         created_at: string;
@@ -354,7 +284,7 @@ export function createChatStore(deps: {
     },
 
     async deleteSession(id) {
-      const handle = await db();
+      const handle = await db.open();
       return handle.transaction(async (tx) => {
         const found = await tx.query<{ id: string }>(
           "SELECT id FROM chat_sessions WHERE id = ?",
@@ -371,13 +301,6 @@ export function createChatStore(deps: {
         await tx.run("DELETE FROM chat_sessions WHERE id = ?", [id]);
         return true;
       });
-    },
-
-    async close() {
-      closed = true;
-      const handle = await opening?.catch(() => undefined);
-      await handle?.close();
-      opening = undefined;
     },
   };
 }

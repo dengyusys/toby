@@ -21,7 +21,7 @@ async function bootstrap(): Promise<void> {
   const app = await createApp({ config });
 
   // The framework installs no signal handling of its own. The first signal
-  // closes the app (sweepers stop, the store closes its database); repeats
+  // closes the app (sweepers stop, the domain databases close); repeats
   // are ignored, and the deadline ends a close that hangs.
   let closing = false;
   const shutdown = (): void => {

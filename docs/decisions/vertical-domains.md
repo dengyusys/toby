@@ -21,7 +21,8 @@ src/
 │   │   ├── routes.ts
 │   │   ├── service.ts
 │   │   ├── plugin.ts
-│   │   ├── store.ts
+│   │   ├── db.ts
+│   │   ├── repository.ts
 │   │   └── types.ts
 │   └── ledger/
 │       └── …same shape…
@@ -32,7 +33,7 @@ src/
 
 Every file in a domain is a plain, unprefixed name scoped by its folder —
 role files (`routes.ts`, `service.ts`, `plugin.ts`) and vocabulary files
-(`types.ts`, `errors.ts`, `store.ts`, `schema.ts`) alike. There is no dotted
+(`types.ts`, `errors.ts`, `db.ts`, `repository.ts`, `schema.ts`) alike. There is no dotted
 `<domain>.<role>.ts` suffix: that is the NestJS module-file convention, not
 this layout. Request-body envelopes are checked with schemas inline in the
 routes file that parses them; when another layer needs the body type, the

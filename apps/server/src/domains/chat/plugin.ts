@@ -1,5 +1,6 @@
 /**
- * Chat domain assembly: the store (owning chat.db), the intent
+ * Chat domain assembly: the database (owning chat.db) and the
+ * repository over it, the intent
  * classifier and the read-only agent (built from the shared traced
  * factory when AI is configured; absent AI keeps both undefined and the
  * service answers with honest notices), the rate limiter, and the
@@ -15,9 +16,10 @@ import type { AiClient } from "../../infrastructure/model/types.ts";
 import { createChatAgent } from "./agent.ts";
 import { createChatService } from "./service.ts";
 import { chatRoutes } from "./routes.ts";
+import { createChatDb } from "./db.ts";
 import { createIntentClassifier } from "./intent.ts";
 import { createRateLimiter } from "./rate-limit.ts";
-import { createChatStore } from "./store.ts";
+import { createChatRepository } from "./repository.ts";
 import type { ChatLedgerPort, IntentClassifier } from "./types.ts";
 
 export interface ChatPluginOptions {
@@ -37,7 +39,8 @@ export interface ChatPluginOptions {
 
 export function chatPlugin(options: ChatPluginOptions): FastifyPluginAsync {
   const clock = options.clock ?? Date.now;
-  const store = createChatStore({ config: options.config, clock });
+  const db = createChatDb({ config: options.config });
+  const repository = createChatRepository({ db, clock });
   const classifier =
     options.classifier ??
     (options.aiClient
@@ -52,7 +55,7 @@ export function chatPlugin(options: ChatPluginOptions): FastifyPluginAsync {
         })
       : undefined;
   const service = createChatService({
-    store,
+    repository,
     clock,
     ...(classifier ? { classifier } : {}),
     ...(agent ? { agent } : {}),
@@ -70,7 +73,7 @@ export function chatPlugin(options: ChatPluginOptions): FastifyPluginAsync {
   return async (app) => {
     await app.register(chatRoutes, { service });
     app.addHook("onClose", async () => {
-      await store.close();
+      await db.close();
     });
   };
 }

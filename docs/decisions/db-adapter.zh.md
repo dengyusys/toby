@@ -2,11 +2,11 @@
 
 [English](db-adapter.md) | 简体中文
 
-服务端通过一个自建的薄异步 port 访问数据库——**不用 ORM,不用查询构建器。** 各 domain 继续在自己的 `store.ts` 里手写 SQL;服务端说哪种方言——默认 SQLite,或经其适配器说 MySQL——是配置选择,不是代码选择。port 的数量是开放的:SQLite 和 MySQL 只是今天存在的适配器——第三种数据库加入时,实现同一个接口即可,其他都不用动。
+服务端通过一个自建的薄异步 port 访问数据库——**不用 ORM,不用查询构建器。** 各 domain 继续在自己的 `repository.ts` 里手写 SQL(连接与 schema 生命周期在 `db.ts`);服务端说哪种方言——默认 SQLite,或经其适配器说 MySQL——是配置选择,不是代码选择。port 的数量是开放的:SQLite 和 MySQL 只是今天存在的适配器——第三种数据库加入时,实现同一个接口即可,其他都不用动。
 
 **理由:我们需要的抽象很小,而 ORM 能卖给我们的那部分,在这个项目里不存在。**
 
-连接、执行参数化语句、包一个事务,每个驱动大约百来行代码。难的部分——方言差异——无论如何都在:每个 domain 拥有自己的存储,查询本来就要手写。类型安全由 domain 自己维护:`store.ts` 里的 typed row interface 和 mapper。
+连接、执行参数化语句、包一个事务,每个驱动大约百来行代码。难的部分——方言差异——无论如何都在:每个 domain 拥有自己的存储,查询本来就要手写。类型安全由 domain 自己维护:`repository.ts` 里的 typed row interface 和 mapper。
 
 与[服务端技术栈决策](fastify-server-stack.zh.md)一致:推荐使用的数据库是 SQLite;MySQL 适配器出于作者的学习目的而存在——想亲身感受另一种方言接在同一个接口后面的样子。
 
@@ -39,7 +39,7 @@ export interface DomainDb extends DbOperations {
 
 ## 设计约定
 
-- **代码位置:** `infrastructure/db/` —— port 在 `types.ts`(零驱动导入)、错误映射在 `errors.ts`、每方言一个适配器(`sqlite/`、`mysql/`)、按域工厂 `createDomainDb(config, domain)` 在 `create-db.ts`。domain 的 `store.ts` 只导入 port 类型;domain 的 `types.ts` 保持纯净。
+- **代码位置:** `infrastructure/db/` —— port 在 `types.ts`(零驱动导入)、错误映射在 `errors.ts`、每方言一个适配器(`sqlite/`、`mysql/`)、按域工厂 `createDomainDb(config, domain)` 在 `create-db.ts`。domain 的 `repository.ts` / `db.ts` 只导入 port 类型;domain 的 `types.ts` 保持纯净。
 - **占位符只用位置 `?`。** 两个驱动都原生接受。禁用命名占位符和 `IN` 列表的数组绑定——`IN` 列表手工展开。
 - **单一错误类型。** 适配器把驱动错误映射为一个 `DbError`,code 是封闭联合(`unique-violation | foreign-key-violation | constraint | syntax | busy | connection | unknown`),原始错误保留在 `cause`。原始驱动错误不越过 port。
 - **每域一库,一如既往。** SQLite 方言:一个文件 `data/<domain>.db`。MySQL 方言:一个 schema `toby_<domain>`,启动时 `CREATE DATABASE IF NOT EXISTS … CHARACTER SET utf8mb4`。跨域永不共享数据库。
@@ -49,8 +49,8 @@ export interface DomainDb extends DbOperations {
   - 两者共同的规则:事务体内只 await port 方法。
 - **结果归一:** `changes` 和 `insertId` 在两个方言里含义一致(`Number(lastInsertRowid)` / `insertId || null`)。布尔由 domain mapper 归一(`row.done === 1`)——两个驱动都不返回真正的布尔值。
 - **时间全程 UTC 字符串。** domain 传字符串,绝不传 `Date` 对象;MySQL 池钉死 `dateStrings: true` 与 `timezone: "Z"`,驱动永不做转换。金额保持整数分(`INTEGER` / `INT`)——不用 DECIMAL,不用浮点。
-- **标识符全小写。** 写可移植 SQL 子集是一种纪律;方言特化 SQL 留在单个 domain 的 `store.ts` 内并加注释。
-- **schema 就是幂等 DDL,在 domain 打开自己的数据库时应用。** 每个 store 用 `CREATE TABLE IF NOT EXISTS` 声明自己的表(SQLite 另有 `CREATE INDEX IF NOT EXISTS`;MySQL 把索引声明在表内,因为它没有索引版的 `IF NOT EXISTS`)。打开已有数据库时整块重跑等于 no-op——每个进程一次往返,而不是每个请求——打开空数据库时则建出这个域。没有 `schema_version` 表,没有迁移 CLI,没有回滚。
+- **标识符全小写。** 写可移植 SQL 子集是一种纪律;方言特化 SQL 留在单个 domain 的 `repository.ts` / `db.ts` 内并加注释。
+- **schema 就是幂等 DDL,在 domain 打开自己的数据库时应用。** 每个 domain 的 `db.ts` 用 `CREATE TABLE IF NOT EXISTS` 声明自己的表(SQLite 另有 `CREATE INDEX IF NOT EXISTS`;MySQL 把索引声明在表内,因为它没有索引版的 `IF NOT EXISTS`)。打开已有数据库时整块重跑等于 no-op——每个进程一次往返,而不是每个请求——打开空数据库时则建出这个域。没有 `schema_version` 表,没有迁移 CLI,没有回滚。
 - **版本化随第一次不兼容变更到来。** 无法用 `IF NOT EXISTS` 表达的语句(加列、改类型、拆表)需要先决定如何探测并重写既有文件;这个决定跟那次变更一起落地,而不是提前铺一套投机机制。早先版本化运行器建出的数据库会保留那个已不再使用的 `schema_version` 表——无害,且不动它:删除它是没人要求的破坏性写入。
 - **配置:** `TOBY_DB_DIALECT`(默认 `sqlite`;设 `mysql` 切换)加 `TOBY_DB_MYSQL_HOST / _PORT / _USER / _PASSWORD / _DATABASE_PREFIX`(默认 `127.0.0.1`、`3306`、`toby`、空、`toby_`),由 `infrastructure/config` 启动时一次性解析。
 - **测试规则:** `pnpm run test` 永远不要求运行中的 MySQL。MySQL 适配器测试由 `TOBY_TEST_MYSQL_URL` 门控,默认跳过。

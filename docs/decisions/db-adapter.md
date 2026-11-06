@@ -2,11 +2,11 @@
 
 English | [简体中文](db-adapter.zh.md)
 
-The server reaches its databases through one thin, async-first port of our own — **no ORM, no query builder.** Domains keep writing SQL by hand in their `store.ts`; which dialect the server talks to — SQLite by default, or MySQL through its adapter — is a configuration choice, not a code choice. The port is open-ended: SQLite and MySQL are simply the adapters that exist today — a third database joins by implementing the same interface, and nothing else moves.
+The server reaches its databases through one thin, async-first port of our own — **no ORM, no query builder.** Domains keep writing SQL by hand in their `repository.ts` (connection and schema lifecycle in `db.ts`); which dialect the server talks to — SQLite by default, or MySQL through its adapter — is a configuration choice, not a code choice. The port is open-ended: SQLite and MySQL are simply the adapters that exist today — a third database joins by implementing the same interface, and nothing else moves.
 
 **The reason: the abstraction we need is small, and the part an ORM would sell us does not exist here.**
 
-Connecting, executing parameterized statements, and wrapping a transaction amount to roughly a hundred lines per driver. The hard part — dialect differences — stays anyway: each domain owns its storage, so queries are hand-written regardless. Type safety is maintained by the domains themselves, through typed row interfaces and mappers in `store.ts`.
+Connecting, executing parameterized statements, and wrapping a transaction amount to roughly a hundred lines per driver. The hard part — dialect differences — stays anyway: each domain owns its storage, so queries are hand-written regardless. Type safety is maintained by the domains themselves, through typed row interfaces and mappers in `repository.ts`.
 
 With the [server stack decision](fastify-server-stack.md): SQLite is the recommended database; the MySQL adapter exists for learning — to feel another dialect behind one interface.
 
@@ -39,7 +39,7 @@ export interface DomainDb extends DbOperations {
 
 ## Design conventions
 
-- **Where it lives:** `infrastructure/db/` — the port in `types.ts` (zero driver imports), error mapping in `errors.ts`, one adapter per dialect (`sqlite/`, `mysql/`), and the per-domain factory `createDomainDb(config, domain)` in `create-db.ts`. Domain `store.ts` imports only the port types; a domain's `types.ts` stays pure.
+- **Where it lives:** `infrastructure/db/` — the port in `types.ts` (zero driver imports), error mapping in `errors.ts`, one adapter per dialect (`sqlite/`, `mysql/`), and the per-domain factory `createDomainDb(config, domain)` in `create-db.ts`. A domain's `repository.ts` / `db.ts` imports only the port types; a domain's `types.ts` stays pure.
 - **Positional `?` placeholders only.** Both drivers accept them natively. Named placeholders and array-binding for `IN` lists are forbidden — expand `IN` lists manually.
 - **One error type.** Adapters map driver errors to a single `DbError` with a closed code union (`unique-violation | foreign-key-violation | constraint | syntax | busy | connection | unknown`) and keep the raw error as `cause`. Raw driver errors never cross the port.
 - **One database per domain, as before.** SQLite dialect: one file `data/<domain>.db`. MySQL dialect: one schema `toby_<domain>`, created with `CREATE DATABASE IF NOT EXISTS … CHARACTER SET utf8mb4` at startup. Databases are never shared across domains.
@@ -49,8 +49,8 @@ export interface DomainDb extends DbOperations {
   - Rule for both: inside a transaction body, only await port methods.
 - **Normalized results:** `changes` and `insertId` mean the same thing in both dialects (`Number(lastInsertRowid)` / `insertId || null`). Booleans are normalized by domain mappers (`row.done === 1`) — neither driver returns real booleans.
 - **Time is UTC strings end to end.** Domains pass strings, never `Date` objects; the MySQL pool pins `dateStrings: true` and `timezone: "Z"` so the driver never converts. Money stays integer cents (`INTEGER` / `INT`) — no DECIMAL, no floats.
-- **Identifiers are lowercase.** Writing to the portable-SQL subset is a discipline; dialect-specific SQL stays inside one domain's `store.ts` with a comment.
-- **The schema is idempotent DDL, applied when the domain opens its database.** Each store declares its tables once with `CREATE TABLE IF NOT EXISTS` (plus `CREATE INDEX IF NOT EXISTS` on SQLite; MySQL declares its key inside the table, since it has no `IF NOT EXISTS` for indexes). Opening an existing database re-runs the block as a no-op — one round trip per process, not per request — and opening a fresh one creates the domain. No `schema_version` table, no migration CLI, no down migrations.
+- **Identifiers are lowercase.** Writing to the portable-SQL subset is a discipline; dialect-specific SQL stays inside one domain's `repository.ts` / `db.ts` with a comment.
+- **The schema is idempotent DDL, applied when the domain opens its database.** Each domain's `db.ts` declares its tables once with `CREATE TABLE IF NOT EXISTS` (plus `CREATE INDEX IF NOT EXISTS` on SQLite; MySQL declares its key inside the table, since it has no `IF NOT EXISTS` for indexes). Opening an existing database re-runs the block as a no-op — one round trip per process, not per request — and opening a fresh one creates the domain. No `schema_version` table, no migration CLI, no down migrations.
 - **Versioning arrives with the first incompatible change.** A statement that cannot be expressed as `IF NOT EXISTS` (adding or retyping a column, splitting a table) first needs a decision on how existing files are detected and rewritten; that decision lands with the change, not as speculative machinery beforehand. Databases created by the earlier versioned runner keep their now-unused `schema_version` table — harmless, and left alone: dropping it would be a destructive write nobody asked for.
 - **Configuration:** `TOBY_DB_DIALECT` (`sqlite` by default; `mysql` to switch) plus `TOBY_DB_MYSQL_HOST / _PORT / _USER / _PASSWORD / _DATABASE_PREFIX` (defaults `127.0.0.1`, `3306`, `toby`, empty, `toby_`), resolved once at startup by `infrastructure/config`.
 - **Testing rule:** `pnpm run test` never requires a running MySQL. MySQL adapter tests are gated on `TOBY_TEST_MYSQL_URL` and skip by default.

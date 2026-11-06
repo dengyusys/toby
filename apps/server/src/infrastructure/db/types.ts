@@ -1,6 +1,6 @@
 /**
  * The database port (docs/decisions/db-adapter.md): one thin, async-first
- * interface every domain store talks to. No ORM, no query builder — domains
+ * interface every domain repository talks to. No ORM, no query builder — domains
  * hand-write SQL, and which dialect answers is a configuration choice. This
  * file is the contract and stays free of driver imports.
  */

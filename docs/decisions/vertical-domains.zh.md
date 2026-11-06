@@ -21,7 +21,8 @@ src/
 │   │   ├── routes.ts
 │   │   ├── service.ts
 │   │   ├── plugin.ts
-│   │   ├── store.ts
+│   │   ├── db.ts
+│   │   ├── repository.ts
 │   │   └── types.ts
 │   └── ledger/
 │       └── …同构…
@@ -30,7 +31,7 @@ src/
 └── main.ts
 ```
 
-域内所有文件一律是无前缀单名,由目录限定作用域——角色文件(`routes.ts`、`service.ts`、`plugin.ts`)与词汇文件(`types.ts`、`errors.ts`、`store.ts`、`schema.ts`)同样对待。
+域内所有文件一律是无前缀单名,由目录限定作用域——角色文件(`routes.ts`、`service.ts`、`plugin.ts`)与词汇文件(`types.ts`、`errors.ts`、`db.ts`、`repository.ts`、`schema.ts`)同样对待。
 不使用 `<域>.<角色>.ts` 点分后缀:那是 NestJS 的模块文件命名约定,不是本布局的做法。
 请求体信封的校验 schema 直接内联在解析它的 routes 文件里;当其他层需要该 body 类型时,schema 放进域的 `schema.ts`——不设 `dto/` 目录。
 

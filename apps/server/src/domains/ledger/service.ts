@@ -1,18 +1,18 @@
 /**
  * Ledger service: the use-case layer tying validation, the write registry
- * and the store together. Recording is immediate-tier
+ * and the repository together. Recording is immediate-tier
  * (docs/decisions/write-confirmation-tiers.md): a validated batch executes
  * transactionally at once and the receipt is born confirmed with a revert
  * window; the user-initiated delete is the one direct write (its explicit
  * UI confirmation stands in for the card path). Month reports aggregate
- * store rows in pure TypeScript. The clock is injected so tests can drive
+ * repository rows in pure TypeScript. The clock is injected so tests can drive
  * the revert window and pruning.
  */
 
 import { randomUUID } from "node:crypto";
 import type { Clock } from "../../infrastructure/clock.ts";
 import { AiError } from "../../infrastructure/model/errors.ts";
-import type { LedgerStore } from "./store.ts";
+import type { LedgerRepository } from "./repository.ts";
 import type { ProposalBody } from "./schema.ts";
 import { LedgerRequestError } from "./errors.ts";
 import { createProposalRegistry, type ProposalRegistry } from "./proposals.ts";
@@ -133,19 +133,19 @@ export interface LedgerService {
   start(): void;
   /**
    * Stops the pruner timer and waits for a prune still in flight, so the
-   * store can close behind it.
+   * database can close behind it.
    */
   stop(): Promise<void>;
 }
 
 export function createLedgerService(deps: {
-  store: LedgerStore;
+  repository: LedgerRepository;
   clock: Clock;
   /** Absent while AI is unconfigured; the text path then answers 501. */
   extractor?: LedgerExtractor;
   timing?: LedgerTiming;
 }): LedgerService {
-  const { store, clock, extractor } = deps;
+  const { repository, clock, extractor } = deps;
   const registry: ProposalRegistry = createProposalRegistry({
     now: clock,
     revertWindowMs: deps.timing?.revertWindowMs,
@@ -160,7 +160,7 @@ export function createLedgerService(deps: {
     entries: readonly LedgerEntry[],
   ): Promise<LedgerReceiptView> {
     return registry.execute(id, entries, async (batch) => {
-      const transaction_ids = await store.insertTransactions(batch);
+      const transaction_ids = await repository.insertTransactions(batch);
       return { written: batch.length, transaction_ids };
     });
   }
@@ -210,7 +210,7 @@ export function createLedgerService(deps: {
 
     async revert(id) {
       return registry.revert(id, async (outcome) => {
-        const untouched = await store.revertTransactions(
+        const untouched = await repository.revertTransactions(
           outcome.transaction_ids,
         );
         if (!untouched) {
@@ -232,7 +232,7 @@ export function createLedgerService(deps: {
           "transaction id must be a positive integer",
         );
       }
-      const deleted = await store.deleteTransaction(id);
+      const deleted = await repository.deleteTransaction(id);
       if (!deleted) {
         throw new LedgerRequestError(
           "TRANSACTION_NOT_FOUND",
@@ -248,7 +248,7 @@ export function createLedgerService(deps: {
     },
 
     async months() {
-      return { months: await store.listMonths() };
+      return { months: await repository.listMonths() };
     },
 
     async monthReport(month) {
@@ -259,7 +259,7 @@ export function createLedgerService(deps: {
           'month query parameter is required as "YYYY-MM"',
         );
       }
-      const rows = await store.listMonthTransactions(month);
+      const rows = await repository.listMonthTransactions(month);
       return buildMonthReport(month, rows);
     },
 
@@ -274,7 +274,7 @@ export function createLedgerService(deps: {
           'date is required as a real "YYYY-MM-DD" calendar date',
         );
       }
-      return buildDayReport(date, await store.listDayTransactions(date));
+      return buildDayReport(date, await repository.listDayTransactions(date));
     },
 
     // A 1 s tick prunes journalled records past their retention horizon,

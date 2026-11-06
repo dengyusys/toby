@@ -27,7 +27,7 @@ erasable-syntax rules as every other package and compiles with plain `tsc`.
   domain order. `src/main.ts` only resolves config, listens, and closes on
   signals.
 - Each domain keeps three role files: `routes.ts` (the HTTP shell, a Fastify
-  plugin), `service.ts` / `store.ts` (closure factories with no HTTP
+  plugin), `service.ts` / `db.ts` / `repository.ts` (closure factories with no HTTP
   imports), and `plugin.ts` (assembly, plus lifecycle through `onClose`).
 - The session guard is an async `preHandler` the composition root installs
   on every `/api` route by default; a route opts out with

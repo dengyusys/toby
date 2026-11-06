@@ -192,7 +192,7 @@ const rules: BoundaryRule[] = [
       const base = path.basename(file);
       return base === "routes.ts" || base === "plugin.ts"
         ? null
-        : "fastify imports belong in routes.ts / plugin.ts — services and stores stay HTTP-free";
+        : "fastify imports belong in routes.ts / plugin.ts — services and repositories stay HTTP-free";
     },
   },
   {

@@ -1,5 +1,5 @@
 /**
- * Ledger service against a fake store and an injected clock: the
+ * Ledger service against a fake repository and an injected clock: the
  * immediate-tier write lifecycle — execute-at-once receipts, the revert
  * window, conflict semantics, retention — and the pruner's start/stop
  * lifecycle.
@@ -11,7 +11,7 @@ import {
   createLedgerService,
   type LedgerService,
 } from "../../src/domains/ledger/service.ts";
-import type { LedgerStore } from "../../src/domains/ledger/store.ts";
+import type { LedgerRepository } from "../../src/domains/ledger/repository.ts";
 import type {
   LedgerDraft,
   LedgerExtractor,
@@ -23,9 +23,9 @@ import type {
 } from "../../src/domains/ledger/types.ts";
 import { AiError } from "../../src/infrastructure/model/errors.ts";
 
-// The store methods the service actually calls; fakes satisfy that slice.
-type LedgerStoreLike = Pick<
-  LedgerStore,
+// The repository methods the service actually calls; fakes satisfy that slice.
+type LedgerRepositoryLike = Pick<
+  LedgerRepository,
   | "insertTransactions"
   | "revertTransactions"
   | "listMonths"
@@ -48,25 +48,25 @@ function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
   };
 }
 
-interface StoreCall {
+interface RepositoryCall {
   entries: readonly LedgerEntry[];
 }
 
-function fakeStore(
+function fakeRepository(
   options: {
     failWrites?: boolean;
     dayRows?: readonly LedgerTransactionRow[];
   } = {},
 ) {
-  const calls: StoreCall[] = [];
+  const calls: RepositoryCall[] = [];
   const reverted: number[][] = [];
   /** Simulated stored rows: ids the "database" still holds. */
   const stored = new Set<number>();
   let nextId = 1;
-  const store: LedgerStoreLike = {
+  const repository: LedgerRepositoryLike = {
     async insertTransactions(entries) {
       if (options.failWrites) {
-        throw new Error("store down");
+        throw new Error("repository down");
       }
       calls.push({ entries });
       const ids = entries.map(() => {
@@ -98,7 +98,7 @@ function fakeStore(
     },
   };
   return {
-    store,
+    repository,
     calls,
     reverted,
     stored,
@@ -106,10 +106,13 @@ function fakeStore(
   };
 }
 
-function makeService(store: LedgerStoreLike, extractor?: LedgerExtractor) {
+function makeService(
+  repository: LedgerRepositoryLike,
+  extractor?: LedgerExtractor,
+) {
   let nowMs = Date.parse("2026-10-20T08:00:00.000Z");
   const service = createLedgerService({
-    store: store as unknown as LedgerStore,
+    repository: repository as unknown as LedgerRepository,
     clock: () => nowMs,
     timing: {
       revertWindowMs: REVERT_WINDOW_MS,
@@ -148,8 +151,8 @@ async function record(service: LedgerService): Promise<LedgerReceiptView> {
 
 describe("ledger service immediate writes", () => {
   it("executes the structured path at once and returns a born-confirmed receipt", async () => {
-    const { store, calls } = fakeStore();
-    const { service, nowMs } = makeService(store);
+    const { repository, calls } = fakeRepository();
+    const { service, nowMs } = makeService(repository);
     const receipt = await record(service);
     expect(calls).toHaveLength(1); // written before the reply exists
     expect(receipt.status).toBe("committed");
@@ -164,14 +167,14 @@ describe("ledger service immediate writes", () => {
   });
 
   it("a failing write rejects the create call and leaves no receipt behind", async () => {
-    const { store } = fakeStore({ failWrites: true });
-    const { service } = makeService(store);
-    await expect(record(service)).rejects.toThrow("store down");
+    const { repository } = fakeRepository({ failWrites: true });
+    const { service } = makeService(repository);
+    await expect(record(service)).rejects.toThrow("repository down");
   });
 
   it("revert inside the window removes exactly the batch", async () => {
-    const { store, reverted } = fakeStore();
-    const { service } = makeService(store);
+    const { repository, reverted } = fakeRepository();
+    const { service } = makeService(repository);
     const receipt = await record(service);
     const outcome = await service.revert(receipt.proposal_id);
     expect(outcome).toEqual({
@@ -183,8 +186,8 @@ describe("ledger service immediate writes", () => {
   });
 
   it("revert is idempotent: a settled revert echoes its outcome", async () => {
-    const { store, reverted } = fakeStore();
-    const { service } = makeService(store);
+    const { repository, reverted } = fakeRepository();
+    const { service } = makeService(repository);
     const receipt = await record(service);
     const first = await service.revert(receipt.proposal_id);
     const second = await service.revert(receipt.proposal_id);
@@ -193,8 +196,8 @@ describe("ledger service immediate writes", () => {
   });
 
   it("a later write touching the batch refuses the revert (newer write wins)", async () => {
-    const { store, deleteRow } = fakeStore();
-    const { service } = makeService(store);
+    const { repository, deleteRow } = fakeRepository();
+    const { service } = makeService(repository);
     const receipt = await record(service);
     deleteRow(1); // the user deleted one row of the batch in the meantime
     await expect(service.revert(receipt.proposal_id)).rejects.toMatchObject({
@@ -204,8 +207,8 @@ describe("ledger service immediate writes", () => {
   });
 
   it("revert past the window reports 410 and the write stands", async () => {
-    const { store } = fakeStore();
-    const { service, advance } = makeService(store);
+    const { repository } = fakeRepository();
+    const { service, advance } = makeService(repository);
     const receipt = await record(service);
     advance(REVERT_WINDOW_MS + 1);
     await expect(service.revert(receipt.proposal_id)).rejects.toMatchObject({
@@ -215,7 +218,7 @@ describe("ledger service immediate writes", () => {
   });
 
   it("unknown proposals are 404; text without an extractor answers 501", async () => {
-    const { service } = makeService(fakeStore().store);
+    const { service } = makeService(fakeRepository().repository);
     await expect(service.revert("missing")).rejects.toMatchObject({
       code: "PROPOSAL_NOT_FOUND",
       statusCode: 404,
@@ -226,7 +229,7 @@ describe("ledger service immediate writes", () => {
   });
 
   it("month reports reject bad months and aggregate empty months", async () => {
-    const { service } = makeService(fakeStore().store);
+    const { service } = makeService(fakeRepository().repository);
     await expect(service.monthReport(undefined)).rejects.toMatchObject({
       code: "INVALID_MONTH",
     });
@@ -266,7 +269,9 @@ describe("ledger service immediate writes", () => {
         created_at: "2026-10-20T08:00:00.000Z",
       },
     ];
-    const { service } = makeService(fakeStore({ dayRows: rows }).store);
+    const { service } = makeService(
+      fakeRepository({ dayRows: rows }).repository,
+    );
 
     const report = await service.dayReport("2026-10-20");
     expect(report.date).toBe("2026-10-20");
@@ -292,7 +297,7 @@ describe("ledger service pruner lifecycle", () => {
   it("start ticks without overlap and stop resolves cleanly", async () => {
     vi.useFakeTimers();
     try {
-      const { service } = makeService(fakeStore().store);
+      const { service } = makeService(fakeRepository().repository);
       service.start();
       await vi.advanceTimersByTimeAsync(3_500); // a few prune ticks
       await expect(service.stop()).resolves.toBeUndefined();
@@ -315,10 +320,13 @@ describe("ledger service one-sentence path", () => {
   }
 
   function makeAiService(draft: () => LedgerDraft | Promise<LedgerDraft>) {
-    const fakeStoreResult = fakeStore();
+    const fakeRepositoryResult = fakeRepository();
     const fake = fakeExtractor(draft);
-    const harness = makeService(fakeStoreResult.store, fake.extractor);
-    return { ...harness, ...fake, calls: fakeStoreResult.calls };
+    const harness = makeService(
+      fakeRepositoryResult.repository,
+      fake.extractor,
+    );
+    return { ...harness, ...fake, calls: fakeRepositoryResult.calls };
   }
 
   it("turns a sentence into one landed batch via the extractor", async () => {
