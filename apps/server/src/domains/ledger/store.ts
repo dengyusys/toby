@@ -63,6 +63,8 @@ export interface LedgerStore {
   listMonthTransactions(
     month: string,
   ): Promise<readonly LedgerTransactionRow[]>;
+  /** Every transaction recorded on one local date, oldest first. */
+  listDayTransactions(date: string): Promise<readonly LedgerTransactionRow[]>;
   /** Delete one row by id; true when the row existed. */
   deleteTransaction(id: number): Promise<boolean>;
   /**
@@ -148,6 +150,14 @@ export function createLedgerStore(deps: {
       return handle.query<LedgerTransactionRow>(
         "SELECT id, date, type, category, account, amount, note, created_at FROM transactions WHERE date >= ? AND date < ? ORDER BY date ASC, id ASC",
         [start, end],
+      );
+    },
+
+    async listDayTransactions(date) {
+      const handle = await db();
+      return handle.query<LedgerTransactionRow>(
+        "SELECT id, date, type, category, account, amount, note, created_at FROM transactions WHERE date = ? ORDER BY id ASC",
+        [date],
       );
     },
 

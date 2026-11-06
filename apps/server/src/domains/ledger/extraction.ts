@@ -16,6 +16,7 @@ import {
   type TobyAgentFactory,
 } from "../../infrastructure/model/agent.ts";
 import { AiError } from "../../infrastructure/model/errors.ts";
+import { localDayLabel } from "../../infrastructure/local-date.ts";
 import { LEDGER_ENTRIES_TOOL_SCHEMA } from "./schema.ts";
 import type { LedgerEntry } from "./types.ts";
 import { LedgerInputError, normalizeEntries } from "./validation.ts";
@@ -27,23 +28,6 @@ export interface LedgerFollowUp {
 
 export type LedgerDraft =
   { readonly entries: readonly LedgerEntry[] } | LedgerFollowUp;
-
-const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"] as const;
-
-function localDate(now: Date): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-}
-
-function systemPrompt(now: Date): string {
-  return [
-    `你是记账助手。今天是 ${localDate(now)}(星期${WEEKDAYS[now.getDay()]})。`,
-    "从用户的一句话里提取记账条目:能确定就调用 submit_entries 工具提交,单条也放进 entries 数组;",
-    '"昨天"等相对说法按今天换算;未提及日期就是今天,直接填今天的日期,不要为此追问;用户未提及账户就省略 account 字段;note 一般省略,不要把用户原话复述进 note,仅当用户明确补充了备注信息(如「要报销」)才填写。',
-    "「晚饭吃了8块」「打车15」「工资到账8000」这类说法已说清类型与去向:分别记作支出/餐饮、支出/交通、收入/工资,直接提交,不要追问分类;",
-    "只有类型、金额或日期指代(如「那天」「记一笔8块」)真的无从判断时才调用 ask_user 工具,用一句中文向用户追问。",
-    "除工具调用外不要输出正文。",
-  ].join("\n");
-}
 
 /** Runs one extraction against a prepared agent. Domains inject a factory. */
 export interface LedgerExtractor {
@@ -75,6 +59,8 @@ export function createLedgerExtractor(deps: {
         label: "提交记账条目",
         description:
           "提交从用户语句中提取的记账条目。通过校验后立即写入账本,短时间内用户可撤销。",
+        promptSnippet: "提交记账条目(立即写入,可撤销)",
+        promptGuidelines: ["能确定就直接提交,单条也放进 entries 数组。"],
         parameters: LEDGER_ENTRIES_TOOL_SCHEMA,
         execute: async (_toolCallId, params) => {
           // Last write wins: a corrected resubmit replaces the earlier
@@ -95,8 +81,11 @@ export function createLedgerExtractor(deps: {
       const askUser = defineTool("read-only", {
         name: "ask_user",
         label: "向用户追问",
-        description:
-          "仅当类型、金额或去向真的无从判断时使用;未提及日期不是追问理由(默认今天),晚饭/打车/工资等常见说法可自行判定,不要用本工具。",
+        description: "向用户提一个澄清问题;本次提取以这个问题结束。",
+        promptSnippet: "向用户追问一个问题",
+        promptGuidelines: [
+          "只有类型、金额或日期指代真的无从判断时才用本工具,用一句中文提一个问题。",
+        ],
         parameters: z.object({ question: z.string().min(1) }).strict(),
         execute: async (_toolCallId, params) => {
           const question = params.question.trim();
@@ -115,7 +104,14 @@ export function createLedgerExtractor(deps: {
 
       const agent = agentFactory({
         name: "ledger-extraction",
-        systemPrompt: systemPrompt(now),
+        preamble: "你是记账助手。把用户的一句话变成记账条目。",
+        rules: [
+          '"昨天"等相对说法按今天换算;未提及日期就是今天,直接填今天的日期,不要为此追问。',
+          "用户未提及账户就省略 account 字段;note 一般省略,不要把用户原话复述进 note,仅当用户明确补充了备注信息(如「要报销」)才填写。",
+          "「晚饭吃了8块」「打车15」「工资到账8000」这类说法已说清类型与去向:分别记作支出/餐饮、支出/交通、收入/工资,直接提交,不要追问分类。",
+          "除工具调用外不要输出正文。",
+        ],
+        context: [`今天是 ${localDayLabel(now)}。`],
         tools: [submitEntries, askUser],
         policy: {
           allowedKinds: ["read-only", "write-intent"],

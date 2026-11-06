@@ -87,6 +87,7 @@ export function productionDomains(options: {
     recordFromText: (text) => ledgerDomain.service.createProposal({ text }),
     months: () => ledgerDomain.service.months(),
     monthReport: (month) => ledgerDomain.service.monthReport(month),
+    dayReport: (date) => ledgerDomain.service.dayReport(date),
   };
   return [
     async (app) => {

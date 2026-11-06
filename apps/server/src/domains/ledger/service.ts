@@ -21,9 +21,10 @@ import {
   type LedgerExtractor,
   type LedgerFollowUp,
 } from "./extraction.ts";
-import { normalizeEntry } from "./validation.ts";
+import { normalizeEntry, parseEntryDate } from "./validation.ts";
 import type {
   LedgerCategorySummary,
+  LedgerDayReport,
   LedgerDeleteResult,
   LedgerEntry,
   LedgerMonthReport,
@@ -36,11 +37,12 @@ const MONTH_PATTERN = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
 
 const PRUNE_INTERVAL_MS = 1_000;
 
-/** Aggregate one month's rows into the report shape (pure function). */
-export function buildMonthReport(
-  month: string,
-  rows: readonly LedgerTransactionRow[],
-): LedgerMonthReport {
+/** A report's totals and category subtotals (shared by the month/day views). */
+function summarize(rows: readonly LedgerTransactionRow[]): {
+  income_total: number;
+  expense_total: number;
+  categories: LedgerCategorySummary[];
+} {
   let incomeTotal = 0;
   let expenseTotal = 0;
   const categoryTotals = new Map<string, LedgerCategorySummary>();
@@ -68,12 +70,26 @@ export function buildMonthReport(
     return a.category < b.category ? -1 : 1;
   });
   return {
-    month,
-    transactions: rows,
     income_total: incomeTotal,
     expense_total: expenseTotal,
     categories,
   };
+}
+
+/** Aggregate one month's rows into the report shape (pure function). */
+export function buildMonthReport(
+  month: string,
+  rows: readonly LedgerTransactionRow[],
+): LedgerMonthReport {
+  return { month, transactions: rows, ...summarize(rows) };
+}
+
+/** Aggregate one day's rows into the same shape (pure function). */
+export function buildDayReport(
+  date: string,
+  rows: readonly LedgerTransactionRow[],
+): LedgerDayReport {
+  return { date, transactions: rows, ...summarize(rows) };
 }
 
 /**
@@ -111,6 +127,8 @@ export interface LedgerService {
   deleteTransaction(rawId: string): Promise<LedgerDeleteResult>;
   months(): Promise<{ months: readonly string[] }>;
   monthReport(month: string | undefined): Promise<LedgerMonthReport>;
+  /** One local day's report; the date is validated as a real calendar date. */
+  dayReport(date: string): Promise<LedgerDayReport>;
   /** Starts the record pruner timer. */
   start(): void;
   /**
@@ -243,6 +261,20 @@ export function createLedgerService(deps: {
       }
       const rows = await store.listMonthTransactions(month);
       return buildMonthReport(month, rows);
+    },
+
+    async dayReport(rawDate) {
+      let date: string;
+      try {
+        date = parseEntryDate(rawDate, "date");
+      } catch {
+        throw new LedgerRequestError(
+          "INVALID_DATE",
+          400,
+          'date is required as a real "YYYY-MM-DD" calendar date',
+        );
+      }
+      return buildDayReport(date, await store.listDayTransactions(date));
     },
 
     // A 1 s tick prunes journalled records past their retention horizon,

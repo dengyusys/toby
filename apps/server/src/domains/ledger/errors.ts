@@ -5,6 +5,7 @@ import { DomainHttpError } from "../../infrastructure/http/http-error.ts";
 export type LedgerErrorCode =
   | "INVALID_ENTRY"
   | "INVALID_MONTH"
+  | "INVALID_DATE"
   | "TRANSACTION_NOT_FOUND"
   | "REVERT_CONFLICT"
   | "AI_UNAVAILABLE"

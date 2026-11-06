@@ -125,6 +125,22 @@ describe("ledger store", () => {
     }
   });
 
+  it("day queries return only that date, in insertion order", async () => {
+    const store = await openStore();
+    try {
+      await store.insertTransactions([
+        entry({ date: "2026-10-20", amount: 100 }),
+        entry({ date: "2026-10-19", amount: 200 }),
+        entry({ date: "2026-10-20", amount: 300 }),
+      ]);
+      const rows = await store.listDayTransactions("2026-10-20");
+      expect(rows.map((row) => row.amount)).toEqual([100, 300]);
+      expect(await store.listDayTransactions("2026-10-21")).toEqual([]);
+    } finally {
+      await store.close();
+    }
+  });
+
   it("empty database lists no months and empty month windows", async () => {
     const store = await openStore();
     try {

@@ -1,65 +1,146 @@
-# 对话域（Chat）：统一对话界面
+# 对话域（Chat）
 
 [English](chat.md) | 简体中文
 
-> 现行契约:职责、接口与关键规则;实现细节以代码与测试为准。附件两端点将在后续独立波次落地。
+> 现行契约：对话模型、路由管线与失败语义。实现细节以代码与测试为准；写入分级见
+> [write-confirmation-tiers](../decisions/write-confirmation-tiers.zh.md)。
+
+## 这是什么
+
+全应用唯一的输入口。用户用一句话说事，服务端判断这句话是什么意思并作答：业务意图交给拥有它的域，其余交只读智能体。一条回复是一组有序的项——transcript 消息、写入卡片、预览跳转、通告；每一次写入都由 actions kernel 起草并执行。对话框本身从不直接写。
 
 ## 职责与边界
 
-全应用唯一的对话框:一句话进来,意图分类后分发——业务意图(日程/记账/记忆/手账/待办)走对应域提案管线,其余交智能体应答。
+Chat 是路由器，不是业务逻辑。它拥有对话存储（`data/chat.db`，MySQL `toby_chat`）与回合/项协议，其他域一律经注入端口触达。它不拥有那些域的规则、actions kernel、AI 传输与凭据，也不拥有预览面板本身。域文件不 import 其他业务域。
 
-- **管**:消息与会话持久化(`data/chat.db`)、意图路由、附件、卡片终态记录、预览面板的语境式入口。
-- **不管**:各域提案管线本身(只调用、零改动)、外部世界查询(将来可登记新工具)、对话历史的 TTL 清理策略。
-- **不变式**:对既有提案端点的路径、动作、状态码、响应结构零改动。
+## 对话模型
 
-## 核心概念
+**会话**（session）是一次对话。**回合**（turn）是一次交换——用户消息加上一次发送产生的回复项。**项**（item）是回复中的一条。
 
-- 只有一个持续对话:刷新恢复,无会话切换/新建/删除(会话 API 保留用于找回这一个对话)。
-- 每条回复是一段有序的项流:pi-ai 形状的消息(user / assistant / toolResult,靠 `toolCallId` 配对)加上 toby 卡项——提案卡、查看跳转、通告;附件引用挂在用户消息上,路由意图作为回合元数据随流返回,前端按顺序渲染这条流。
-- 各域浏览能力不回退:PC 由 inspect 链接与推送的预览卡片打开预览面板(对话旁无常驻入口);移动端左侧导航抽屉 + 全屏预览面板,三页分页(手账/对话/告示板常驻)随对应域落地。
+产品面只有一个持续对话。API 保留多会话模型（新建、列表、删除）；目前两个 web 都只恢复最新会话，不提供切换。
 
-一轮的形状——配对靠 `toolCallId`,溯源靠 `sourceToolCallId`:
+### 一次发送保证什么
+
+一次发送恰好落定一个回合。顺序有意义：
+
+1. **接收**——信封是 `{ text }`；空文本拒绝（`400 INVALID_TEXT`），并按发送方限流（`429 RATE_LIMITED`）。被拒绝的发送不落任何东西。
+2. **先落库**——一旦接受，用户消息在任何 AI 调用之前落库；之后的 AI 失败不会把它弄丢。
+3. **决定**——把句子分类成一个意图加一句自足的话，然后路由（见“路由”）。
+4. **作答**——拥有该意图的域或只读智能体产出回复项，回复项一起提交。
+5. **落定**——整个回合返回给客户端。AI 失败是一条通告，不是 5xx。
+
+线上没有半个回合：客户端要么拿到完整回复，要么拿到一个错误。
+
+### 回合里有什么
+
+- 项是封闭 union（`packages/contract/src/chat-client.ts`）：逐字回放的 pi-ai transcript 消息，加上 `proposal_card`、`inspect_link`、`notice`。新增一种就是契约变更，要同时改 contract 与两个 web。
+- 配对是结构性的：assistant 的 `toolCall` 与结果按 `toolCallId` 配对；没有结果的调用诚实地显示“进行中”。运行的 system 消息和它内部的 user prompt 从不成为项——回合里已经有了用户的原话。
+- 顺序即生产顺序：项按产生顺序存储、按同样顺序返回，不重排、不合并。意图与卡片终态作为回合元数据挂在项旁边；节选（excerpt）读取时派生，从不存储。
+- 回合存的是用户的原始句子；agent 拿到的是分类器补全后的自足句子。UI 读前者，模型读后者。
+
+一个回合只走一条路由，所以卡片和工具循环不会出现在同一个回合里。两条已落地的路由：写入回合带收据（或一句追问），只读回合带工具循环。
+
+只读智能体回合——含 thinking、工具调用、一次被纠正的错误、一次截断、两个查看跳转：
 
 ```text
-回合元数据          intent = ledger · excerpt(派生,永不单独成条)
-────────────────────────────────────────────────────────────────────
-message·user        "记一笔午饭 30 元,再看看这个月餐饮花了多少"(附件引用挂此)
-message·assistant   thinking + ToolCall(c1)
-message·toolResult  c1 → ¥1,240            ← 按 toolCallId 配对
-message·assistant   ToolCall(c2)
-message·toolResult  c2 → ¥360              ← 按 toolCallId 配对
-message·assistant   text("已生成记账提案…")
-proposal_card       proposalId + 快照 · 门控:pending → confirmed/cancelled/expired
-                                          · 直写:出生即 confirmed + revertUntil
-inspect_link        sourceToolCallId=c1 → 预览面板
-inspect_link        sourceToolCallId=c2 → 预览面板
+user            "这个月吃饭花了多少？比上个月多吗？"
+assistant       thinking + toolCall(c1, ledger_months, {})
+toolResult      c1 → "有记录的月份:2026-11、2026-10、2026-09"
+assistant       toolCall(c2, ledger_month_report, {month:"2026-11"})
+toolResult      c2 → "2026-11 月:…(仅显示前 30 笔,共 42 笔)"   ← 截断，如实说明
+assistant       toolCall(c3, ledger_month_report, {month:"上个月"})
+toolResult      c3 → isError: schema 拒绝 "上个月"             ← 模型自行纠正
+assistant       toolCall(c4, ledger_month_report, {month:"2026-10"})
+toolResult      c4 → "2026-10 月:…"
+assistant       text("这个月餐饮 ¥1,240，比上个月多 ¥360。")
+inspect_link    c2 → ledger:2026-11
+inspect_link    c4 → ledger:2026-10
 ```
+
+记账写入回合——不走智能体，没有工具调用；记账端口写入并返回收据：
+
+```text
+user            "记一笔午饭 30 元"
+assistant       text("已记入 1 笔,短时间内在卡片上可撤销。")
+proposal_card   出生即 confirmed 的收据 + revert_until
+```
+
+## 路由
+
+| 意图                             | 谁来答           | 回复                       |
+| -------------------------------- | ---------------- | -------------------------- |
+| ledger                           | 记账域（直写级） | 收据卡片，或一句追问       |
+| schedule / memory / notes / todo | 尚未落地         | “在路上”通告               |
+| none                             | 只读智能体       | transcript 消息 + 查看跳转 |
+
+意图集合是封闭的（`ChatIntent`），新增一个是契约变更。
+
+- 分类器看最近 3 轮已结束的交换；「今天呀」这类碎片或「不对，是打车」这类纠正，都会先被补成一句自足的话再路由。
+- 分类或路由失败：本回合以 `none` 落定，回一条“没听清，再说一遍”的通告。记账写入失败同样是通告，不是异常。
+- AI 结构化输出走经 schema 校验的通道（Zod 工具参数，或无循环场景的单发 `json()` 入口）：不合格输出回喂一次，仍失败则落为通告（见 [ai-pi-runtime](../decisions/ai-pi-runtime.zh.md)）。
+
+## 智能体路径
+
+- 只用只读工具。运行时门禁拦截写入类工具；禁止的能力（shell、文件系统、数据库）根本不存在对应工具定义，不是被拦住。
+- 有界：每次最多 6 轮、2,000 个回复 token；跑不完就以通告收尾。
+- 上下文：服务器本地时区的今天日期与星期；最近 4 轮已结束交换的纯文本回放（用户原话 + Toby 的最终文字，不含工具调用、工具结果和卡片），每条文字上限 500 字符，且只回放最近 6 小时内的轮次。间隔更久视为新话题。
+- 只用真数据：答案来自工具结果；被截断的结果在结果里如实说明。
+- 失败诚实：未配置、超时、provider 错误都落为固定文案通告。
+- 查看跳转是确定性的：有已知预览目标的只读工具调用生成 `inspect_link`；模型从不写、也不标注它们。目前只有 `ledger_month_report` 映射到 `ledger:YYYY-MM`。
+
+## 写入与卡片
+
+- 每次写入都走 actions kernel（见 [write-confirmation-tiers](../decisions/write-confirmation-tiers.zh.md)）。对话域调用域端口，自己从不写。
+- **直写级**（目前是记账）：写入立即落库；卡片是出生即 confirmed 的收据，带十分钟撤回窗口。撤回是用户点击，按 before-快照回滚。
+- **门控级**（后续域）：pending 卡片、30 秒默许、显式确认、取消是唯一拒绝路径。卡片携带 kernel 的状态机。
+- 卡片内嵌创建时刻的收据快照。恢复的卡片保留记录中的状态；撤回窗口按墙上时间计算，所以窗口未关的直写卡片恢复后仍可撤回。
+- `card_outcome` 是客户端上报的展示元数据（例如 `reverted`），不改变 transcript。
+
+## 会话与历史
+
+- 会话列表最新在前；每项带一个由最新回合用户原话派生的节选（60 字符）。
+- `GET /api/chat/sessions/:id/messages` 返回一窗口：默认 20 回合，最多 100，窗口内旧→新。`before` 是该会话里的回合 id；只有更旧的回合还存在时才给 `next_before`，翻到头就没有。
+- 全新安装没有会话；第一次被接受的发送创建对话。刷新恢复最新会话。UI 目前不提供会话切换、新建、删除；API 提供。
+- 删除会话时在一个事务里删掉它的回合与项，再删会话本身。
+- 已存在的空会话（经 API 新建）返回空页；不存在的会话回 `404 SESSION_NOT_FOUND`。
 
 ## 接口面
 
-除附件上传(multipart,「只收 JSON」的唯一破例)外均为 JSON;错误体沿用 server 惯例。
+全部 JSON；每条路由都走会话守卫；错误体沿用 server 惯例。
 
-| 方法与路径                            | 用途                                                              |
-| ------------------------------------- | ----------------------------------------------------------------- |
-| `POST /api/chat/messages`             | 发一句话,意图路由分发,返回本轮意图与有序项流(限流 20 次/60 秒/IP) |
-| `POST /api/chat/attachments`          | 上传附件:图片/文档白名单,大小在端点层硬限                         |
-| `GET /api/chat/attachments/:id`       | 取附件原始字节(内容寻址,immutable 缓存)                           |
-| `GET /api/chat/sessions`              | 会话列表                                                          |
-| `POST /api/chat/sessions`             | 新建会话                                                          |
-| `GET /api/chat/sessions/:id/messages` | 分页查消息(limit + before 游标向上翻页)                           |
-| `DELETE /api/chat/sessions/:id`       | 删除会话(事务级联删除消息)                                        |
-| `POST /api/chat/messages/:id/outcome` | 上报卡片终态(仅展示元数据,不影响业务数据)                         |
+| 方法与路径                            | 用途                                            |
+| ------------------------------------- | ----------------------------------------------- |
+| `POST /api/chat/messages`             | 发一句话，返回落定的回合（限流 20 次/60 秒/IP） |
+| `GET /api/chat/sessions`              | 会话列表，最新在前，带派生节选                  |
+| `POST /api/chat/sessions`             | 新建空会话                                      |
+| `GET /api/chat/sessions/:id/messages` | 一页回合（`limit` + `before`）                  |
+| `DELETE /api/chat/sessions/:id`       | 删除会话及其 transcript                         |
+| `POST /api/chat/messages/:id/outcome` | 记录卡片终态（仅展示元数据）                    |
 
-## 关键规则
+| 失败                  | 答复                           |
+| --------------------- | ------------------------------ |
+| 请求体不是 `{ text }` | `400 BAD_REQUEST`              |
+| 文本为空或全空白      | `400 INVALID_TEXT`             |
+| `limit` 不在 1–100    | `400 INVALID_TEXT`             |
+| 超过限流              | `429 RATE_LIMITED`             |
+| 会话不存在            | `404 SESSION_NOT_FOUND`        |
+| 上报终态的回合不存在  | `404 TURN_NOT_FOUND`           |
+| AI 未配置或失败       | 一条 `notice` 项；请求仍然成功 |
 
-- 意图分类输出意图 + 自足句子:追问碎片折叠后再分发;对上一轮的纠正指令按纠正后的目标域重新分类。
-- AI 结构化输出统一走经 schema 校验的通道(Zod 工具参数,或无循环场景的单发 `json()` 入口):不合格输出回喂模型自行修正;最终失败返回诚实重发提示,不 5xx、不静默丢消息。
-- `none` 意图交智能体:只读工具、有限轮次、只用真数据不编造,超长列表如实说明截断;失败回退固定文案。
-- 写入分级(见 [write-confirmation-tiers](../decisions/write-confirmation-tiers.zh.md)):追加类操作立即落库——卡出生即 confirmed,带撤回窗口;破坏类操作保留三触发——显式确认按钮、下一条消息默许(待确认提案旧到新逐条 commit)、亮出 30 秒服务端自动写入——取消是唯一拒绝路径。
-- 用户消息先落库再调 AI;AI 故障时本轮不产生回复与提案,客户端保留输入可重试。
-- 项类型是经 `@toby/contract` 两端共享的封闭 union——pi-ai 消息类别加上 `proposal_card`、`inspect_link`、`notice`;新增类型是显式决策。消息条目逐字复用 pi-ai 的字段名——零翻译回放。会话列表的预览节选(`excerpt`)是派生、可重算的字段,永不属于 transcript 本体。
-- 状态长在它的消费者读它的地方。transcript 的状态是结构性的——没有配对 toolResult 的工具调用就是诚实的"进行中":没有孤儿,无需清理。卡片的状态是字段性的——`proposal_card` 携带 kernel 的状态机(`pending → confirmed / cancelled / expired`;直写级的卡出生即 confirmed,带 `revertUntil`)。派生状态(`excerpt`、记录在案的终态)由服务端重算或写入,从不单独成条。
-- 恢复的历史里卡片以记录的终态渲染，过往提案不再带确认按钮。
-- 附件两段式:先传拿 id、随消息引用;带附件的消息不进意图分类,直接交智能体;附件一次性,孤儿 24 小时清理;白名单外 415、超限 413。
-- 智能体实际调用的只读工具确定性映射为查看跳转(inspect link),点击直达对应预览面板;AI 不参与标注。
-- chat 域不写任何业务库,只写自己的 chat.db;跨域调用全部经端口注入,域文件不 import 其他业务域。
+## 不变式
+
+1. 发送被接受后，用户的话在任何 AI 调用之前落库；AI 失败也不会丢。
+2. AI 失败是一项，不是 5xx；请求以诚实通告收尾。
+3. 项按生产顺序返回；工具调用按 id 配对；没有配对的调用就是“进行中”——没有孤儿，也不需要清理。
+4. 项 union 是封闭的；新增一种就是 `@toby/contract` 与两个 web 的契约变更。
+5. 写入只走 kernel；对话域只写 `chat.db`；跨域只经端口。
+6. 意图、卡片终态与节选是元数据或派生值，永不单独成项。
+7. 查看跳转由工具调用确定性生成；模型从不标注。
+8. 回合创建时用一个事务写入用户项，回复项用另一个事务一次追加；意图与终态是元数据更新；删除是唯一的移除。
+
+## 暂不在契约内
+
+- **附件**：没有上传端点、存储或清理。项模型已经能承载用户消息上的 pi-ai 图片块，但没有任何东西生产它。
+- **流式与停止**：发送返回整个回合；对话没有 SSE 流，也没有取消。
+- **会话切换 UI**：API 支持，web 不提供。
+- **上下文压缩**：历史只按回合数与时间截断，不做摘要。

@@ -84,3 +84,11 @@ export interface LedgerMonthReport {
   readonly expense_total: number;
   readonly categories: readonly LedgerCategorySummary[];
 }
+
+export interface LedgerDayReport {
+  readonly date: string;
+  readonly transactions: readonly LedgerTransactionRow[];
+  readonly income_total: number;
+  readonly expense_total: number;
+  readonly categories: readonly LedgerCategorySummary[];
+}

@@ -14,6 +14,11 @@
  *                   effect happens solely after user confirmation.
  * Prohibited capabilities (shell, file system, direct database access) are
  * not tools at all: they are absent by construction, not merely blocked.
+ *
+ * Every tool also declares its one-line purpose (`promptSnippet`) and any
+ * usage notes (`promptGuidelines`); the runtime renders the prompt's
+ * <tools> section from them (prompt.ts), so hand-written prompt text never
+ * names a tool.
  */
 
 import { Agent } from "@earendil-works/pi-agent-core";
@@ -35,6 +40,7 @@ import type {
 import type { z } from "zod";
 import { toolSchema } from "./tool-schema.ts";
 import type { ToolParameterSchema } from "./tool-schema.ts";
+import { buildSystemPrompt, promptLine } from "./prompt.ts";
 import type { AiRuntimeConfig } from "./types.ts";
 import { AiError } from "./errors.ts";
 import { resolveCatalogModel } from "./catalog.ts";
@@ -44,10 +50,14 @@ import type { TraceReporter } from "../trace/types.ts";
 /** Safety classification every Toby tool must carry. */
 export type ToolKind = "read-only" | "write-intent";
 
-/** A pi-agent-core tool wrapped with its mandatory safety kind. */
+/** A pi-agent-core tool wrapped with its mandatory safety kind and prompt metadata. */
 export interface TobyTool {
   readonly kind: ToolKind;
   readonly tool: AgentTool<ToolParameterSchema>;
+  /** One line for the prompt's generated <tools> section. */
+  readonly promptSnippet: string;
+  /** Usage notes rendered under the tool in <tools>; never name the tool. */
+  readonly promptGuidelines: readonly string[];
 }
 
 /**
@@ -59,6 +69,10 @@ export type TobyToolDefinition<S extends z.ZodType> = Omit<
   "parameters" | "execute"
 > & {
   readonly parameters: S;
+  /** One line the prompt's <tools> section shows next to the tool name. */
+  readonly promptSnippet: string;
+  /** Optional usage notes, each one line, rendered under the tool. */
+  readonly promptGuidelines?: readonly string[];
   execute: (
     toolCallId: string,
     params: z.infer<S>,
@@ -78,13 +92,26 @@ export function defineTool<S extends z.ZodType>(
   kind: ToolKind,
   definition: TobyToolDefinition<S>,
 ): TobyTool {
-  const { parameters, execute, ...rest } = definition;
+  const { parameters, execute, promptSnippet, promptGuidelines, ...rest } =
+    definition;
   const tool: AgentTool<ToolParameterSchema> = {
     ...rest,
     parameters: toolSchema(parameters),
     execute: execute as AgentTool<ToolParameterSchema>["execute"],
   };
-  return { kind, tool };
+  // Fail at definition time, not at assembly: a blank or multi-line snippet
+  // would break the generated <tools> list.
+  return {
+    kind,
+    tool,
+    promptSnippet: promptLine(
+      promptSnippet,
+      `promptSnippet of ${definition.name}`,
+    ),
+    promptGuidelines: (promptGuidelines ?? []).map((guideline, index) =>
+      promptLine(guideline, `promptGuidelines[${index}] of ${definition.name}`),
+    ),
+  };
 }
 
 export interface TobyAgentPolicy {
@@ -97,8 +124,22 @@ export interface TobyAgentPolicy {
   readonly maxTurns: number;
 }
 
+/** One prior exchange replayed before the new prompt (text only). */
+export interface TobyHistoryMessage {
+  readonly role: "user" | "assistant";
+  readonly text: string;
+  readonly timestamp: number;
+}
+
 export interface TobyAgentSpec {
-  readonly systemPrompt: string;
+  /** The hand-written identity; the runtime adds the generated sections. */
+  readonly preamble: string;
+  /** The domain's own prompt rules (behaviour, tone, boundaries). */
+  readonly rules?: readonly string[];
+  /** Per-run values (today's date, weekday, ...), rendered last. */
+  readonly context?: readonly string[];
+  /** Prior exchanges replayed as plain text before the new prompt. */
+  readonly history?: readonly TobyHistoryMessage[];
   readonly tools: readonly TobyTool[];
   readonly policy: TobyAgentPolicy;
   /** Reply token budget forwarded to the provider request. */
@@ -184,6 +225,54 @@ async function throwForProviderFailure(
 
 export type TobyAgentFactory = (spec: TobyAgentSpec) => TobyAgent;
 
+const EMPTY_USAGE: Usage = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
+
+/**
+ * Prior exchanges as pi-ai messages: user text verbatim, an assistant reply
+ * as one text block. Thinking, tool calls and tool results are not replayed
+ * — history is for what was said, not how a past tool loop ran. The
+ * assistant carrier fields come from the resolved model so every provider
+ * sees a well-formed transcript.
+ */
+function historyMessagesOf(
+  history: readonly TobyHistoryMessage[],
+  model: Model<string>,
+): Message[] {
+  const messages: Message[] = [];
+  for (const entry of history) {
+    const text = entry.text.trim();
+    if (text.length === 0) {
+      continue;
+    }
+    if (entry.role === "user") {
+      messages.push({
+        role: "user",
+        content: text,
+        timestamp: entry.timestamp,
+      });
+      continue;
+    }
+    messages.push({
+      role: "assistant",
+      content: [{ type: "text", text }],
+      api: model.api,
+      provider: model.provider,
+      model: model.id,
+      usage: EMPTY_USAGE,
+      stopReason: "stop",
+      timestamp: entry.timestamp,
+    });
+  }
+  return messages;
+}
+
 export interface TobyAgentFactoryOptions {
   /** Injected in tests; defaults to the shared pi-ai model catalog. */
   readonly streamFn?: StreamFn;
@@ -209,6 +298,10 @@ function createTobyAgent(
   if (toolByName.size !== spec.tools.length) {
     throw new Error("duplicate tool name in agent spec");
   }
+  // Rendered once at assembly: preamble + generated <tools> + <rules> +
+  // <context>. A prompt naming a tool in hand-written prose fails here.
+  const systemPrompt = buildSystemPrompt(spec);
+  const history = historyMessagesOf(spec.history ?? [], model);
 
   return {
     async run(prompt: string): Promise<TobyAgentRunResult> {
@@ -217,7 +310,8 @@ function createTobyAgent(
 
       const agent = new Agent({
         initialState: {
-          systemPrompt: spec.systemPrompt,
+          systemPrompt,
+          messages: history,
           model,
           tools: spec.tools.map((entry) => entry.tool),
         },

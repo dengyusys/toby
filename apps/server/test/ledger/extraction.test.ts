@@ -14,6 +14,7 @@ import {
   type LedgerDraft,
 } from "../../src/domains/ledger/extraction.ts";
 import { LEDGER_ENTRIES_TOOL_SCHEMA } from "../../src/domains/ledger/schema.ts";
+import { buildSystemPrompt } from "../../src/infrastructure/model/prompt.ts";
 import type {
   TobyAgent,
   TobyAgentFactory,
@@ -178,11 +179,34 @@ describe("createLedgerExtractor", () => {
     await expect(
       extractor.extract("hi", new Date("2026-03-05T23:00:00")),
     ).rejects.toBeInstanceOf(AiError);
-    expect(specs[0]!.systemPrompt).toContain("2026-03-05");
+    const prompt = buildSystemPrompt(specs[0]!);
+    expect(prompt).toContain("2026-03-05");
     // A sentence without a date must default to today, not trigger a
     // follow-up question about the date.
-    expect(specs[0]!.systemPrompt).toContain("未提及日期就是今天");
+    expect(prompt).toContain("未提及日期就是今天");
     expect(prompts).toEqual(["hi"]);
+  });
+
+  it("keeps tool names out of the hand-written prompt text", async () => {
+    const { extractor, specs } = makeExtractor([{ text: "unused" }]);
+    await expect(extractor.extract("hi", NOW)).rejects.toBeInstanceOf(AiError);
+    const spec = specs[0]!;
+    // The runtime renders <tools> from the definitions; every other section
+    // stays free of names, so a renamed tool cannot leave a stale mention.
+    const prose = [
+      spec.preamble,
+      ...(spec.rules ?? []),
+      ...(spec.context ?? []),
+    ].join("\n");
+    for (const entry of spec.tools) {
+      expect(prose).not.toContain(entry.tool.name);
+    }
+    const prompt = buildSystemPrompt(spec);
+    expect(prompt).toContain("- submit_entries：");
+    expect(prompt).toContain("- ask_user：");
+    // The behaviour the prompt used to spell out survives as rules/notes.
+    expect(prompt).toContain("能确定就直接提交");
+    expect(prompt).toContain("才用本工具");
   });
 
   it("captures a clarifying question via ask_user", async () => {

@@ -17,6 +17,7 @@ import type { RateLimiter } from "./rate-limit.ts";
 import type { ChatStore, StoredTurn } from "./store.ts";
 import type {
   ChatAgent,
+  ChatHistoryMessage,
   ChatIntent,
   ChatItem,
   ChatLedgerPort,
@@ -42,7 +43,17 @@ const UNCONFIGURED_MESSAGE =
 
 const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 100;
+/** Prior turns the classifier folds a fragment against. */
 const HISTORY_TURNS = 3;
+/** Prior turns replayed to the agent; more loses the thread, less forgets it. */
+const AGENT_HISTORY_TURNS = 4;
+/**
+ * A turn older than this is stale for the agent: after a long gap the user
+ * is starting a new thread, and replaying yesterday's reply only confuses it.
+ */
+const AGENT_HISTORY_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+/** One text's cap in replayed history — a long report must not eat the budget. */
+const HISTORY_TEXT_MAX_CHARS = 500;
 
 /** The minimal well-formed pi-ai shapes the service synthesizes itself. */
 function userMessageItem(text: string, timestamp: number): ChatItem {
@@ -136,24 +147,63 @@ export function createChatService(deps: {
 }): ChatService {
   const { store, clock } = deps;
 
-  /** The recent exchange history the classifier folds against. */
-  async function recentHistory(
-    sessionId: string,
-  ): Promise<{ user: string; reply: string }[]> {
+  /**
+   * The recent settled exchanges (the just-persisted turn has no reply yet,
+   * so it never folds onto itself). Two views: the classifier's compact
+   * {{user, reply}} pairs, and the agent's text-only transcript.
+   */
+  async function recentHistoryTurns(sessionId: string): Promise<HistoryTurn[]> {
     const page = await store.listTurns(sessionId, {
-      limit: HISTORY_TURNS,
+      limit: AGENT_HISTORY_TURNS + 1,
     });
     return page.turns
       .filter((turn) => turn.items.length > 1)
+      .slice(-AGENT_HISTORY_TURNS)
       .map((turn) => ({
         user: excerptOfTurn(turn),
         reply: replyTextOfTurn(turn),
+        assistant_text: assistantTextOfTurn(turn),
+        created_at: turn.created_at,
       }));
+  }
+
+  /**
+   * The agent's replay: text only, oldest first, each text capped, and only
+   * turns from the last six hours — a longer gap starts a new thread.
+   */
+  function agentHistoryOf(turns: readonly HistoryTurn[]): ChatHistoryMessage[] {
+    const now = clock();
+    const messages: ChatHistoryMessage[] = [];
+    for (const turn of turns) {
+      const parsed = Date.parse(turn.created_at);
+      const timestamp = Number.isNaN(parsed) ? now : parsed;
+      if (now - timestamp > AGENT_HISTORY_MAX_AGE_MS) {
+        continue;
+      }
+      const user = clipHistoryText(turn.user);
+      if (user.length > 0) {
+        messages.push({ role: "user", text: user, timestamp });
+      }
+      const reply = clipHistoryText(turn.assistant_text);
+      if (reply.length > 0) {
+        messages.push({ role: "assistant", text: reply, timestamp });
+      }
+    }
+    return messages;
+  }
+
+  /** The classifier's compact history: the last few exchanges. */
+  function classifierHistoryOf(turns: readonly HistoryTurn[]) {
+    return turns.slice(-HISTORY_TURNS).map((turn) => ({
+      user: clipHistoryText(turn.user),
+      reply: clipHistoryText(turn.reply),
+    }));
   }
 
   async function route(
     intent: ChatIntent,
     sentence: string,
+    history: readonly ChatHistoryMessage[],
   ): Promise<{ intent: ChatIntent; items: ChatItem[] }> {
     if (intent === "ledger") {
       if (!deps.ledger) {
@@ -187,7 +237,7 @@ export function createChatService(deps: {
         return { intent, items: [noticeItem(AGENT_FALLBACK)] };
       }
       try {
-        const run = await deps.agent.run(sentence);
+        const run = await deps.agent.run(sentence, history);
         const items = [
           ...transcriptItemsOf(run.messages),
           ...inspectLinksOf(run.messages),
@@ -237,12 +287,16 @@ export function createChatService(deps: {
         try {
           // History holds only settled turns (the just-persisted one has
           // no reply items yet, so it never folds onto itself).
-          const history = await recentHistory(session.id);
+          const turns = await recentHistoryTurns(session.id);
           const classification = await deps.classifier.classify(
             trimmed,
-            history,
+            classifierHistoryOf(turns),
           );
-          routed = await route(classification.intent, classification.sentence);
+          routed = await route(
+            classification.intent,
+            classification.sentence,
+            agentHistoryOf(turns),
+          );
         } catch (error) {
           if (error instanceof AiError && error.code === "unconfigured") {
             routed = {
@@ -288,10 +342,10 @@ export function createChatService(deps: {
         limit,
         ...(options.before !== undefined ? { before: options.before } : {}),
       });
-      if (page.turns.length === 0 && options.before === undefined) {
-        // An empty first page is only honest for a session that does not
-        // exist; existing-but-empty sessions are impossible (a turn
-        // always carries the user message).
+      if (page.turns.length === 0) {
+        // An empty page is honest for a live session that has no turns yet
+        // (created through the API) or for a cursor at the oldest turn;
+        // only a session that does not exist answers 404.
         const sessions = await store.listSessions();
         if (!sessions.some((s) => s.session_id === sessionId)) {
           throw new ChatRequestError(
@@ -344,6 +398,48 @@ function parseLimit(raw: string | undefined): number {
     );
   }
   return parsed;
+}
+
+/** One settled exchange, in both the classifier's and the agent's view. */
+interface HistoryTurn {
+  readonly user: string;
+  /** What the classifier sees as the reply: assistant text or a notice. */
+  readonly reply: string;
+  /** What the agent replays: assistant text only, joined across the turn. */
+  readonly assistant_text: string;
+  readonly created_at: string;
+}
+
+/** A replayed text's cap: history is context, not a transcript copy. */
+function clipHistoryText(text: string): string {
+  return text.length <= HISTORY_TEXT_MAX_CHARS
+    ? text
+    : `${text.slice(0, HISTORY_TEXT_MAX_CHARS)}…`;
+}
+
+/** The assistant text items of one turn joined, in order; no notices/cards. */
+function assistantTextOfTurn(turn: ChatTurnView): string {
+  const parts: string[] = [];
+  for (const item of turn.items) {
+    if ((item as { role?: unknown }).role !== "assistant") {
+      continue;
+    }
+    const content = (item as { content?: unknown }).content;
+    if (typeof content === "string") {
+      parts.push(content);
+      continue;
+    }
+    if (!Array.isArray(content)) {
+      continue;
+    }
+    for (const block of content) {
+      const record = block as { type?: string; text?: string };
+      if (record.type === "text" && typeof record.text === "string") {
+        parts.push(record.text);
+      }
+    }
+  }
+  return parts.join("\n").trim();
 }
 
 /** The user words of one stored turn ("" when nothing readable). */
