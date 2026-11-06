@@ -62,7 +62,10 @@ kind(联网搜索、生图)已有预案,待有域需要时再引入。
   过期清扫任务合并为同一次执行),各域在 commit 时传入自己的执行器。
 - 提示词、工具与 schema 归各域:ledger 的草稿 schema 以 Zod 只定义
   一次,同时是面向模型的工具契约与服务端的形状门控;validation.ts 仍是
-  语义信任边界。
+  语义信任边界。系统提示词由运行时统一渲染(`prompt.ts`):各域写
+  preamble、规则与每次运行的 context,`<tools>` 段由每个工具的
+  `promptSnippet` / `promptGuidelines` 生成——手写提示词不点工具名,
+  工具改名不会留下过期引用。
 - 版本:pi-ai / pi-agent-core / pi-schema 在 pnpm catalog
   (pnpm-workspace.yaml)中精确锁定版本——pi-agent-core 精确依赖它们,
   用 `^` 会装出第二份副本、类型跨版本分叉。pi-schema 同时是直接依赖:

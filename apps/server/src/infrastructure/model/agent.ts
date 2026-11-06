@@ -14,6 +14,11 @@
  *                   effect happens solely after user confirmation.
  * Prohibited capabilities (shell, file system, direct database access) are
  * not tools at all: they are absent by construction, not merely blocked.
+ *
+ * Every tool also declares its one-line purpose (`promptSnippet`) and any
+ * usage notes (`promptGuidelines`); the runtime renders the prompt's
+ * <tools> section from them (prompt.ts), so hand-written prompt text never
+ * names a tool.
  */
 
 import { Agent } from "@earendil-works/pi-agent-core";
@@ -35,6 +40,7 @@ import type {
 import type { z } from "zod";
 import { toolSchema } from "./tool-schema.ts";
 import type { ToolParameterSchema } from "./tool-schema.ts";
+import { buildSystemPrompt, promptLine } from "./prompt.ts";
 import type { AiRuntimeConfig } from "./types.ts";
 import { AiError } from "./errors.ts";
 import { resolveCatalogModel } from "./catalog.ts";
@@ -44,10 +50,14 @@ import type { TraceReporter } from "../trace/types.ts";
 /** Safety classification every Toby tool must carry. */
 export type ToolKind = "read-only" | "write-intent";
 
-/** A pi-agent-core tool wrapped with its mandatory safety kind. */
+/** A pi-agent-core tool wrapped with its mandatory safety kind and prompt metadata. */
 export interface TobyTool {
   readonly kind: ToolKind;
   readonly tool: AgentTool<ToolParameterSchema>;
+  /** One line for the prompt's generated <tools> section. */
+  readonly promptSnippet: string;
+  /** Usage notes rendered under the tool in <tools>; never name the tool. */
+  readonly promptGuidelines: readonly string[];
 }
 
 /**
@@ -59,6 +69,10 @@ export type TobyToolDefinition<S extends z.ZodType> = Omit<
   "parameters" | "execute"
 > & {
   readonly parameters: S;
+  /** One line the prompt's <tools> section shows next to the tool name. */
+  readonly promptSnippet: string;
+  /** Optional usage notes, each one line, rendered under the tool. */
+  readonly promptGuidelines?: readonly string[];
   execute: (
     toolCallId: string,
     params: z.infer<S>,
@@ -78,13 +92,26 @@ export function defineTool<S extends z.ZodType>(
   kind: ToolKind,
   definition: TobyToolDefinition<S>,
 ): TobyTool {
-  const { parameters, execute, ...rest } = definition;
+  const { parameters, execute, promptSnippet, promptGuidelines, ...rest } =
+    definition;
   const tool: AgentTool<ToolParameterSchema> = {
     ...rest,
     parameters: toolSchema(parameters),
     execute: execute as AgentTool<ToolParameterSchema>["execute"],
   };
-  return { kind, tool };
+  // Fail at definition time, not at assembly: a blank or multi-line snippet
+  // would break the generated <tools> list.
+  return {
+    kind,
+    tool,
+    promptSnippet: promptLine(
+      promptSnippet,
+      `promptSnippet of ${definition.name}`,
+    ),
+    promptGuidelines: (promptGuidelines ?? []).map((guideline, index) =>
+      promptLine(guideline, `promptGuidelines[${index}] of ${definition.name}`),
+    ),
+  };
 }
 
 export interface TobyAgentPolicy {
@@ -98,7 +125,12 @@ export interface TobyAgentPolicy {
 }
 
 export interface TobyAgentSpec {
-  readonly systemPrompt: string;
+  /** The hand-written identity; the runtime adds the generated sections. */
+  readonly preamble: string;
+  /** The domain's own prompt rules (behaviour, tone, boundaries). */
+  readonly rules?: readonly string[];
+  /** Per-run values (today's date, weekday, ...), rendered last. */
+  readonly context?: readonly string[];
   readonly tools: readonly TobyTool[];
   readonly policy: TobyAgentPolicy;
   /** Reply token budget forwarded to the provider request. */
@@ -209,6 +241,9 @@ function createTobyAgent(
   if (toolByName.size !== spec.tools.length) {
     throw new Error("duplicate tool name in agent spec");
   }
+  // Rendered once at assembly: preamble + generated <tools> + <rules> +
+  // <context>. A prompt naming a tool in hand-written prose fails here.
+  const systemPrompt = buildSystemPrompt(spec);
 
   return {
     async run(prompt: string): Promise<TobyAgentRunResult> {
@@ -217,7 +252,7 @@ function createTobyAgent(
 
       const agent = new Agent({
         initialState: {
-          systemPrompt: spec.systemPrompt,
+          systemPrompt,
           model,
           tools: spec.tools.map((entry) => entry.tool),
         },

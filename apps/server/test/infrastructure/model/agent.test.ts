@@ -42,6 +42,7 @@ function makeProbeTool(name: string) {
     name,
     label: name,
     description: `probe tool ${name}`,
+    promptSnippet: `probe ${name}`,
     parameters: z.object({ value: z.string().optional() }),
     execute: async (_id, params) => {
       calls.push(params);
@@ -55,6 +56,7 @@ const ECHO_TOOL = defineTool("read-only", {
   name: "echo",
   label: "echo",
   description: "echo a value",
+  promptSnippet: "echo a value",
   parameters: z.object({ value: z.string() }),
   execute: async (_id, params) => ({
     content: [{ type: "text", text: params.value }],
@@ -73,7 +75,7 @@ describe("createTobyAgentFactory", () => {
     const { factory, faux } = makeHarness();
     faux.appendResponses([fauxAssistantMessage("the answer")]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [],
       policy: { allowedKinds: ["read-only"], maxTurns: 2 },
     });
@@ -85,6 +87,48 @@ describe("createTobyAgentFactory", () => {
     expect(result.usage?.totalTokens).toBeGreaterThan(0);
   });
 
+  it("renders the tool snippet and guidelines into the system prompt", async () => {
+    const { factory, faux } = makeHarness();
+    faux.appendResponses([fauxAssistantMessage("done")]);
+    const tool = defineTool("read-only", {
+      name: "probe",
+      label: "probe",
+      description: "probe tool",
+      promptSnippet: "probe a value",
+      promptGuidelines: ["Use it before asking."],
+      parameters: z.object({}),
+      execute: async () => ({ content: [], details: {} }),
+    });
+    const agent = factory({
+      preamble: "sys",
+      rules: ["be brief"],
+      context: ["today is 2026-11-06"],
+      tools: [tool],
+      policy: { allowedKinds: ["read-only"], maxTurns: 2 },
+    });
+    const result = await agent.run("go");
+    const system = result.messages[0] as { role: string; content: string };
+    expect(system.role).toBe("system");
+    expect(system.content).toContain(
+      "<tools>\n- probe：probe a value\n  - Use it before asking.\n</tools>",
+    );
+    expect(system.content).toContain("<rules>\n- be brief\n</rules>");
+    expect(system.content).toContain(
+      "<context>\ntoday is 2026-11-06\n</context>",
+    );
+  });
+
+  it("rejects hand-written prompt text that names a tool", () => {
+    const { factory } = makeHarness();
+    expect(() =>
+      factory({
+        preamble: "You may call echo.",
+        tools: [ECHO_TOOL],
+        policy: { allowedKinds: ["read-only"], maxTurns: 2 },
+      }),
+    ).toThrow(/names tool "echo"/);
+  });
+
   it("executes allowed registered tools", async () => {
     const { factory, faux } = makeHarness();
     const probe = makeProbeTool("probe");
@@ -93,7 +137,7 @@ describe("createTobyAgentFactory", () => {
       fauxAssistantMessage("done"),
     ]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [probe.tool],
       policy: { allowedKinds: ["read-only"], maxTurns: 3 },
     });
@@ -109,6 +153,7 @@ describe("createTobyAgentFactory", () => {
       name: "strict_probe",
       label: "strict_probe",
       description: "strict probe tool",
+      promptSnippet: "strict probe",
       parameters: z.object({ value: z.string() }),
       execute: async (_id, params) => {
         executions += 1;
@@ -127,7 +172,7 @@ describe("createTobyAgentFactory", () => {
       fauxAssistantMessage("done"),
     ]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [strict],
       policy: { allowedKinds: ["read-only"], maxTurns: 4 },
     });
@@ -144,6 +189,7 @@ describe("createTobyAgentFactory", () => {
       name: "typed_probe",
       label: "typed_probe",
       description: "typed probe tool",
+      promptSnippet: "typed probe",
       parameters: z.object({
         count: z.number().int(),
         tags: z.array(z.string()),
@@ -164,7 +210,7 @@ describe("createTobyAgentFactory", () => {
       fauxAssistantMessage("done"),
     ]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [typed],
       policy: { allowedKinds: ["read-only"], maxTurns: 3 },
     });
@@ -180,6 +226,7 @@ describe("createTobyAgentFactory", () => {
       name: "typed_probe",
       label: "typed_probe",
       description: "typed probe tool",
+      promptSnippet: "typed probe",
       parameters: z.object({ count: z.number().int() }),
       execute: async (_id, params) => {
         calls.push(params);
@@ -196,7 +243,7 @@ describe("createTobyAgentFactory", () => {
       fauxAssistantMessage("done"),
     ]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [typed],
       policy: { allowedKinds: ["read-only"], maxTurns: 4 },
     });
@@ -213,7 +260,7 @@ describe("createTobyAgentFactory", () => {
       fauxAssistantMessage("gave up"),
     ]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [probe.tool],
       policy: { allowedKinds: ["read-only"], maxTurns: 3 },
     });
@@ -228,6 +275,7 @@ describe("createTobyAgentFactory", () => {
       name: "submit_thing",
       label: "submit_thing",
       description: "submit a thing",
+      promptSnippet: "submit a thing",
       parameters: z.object({ value: z.string() }),
       execute: async () => {
         throw new Error("must never execute");
@@ -238,7 +286,7 @@ describe("createTobyAgentFactory", () => {
       fauxAssistantMessage("stopped trying"),
     ]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [writer],
       policy: { allowedKinds: ["read-only"], maxTurns: 3 },
     });
@@ -254,7 +302,7 @@ describe("createTobyAgentFactory", () => {
       fauxAssistantMessage([fauxToolCall("echo", { value: "3" })]),
     ]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [ECHO_TOOL],
       policy: { allowedKinds: ["read-only"], maxTurns: 2 },
     });
@@ -273,7 +321,7 @@ describe("createTobyAgentFactory", () => {
     );
     faux.appendResponses([fauxAssistantMessage("word ".repeat(200))]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [],
       policy: { allowedKinds: ["read-only"], maxTurns: 2 },
     });
@@ -291,7 +339,7 @@ describe("createTobyAgentFactory", () => {
       }),
     ]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [],
       policy: { allowedKinds: ["read-only"], maxTurns: 2 },
     });
@@ -305,7 +353,7 @@ describe("createTobyAgentFactory", () => {
     const { factory } = makeHarness();
     expect(() =>
       factory({
-        systemPrompt: "sys",
+        preamble: "sys",
         tools: [ECHO_TOOL, ECHO_TOOL],
         policy: { allowedKinds: ["read-only"], maxTurns: 2 },
       }),
@@ -323,7 +371,7 @@ describe("createTobyAgentFactory", () => {
     ]);
     const agent = factory({
       name: "probe-agent",
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [ECHO_TOOL],
       policy: { allowedKinds: ["read-only"], maxTurns: 3 },
     });
@@ -374,7 +422,7 @@ describe("createTobyAgentFactory", () => {
       }),
     ]);
     const agent = factory({
-      systemPrompt: "sys",
+      preamble: "sys",
       tools: [],
       policy: { allowedKinds: ["read-only"], maxTurns: 2 },
     });

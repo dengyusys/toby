@@ -82,7 +82,11 @@ is anticipated but not introduced until a domain needs it.
 - Domains own prompts, tools, and schemas: ledger's draft schema is
   defined once in Zod and is simultaneously the model-facing tool
   contract and the server's shape gate; validation.ts remains the
-  semantic trust boundary.
+  semantic trust boundary. The runtime renders each agent's system prompt
+  (`prompt.ts`): the domain writes the preamble, rules, and per-run
+  context, while the `<tools>` section is generated from each tool's
+  `promptSnippet` / `promptGuidelines` — hand-written prompt text never
+  names a tool, so a rename cannot leave a stale mention behind.
 - Versioning: pi-ai / pi-agent-core / pi-schema are pinned exact in the
   pnpm catalog (pnpm-workspace.yaml) — pi-agent-core depends on exact
   versions, and a caret would install a second copy and split the

@@ -40,17 +40,6 @@ function formatCents(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
-function systemPrompt(today: string): string {
-  return [
-    `你是 Toby,一个私人助手,负责回答问题、查询数据和小聊。今天是 ${today}。`,
-    "规则:",
-    "1. 只用工具返回的真实数据回答,不编造;数据被截断就明说。",
-    "2. 查账用 ledger_months 找有记录的月份,再用 ledger_month_report 取该月明细。",
-    "3. 用户要记账、记事、设日程时,温和地说明自己只负责查询,建议直接说那句话(比如「记午饭 30」),系统会自动路由。",
-    "4. 回答用简洁的中文。",
-  ].join("\n");
-}
-
 export interface ChatAgentDeps {
   agentFactory: TobyAgentFactory;
   ledger: ChatLedgerPort;
@@ -63,7 +52,9 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
   const ledgerMonths = defineTool("read-only", {
     name: "ledger_months",
     label: "有记录的月份",
-    description: "列出账本里有记录的月份,降序。查账前先看有哪些月。",
+    description: "列出账本里有记录的月份,降序。",
+    promptSnippet: "列出有记录的月份",
+    promptGuidelines: ["查账前先看有哪些月份,再取该月明细。"],
     parameters: z.object({}).strict(),
     execute: async () => {
       const { months } = await ledger.months();
@@ -86,6 +77,7 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
     name: "ledger_month_report",
     label: "月账单",
     description: "取某个月的账单:收支合计、分类小计和逐笔明细(金额为分)。",
+    promptSnippet: "取某个月的账单明细",
     parameters: z
       .object({ month: z.string().regex(/^[0-9]{4}-(0[1-9]|1[0-2])$/) })
       .strict(),
@@ -119,7 +111,13 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       const agent = agentFactory({
         name: "chat-agent",
-        systemPrompt: systemPrompt(today),
+        preamble: "你是 Toby,一个私人助手,负责回答问题、查询数据和小聊。",
+        rules: [
+          "只用工具返回的真实数据回答,不编造;数据被截断就明说。",
+          "用户要记账、记事、设日程时,温和地说明自己只负责查询,建议直接说那句话(比如「记午饭 30」),系统会自动路由。",
+          "回答用简洁的中文。",
+        ],
+        context: [`今天是 ${today}。`],
         tools: [ledgerMonths, ledgerMonthReport],
         policy: {
           allowedKinds: ["read-only"],
