@@ -42,7 +42,7 @@ export function AppLayout() {
       <div className="flex h-dvh overflow-hidden">
         <aside
           aria-label="侧边导航"
-          className="flex w-[448px] shrink-0 flex-col border-r bg-muted/50 p-3 max-[1100px]:w-56 max-[767px]:w-16"
+          className="flex w-[360px] shrink-0 flex-col border-r bg-muted/50 p-3 max-[1100px]:w-56 max-[767px]:w-16"
         >
           <div className="flex items-center gap-2.5 px-2 py-3 max-[767px]:justify-center max-[767px]:px-0">
             <img src={logo} alt="" className="size-6" />
