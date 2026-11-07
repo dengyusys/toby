@@ -4,12 +4,16 @@
  * happens when its build exists — a fresh clone serves no pages, and API
  * requests still answer. Files that are not there (dotfiles included) fall
  * through to the shared PAGE_NOT_FOUND body.
+ *
+ * Dev mode replaces both mounts: the SPA entries redirect to the vite dev
+ * servers, so a stale dist build from an earlier `pnpm run build` can never
+ * pose as the app on the server port (docs/operations/local-dev.md).
  */
 
 import { existsSync } from "node:fs";
 import fastifyStatic from "@fastify/static";
 import type { FastifyInstance } from "fastify";
-import type { PathConfig } from "../config/config.ts";
+import type { PathConfig, WebRedirectConfig } from "../config/config.ts";
 
 /** The mobile SPA's mount: its single leading URL segment. */
 export const MOBILE_MOUNT = "m";
@@ -17,7 +21,21 @@ export const MOBILE_MOUNT = "m";
 export async function registerStaticAssets(
   app: FastifyInstance,
   paths: Pick<PathConfig, "webRoot" | "mobileWebRoot">,
+  redirects?: WebRedirectConfig,
 ): Promise<void> {
+  if (redirects) {
+    // Nothing is served from disk in this mode: the entries bounce and
+    // every other path (assets included) stays a PAGE_NOT_FOUND.
+    app.get("/", (_request, reply) => {
+      reply.redirect(`${redirects.pc}/`, 302);
+    });
+    for (const url of [`/${MOBILE_MOUNT}`, `/${MOBILE_MOUNT}/`]) {
+      app.get(url, (_request, reply) => {
+        reply.redirect(`${redirects.mobile}/`, 302);
+      });
+    }
+    return;
+  }
   // One scope for both mounts, so its error handler covers only them.
   await app.register(async (scope) => {
     // @fastify/static refuses a path whose normalized form differs (dot

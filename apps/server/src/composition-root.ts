@@ -137,7 +137,11 @@ export async function createApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   await app.register(cookie);
-  await registerStaticAssets(app, options.config.paths);
+  await registerStaticAssets(
+    app,
+    options.config.paths,
+    options.config.devWebRedirect,
+  );
 
   const domains =
     options.domains ?? productionDomains({ config: options.config });

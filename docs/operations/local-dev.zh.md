@@ -6,7 +6,7 @@
 
 | 进程                        | 端口 | 角色                                                 |
 | --------------------------- | ---- | ---------------------------------------------------- |
-| Toby 服务端(`@toby/server`) | 8629 | API + 生产静态服务(`/`、`/m/`)                       |
+| Toby 服务端(`@toby/server`) | 8629 | API + 生产静态服务(开发期 `/`、`/m/` 重定向到 Vite)  |
 | Web 开发服务器(Vite)        | 8630 | PC 端 `http://localhost:8630/`,`/api` 代理到 8629    |
 | Web-mobile 开发服务器(Vite) | 8631 | 移动端 `http://localhost:8631/m/`,`/api` 代理到 8629 |
 
@@ -15,6 +15,8 @@
 ## `pnpm run dev`
 
 服务端经 `scripts/server-dev.js` 运行:Node 22 原生 type stripping 直接跑 `src/main.ts`,配 `node --watch`——开发期没有编译步骤,导入图里任何文件改动都只是进程重启(服务端源码强制 erasable 语法,无需转换)。类型错误不会阻止重启:编辑器和 `pnpm run check` 负责把关,生产构建仍走纯 `tsc`(`pnpm run build`)。8630/8631 上的两个 Web 应用保持 Vite HMR——改组件即时热替换,不整页刷新。
+
+开发期服务端从不提供前端构建产物:8629 上的 `/`、`/m`、`/m/` 一律 302 到 Vite 开发服务器,之前 `pnpm run build` 留下的过期 `apps/*/dist` 不会再冒充应用。重定向目标来自 `TOBY_DEV_PC_ORIGIN` / `TOBY_DEV_MOBILE_ORIGIN`:`scripts/server-dev.js` 设默认值,shell 中导出的值可覆盖(仅限导出的——与下文 `TOBY_PORT` 同一限制)。
 
 一条命令拉起三个进程,由 `scripts/dev.js` 编排:
 
@@ -43,6 +45,8 @@
 | `TOBY_AI_MODEL`                 | _(空)_        | pi-ai 的 `provider/model` 组合(如 `deepseek/deepseek-flash`);留空则一句话 AI 路径返回 501                     |
 | `DEEPSEEK_API_KEY`              | _(空)_        | pi-ai 读取的供应商密钥(各供应商各自的变量,不用 TOBY_ 前缀)                                                    |
 | `TOBY_AI_TIMEOUT_MS`            | `30000`       | AI 请求超时(1000–120000 毫秒)                                                                                 |
+| `TOBY_DEV_PC_ORIGIN`            | _(空)_        | 仅开发期:`/` 的重定向目标;`pnpm run dev` 设为 `http://localhost:8630`。与 `TOBY_DEV_MOBILE_ORIGIN` 成对       |
+| `TOBY_DEV_MOBILE_ORIGIN`        | _(空)_        | 仅开发期:`/m/` 的重定向目标;`pnpm run dev` 设为 `http://localhost:8631/m`。与 `TOBY_DEV_PC_ORIGIN` 成对       |
 | `TOBY_AUTH_PASSWORD_HASH`       | _(空)_        | `scripts/hash-password.js` 生成的 scrypt 哈希(生成:`node scripts/hash-password.js "你的密码"`);设置即启用登录 |
 | `TOBY_AUTH_SESSION_TTL_HOURS`   | `168`         | 会话有效期(1–8760 小时)                                                                                       |
 | `TOBY_AUTH_SECURE_COOKIE`       | `false`       | `true` 为会话 Cookie 追加 `Secure`(HTTPS 部署)                                                                |
@@ -61,4 +65,4 @@ MySQL 适配器是可选项(见[数据库适配器决策](../decisions/db-adapte
 | `[dev] ...vite/bin/vite.js not found`     | 依赖未安装 —— 先 `pnpm install`                                                                |
 | 启动后立刻 `[server] exited unexpectedly` | 8629 已被占用(EADDRINUSE)—— 释放端口或改 `TOBY_PORT`(并导出)                                   |
 | Vite 提示 8630/8631 被占用                | 上次运行残留进程 —— 杀掉;编排器本身就是为了避免这种情况                                        |
-| 8629 端口上 `/` 与 `/m/` 404              | 尚无前端构建(`apps/*/dist` 不存在)—— fresh clone 预期行为;跑 `pnpm run build` 或改用开发服务器 |
+| 8629 端口上 `/` 与 `/m/` 404(生产运行)    | 尚无前端构建(`apps/*/dist` 不存在)—— fresh clone 预期行为;跑 `pnpm run build` 或改用开发服务器 |

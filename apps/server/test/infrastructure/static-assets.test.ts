@@ -1,7 +1,9 @@
 /**
  * Static dual mount with real build roots: PC at /, mobile at /m/, both
  * no-store; /m redirects to /m/; missing files fall through to the JSON
- * PAGE_NOT_FOUND body (the not-found answer the shell installs).
+ * PAGE_NOT_FOUND body (the not-found answer the shell installs). The dev
+ * redirect mode replaces both mounts: entries bounce to the vite dev
+ * servers even though the dist builds exist, and nothing is served.
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -29,21 +31,21 @@ afterAll(() => {
   rmSync(baseDir, { recursive: true, force: true });
 });
 
-let app: FastifyInstance;
-
-beforeEach(async () => {
-  app = await createTestApp({
-    config: resolveConfig({ env: { TOBY_DATA_ROOT: baseDir } }),
-    staticRoots: { webRoot, mobileWebRoot },
-    domains: [(instance) => instance.register(systemPlugin({}))],
-  });
-});
-
-afterEach(async () => {
-  await app.close();
-});
-
 describe("static dual mount", () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    app = await createTestApp({
+      config: resolveConfig({ env: { TOBY_DATA_ROOT: baseDir } }),
+      staticRoots: { webRoot, mobileWebRoot },
+      domains: [(instance) => instance.register(systemPlugin({}))],
+    });
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
   it("serves the PC entry at / with no-store", async () => {
     const response = await app.inject({ method: "GET", url: "/" });
     expect(response.statusCode).toBe(200);
@@ -112,5 +114,60 @@ describe("static dual mount", () => {
       expect(response.statusCode, url).toBe(404);
       expect(response.json().errorCode).toBe("PAGE_NOT_FOUND");
     }
+  });
+});
+
+describe("dev page redirects", () => {
+  // Same real dist roots as the serving tests — the point is that the
+  // redirect mode wins even though builds exist on disk.
+  let devApp: FastifyInstance;
+
+  beforeEach(async () => {
+    devApp = await createTestApp({
+      config: resolveConfig({
+        env: {
+          TOBY_DATA_ROOT: baseDir,
+          TOBY_DEV_PC_ORIGIN: "http://localhost:8630",
+          TOBY_DEV_MOBILE_ORIGIN: "http://localhost:8631/m",
+        },
+      }),
+      staticRoots: { webRoot, mobileWebRoot },
+      domains: [(instance) => instance.register(systemPlugin({}))],
+    });
+  });
+
+  afterEach(async () => {
+    await devApp.close();
+  });
+
+  it("/ bounces to the PC dev server with no-store", async () => {
+    const response = await devApp.inject({ method: "GET", url: "/" });
+    expect(response.statusCode).toBe(302);
+    expect(response.headers.location).toBe("http://localhost:8630/");
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("/m and /m/ bounce to the mobile dev server", async () => {
+    for (const url of ["/m", "/m/"]) {
+      const response = await devApp.inject({ method: "GET", url });
+      expect(response.statusCode, url).toBe(302);
+      expect(response.headers.location, url).toBe("http://localhost:8631/m/");
+    }
+  });
+
+  it("nothing is served from the dist builds", async () => {
+    for (const url of ["/index.html", "/assets/index.js", "/m/index.html"]) {
+      const response = await devApp.inject({ method: "GET", url });
+      expect(response.statusCode, url).toBe(404);
+      expect(response.json().errorCode, url).toBe("PAGE_NOT_FOUND");
+    }
+  });
+
+  it("API routes are untouched", async () => {
+    const response = await devApp.inject({
+      method: "GET",
+      url: "/api/system/health",
+    });
+    expect(response.statusCode).toBe(200);
   });
 });

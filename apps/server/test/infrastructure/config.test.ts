@@ -185,6 +185,43 @@ describe("resolveConfig", () => {
     ).toThrow(/TOBY_AUTH_SECURE_COOKIE/);
   });
 
+  it("dev web redirects: off by default, both origins when set", () => {
+    expect(resolveConfig({ env: {} }).devWebRedirect).toBeUndefined();
+    const config = resolveConfig({
+      env: {
+        TOBY_DEV_PC_ORIGIN: "http://localhost:8630",
+        TOBY_DEV_MOBILE_ORIGIN: "http://localhost:8631/m/",
+      },
+    });
+    // Trailing slashes are trimmed so the redirect target composes as `${origin}/`.
+    expect(config.devWebRedirect).toEqual({
+      pc: "http://localhost:8630",
+      mobile: "http://localhost:8631/m",
+    });
+  });
+
+  it("dev web redirects: one origin alone or a malformed origin is rejected", () => {
+    expect(() =>
+      resolveConfig({ env: { TOBY_DEV_PC_ORIGIN: "http://localhost:8630" } }),
+    ).toThrow(/together/);
+    expect(() =>
+      resolveConfig({
+        env: {
+          TOBY_DEV_PC_ORIGIN: "http://localhost:8630",
+          TOBY_DEV_MOBILE_ORIGIN: "localhost:8631/m",
+        },
+      }),
+    ).toThrow(/TOBY_DEV_MOBILE_ORIGIN/);
+    expect(() =>
+      resolveConfig({
+        env: {
+          TOBY_DEV_PC_ORIGIN: "http://localhost:8630/?x=1",
+          TOBY_DEV_MOBILE_ORIGIN: "http://localhost:8631/m",
+        },
+      }),
+    ).toThrow(/TOBY_DEV_PC_ORIGIN/);
+  });
+
   it("the listen target resolves the same way resolveConfig does", () => {
     expect(resolveListenTarget({})).toEqual({ host: "127.0.0.1", port: 8629 });
     expect(

@@ -46,6 +46,15 @@ function reservePort(): Promise<number> {
 // Temporary data root only — production data/ is never touched.
 const tempDataRoot = mkdtempSync(path.join(tmpdir(), "toby-integration-"));
 
+// Production runs: dev redirect targets exported in the developer's shell
+// (docs/operations/local-dev.md) must not turn the static mounts off.
+// spawn drops undefined values, so these keys never reach the child.
+const productionEnv: NodeJS.ProcessEnv = {
+  ...process.env,
+  TOBY_DEV_PC_ORIGIN: undefined,
+  TOBY_DEV_MOBILE_ORIGIN: undefined,
+};
+
 let baseUrl: string;
 let serverProcess: ReturnType<typeof spawn>;
 let stderrBuffer = "";
@@ -56,7 +65,7 @@ beforeAll(async () => {
   serverProcess = spawn(process.execPath, [serverEntry], {
     cwd: repositoryRoot,
     env: {
-      ...process.env,
+      ...productionEnv,
       TOBY_HOST: "127.0.0.1",
       TOBY_PORT: String(port),
       TOBY_DATA_ROOT: tempDataRoot,
@@ -304,7 +313,7 @@ describe("http contract (auth enabled)", () => {
     authProcess = spawn(process.execPath, [serverEntry], {
       cwd: repositoryRoot,
       env: {
-        ...process.env,
+        ...productionEnv,
         TOBY_HOST: "127.0.0.1",
         TOBY_PORT: String(port),
         TOBY_DATA_ROOT: authDataRoot,

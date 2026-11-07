@@ -6,6 +6,11 @@
  * parent's environment, and forwards signals so Ctrl+C tears it down. Type
  * errors never gate a restart here — the editor and `pnpm run check` own
  * them, and production still builds through plain tsc (`pnpm run build`).
+ *
+ * It also injects the dev page-redirect targets, so the server's `/` and
+ * `/m/` bounce to the vite dev servers instead of serving whatever stale
+ * build happens to sit in the web apps' dist folders. Production never sets
+ * these variables; shell-exported values win over the defaults.
  */
 
 import { spawn } from "node:child_process";
@@ -27,7 +32,13 @@ const server = spawn(
   ],
   {
     cwd: serverRoot,
-    env: process.env,
+    env: {
+      ...process.env,
+      TOBY_DEV_PC_ORIGIN:
+        process.env.TOBY_DEV_PC_ORIGIN ?? "http://localhost:8630",
+      TOBY_DEV_MOBILE_ORIGIN:
+        process.env.TOBY_DEV_MOBILE_ORIGIN ?? "http://localhost:8631/m",
+    },
     stdio: "inherit",
     windowsHide: true,
   },

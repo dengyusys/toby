@@ -25,6 +25,18 @@ export interface PathConfig {
   mobileWebRoot: string;
 }
 
+/**
+ * Dev-only page redirects: when set, the SPA entries bounce to the vite dev
+ * servers instead of serving the dist builds (which go stale under vite).
+ * `scripts/server-dev.js` sets the variables; production never does.
+ */
+export interface WebRedirectConfig {
+  /** PC dev origin, no trailing slash (e.g. http://localhost:8630). */
+  pc: string;
+  /** Mobile dev origin including its base path (e.g. http://localhost:8631/m). */
+  mobile: string;
+}
+
 export interface MySqlConfig {
   host: string;
   port: number;
@@ -52,6 +64,8 @@ export interface TobyConfig {
   db: DatabaseConfig;
   /** Absent = AI paths disabled (the one-sentence ledger path answers 501). */
   ai?: AiRuntimeConfig;
+  /** Absent = serve the dist builds (production); set = dev redirects. */
+  devWebRedirect?: WebRedirectConfig;
   auth: AuthConfig;
 }
 
@@ -219,6 +233,54 @@ function resolveAuthConfig(env: Env): AuthConfig {
   };
 }
 
+/** One redirect origin: an absolute http(s) URL, trailing slashes trimmed. */
+function resolveRedirectOrigin(
+  value: string | undefined,
+  name: string,
+): string | undefined {
+  if (value === undefined || value === "") {
+    return undefined;
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(
+      `${name} must be an absolute http(s) URL (e.g. http://localhost:8630)`,
+    );
+  }
+  if (
+    (url.protocol !== "http:" && url.protocol !== "https:") ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      `${name} must be an absolute http(s) URL without query or fragment`,
+    );
+  }
+  return `${url.protocol}//${url.host}${url.pathname.replace(/\/+$/, "")}`;
+}
+
+function resolveDevWebRedirect(env: Env): WebRedirectConfig | undefined {
+  const pc = resolveRedirectOrigin(
+    env.TOBY_DEV_PC_ORIGIN,
+    "TOBY_DEV_PC_ORIGIN",
+  );
+  const mobile = resolveRedirectOrigin(
+    env.TOBY_DEV_MOBILE_ORIGIN,
+    "TOBY_DEV_MOBILE_ORIGIN",
+  );
+  if (pc !== undefined && mobile !== undefined) {
+    return { pc, mobile };
+  }
+  if (pc !== undefined || mobile !== undefined) {
+    throw new Error(
+      "TOBY_DEV_PC_ORIGIN and TOBY_DEV_MOBILE_ORIGIN must be set together",
+    );
+  }
+  return undefined;
+}
+
 export function resolveConfig(options: { env?: Env } = {}): TobyConfig {
   const env = options.env ?? process.env;
   return {
@@ -233,6 +295,7 @@ export function resolveConfig(options: { env?: Env } = {}): TobyConfig {
     },
     db: resolveDatabaseConfig(env),
     ai: resolveAiConfig(env),
+    devWebRedirect: resolveDevWebRedirect(env),
     auth: resolveAuthConfig(env),
   };
 }

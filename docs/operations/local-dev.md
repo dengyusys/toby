@@ -6,7 +6,7 @@ English | [简体中文](local-dev.zh.md)
 
 | Process                      | Port | Role                                                             |
 | ---------------------------- | ---- | ---------------------------------------------------------------- |
-| Toby server (`@toby/server`) | 8629 | API + production static serving (`/`, `/m/`)                     |
+| Toby server (`@toby/server`) | 8629 | API + production static serving (`/`, `/m/` → Vite in dev)       |
 | Web dev server (Vite)        | 8630 | PC app at `http://localhost:8630/`, proxies `/api` to 8629       |
 | Web-mobile dev server (Vite) | 8631 | Mobile app at `http://localhost:8631/m/`, proxies `/api` to 8629 |
 
@@ -15,6 +15,8 @@ All ports are fixed (`strictPort`): if one is occupied, that process fails fast 
 ## `pnpm run dev`
 
 The server runs via `scripts/server-dev.js`: Node 22's native type stripping runs `src/main.ts` directly under `node --watch` — there is no compile step in dev, and every change in the import graph just restarts the process (the server source is erasable-syntax-only, so no transform is needed). Type errors never gate a restart: the editor and `pnpm run check` own them, and production still builds through plain `tsc` (`pnpm run build`). The web apps on 8630/8631 keep Vite HMR — component edits hot-swap with no page reload.
+
+The server never serves the web builds in dev: `/`, `/m` and `/m/` on 8629 answer 302 to the Vite servers, so a stale `apps/*/dist` from an earlier `pnpm run build` cannot pose as the app. The targets come from `TOBY_DEV_PC_ORIGIN` / `TOBY_DEV_MOBILE_ORIGIN`: `scripts/server-dev.js` sets the defaults, and values exported in your shell override them (only exported ones — the same limitation as `TOBY_PORT` below).
 
 Starts three processes from one command, orchestrated by `scripts/dev.js`:
 
@@ -43,6 +45,8 @@ Loaded from the repository-root `.env` when present (copy `.env.example` to star
 | `TOBY_AI_MODEL`                 | _(empty)_     | pi-ai `provider/model` pair (e.g. `deepseek/deepseek-flash`); empty keeps the one-sentence AI path at 501                         |
 | `DEEPSEEK_API_KEY`              | _(empty)_     | Provider credential read by pi-ai (per provider, never a TOBY_ variable)                                                          |
 | `TOBY_AI_TIMEOUT_MS`            | `30000`       | AI request timeout (1000–120000 ms)                                                                                               |
+| `TOBY_DEV_PC_ORIGIN`            | _(empty)_     | Dev only: target of the `/` redirect; `pnpm run dev` sets `http://localhost:8630`. Pairs with `TOBY_DEV_MOBILE_ORIGIN`            |
+| `TOBY_DEV_MOBILE_ORIGIN`        | _(empty)_     | Dev only: target of the `/m/` redirect; `pnpm run dev` sets `http://localhost:8631/m`. Pairs with `TOBY_DEV_PC_ORIGIN`            |
 | `TOBY_AUTH_PASSWORD_HASH`       | _(empty)_     | scrypt hash from `scripts/hash-password.js` (generate: `node scripts/hash-password.js "your password"`); setting it enables login |
 | `TOBY_AUTH_SESSION_TTL_HOURS`   | `168`         | Session lifetime (1–8760 hours)                                                                                                   |
 | `TOBY_AUTH_SECURE_COOKIE`       | `false`       | `true` appends `Secure` to the session cookie (HTTPS deployments)                                                                 |
@@ -61,4 +65,4 @@ The MySQL adapter is optional (see the [db adapter decision](../decisions/db-ada
 | `[dev] ...vite/bin/vite.js not found`            | Dependencies not installed — run `pnpm install` first                                                            |
 | `[server] exited unexpectedly` right after start | 8629 already in use (EADDRINUSE) — free the port or set `TOBY_PORT` (and export it)                              |
 | Vite reports port 8630/8631 in use               | A previous run left a process behind — kill it; the orchestrator is designed to prevent this                     |
-| `/` and `/m/` 404 from port 8629                 | No web build yet (`apps/*/dist` absent) — expected on a fresh clone; run `pnpm run build` or use the dev servers |
+| `/` and `/m/` 404 from 8629 (production run)     | No web build yet (`apps/*/dist` absent) — expected on a fresh clone; run `pnpm run build` or use the dev servers |
