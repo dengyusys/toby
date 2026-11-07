@@ -10,7 +10,7 @@ Selection and active states speak with **fill and weight** — the `--accent-sof
 
 ## Focus is a halo, not a frame
 
-Focus feedback is a soft 3px `--accent-soft` halo (8% primary), and every input shares one treatment — the chat composer and the login field use the same halo. Never a full-strength `--ring` as a focus ring: in light theme it is near-black and reads as a hard black frame. Keyboard focus must stay visible; the halo is how it stays visible, not a reason to remove it.
+Focus feedback is a soft 3px `--accent-soft` halo (8% primary) on boxed inputs — the chat composer carries it. The login field is an underline input: its focus state is the underline going full-strength (`border-foreground`), never a halo around a bare underline. Never a full-strength `--ring` as a focus ring: in light theme it is near-black and reads as a hard black frame. Keyboard focus must stay visible; the halo — or the strong underline — is how it stays visible, not a reason to remove it.
 
 ## Semantic tokens only
 
@@ -18,7 +18,7 @@ Components consume the theme tokens (`--background`, `--card`, `--muted`, `--rin
 
 ## Elevation is the exception
 
-Soft, low-alpha ambient shadows exist only on primary input surfaces — the chat composer and the login field, following the ChatGPT/Claude convention. Everything else defaults to no shadow; adding a new one needs a reason stated here.
+Soft, low-alpha ambient shadows exist only on the chat composer, following the ChatGPT/Claude convention. The login card is flat by design — borderless, shadow-free white on the muted panel — with the password field drawn as an underline (`border-foreground/40`, full strength on focus); a shadow rim reads muddy and a full-stroke outline reads thick on scaled displays. Everything else defaults to no shadow; adding a new one needs a reason stated here.
 
 ## One language, two apps
 

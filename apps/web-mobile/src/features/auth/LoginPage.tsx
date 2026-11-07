@@ -49,62 +49,59 @@ export function LoginPage() {
 
   if (sessionQuery.data && !sessionQuery.data.enabled) {
     return (
-      <div className="flex min-h-dvh items-center justify-center px-4">
-        <section className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm">
-          <div className="flex flex-col items-center">
-            <img src={logo} alt="" className="size-12" />
-            <h2 className="mt-4 text-base font-semibold">登录未启用</h2>
-          </div>
-          <p className="mt-3 text-sm text-muted-foreground">
-            本部署没有配置密码,无需登录。
-          </p>
-          <Link
-            to="/"
-            className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground"
-          >
-            直接进入
-          </Link>
-        </section>
+      <div className="flex min-h-dvh justify-center bg-background p-4">
+        <div className="flex w-full items-center justify-center rounded-3xl bg-muted px-4 py-12">
+          <section className="w-full max-w-md rounded-2xl bg-card px-8 py-12">
+            <div className="flex flex-col items-center">
+              <img src={logo} alt="" className="size-16" />
+              <h1 className="mt-8 text-3xl font-semibold">登录未启用</h1>
+            </div>
+            <p className="mt-4 text-center text-sm text-muted-foreground">
+              本部署没有配置密码,无需登录。
+            </p>
+            <Link
+              to="/"
+              className="mt-10 inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-xl bg-primary px-4 text-base font-semibold text-primary-foreground hover:opacity-80 active:opacity-80"
+            >
+              直接进入
+            </Link>
+          </section>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center px-4">
-      <section className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm">
-        <div className="flex flex-col items-center">
-          <img src={logo} alt="" className="size-12" />
-          <h2 className="mt-4 text-base font-semibold">登录 Toby</h2>
-        </div>
-        <form
-          className="mt-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            loginMutation.mutate();
-          }}
-        >
-          <div>
-            <label
-              htmlFor="login-password"
-              className="block text-xs font-medium text-muted-foreground"
-            >
-              密码
-            </label>
-            <div className="relative mt-1.5">
+    <div className="flex min-h-dvh justify-center bg-background p-4">
+      <div className="flex w-full items-center justify-center rounded-3xl bg-muted px-4 py-12">
+        <section className="w-full max-w-md rounded-2xl bg-card px-8 py-12">
+          <div className="flex flex-col items-center">
+            <img src={logo} alt="" className="size-16" />
+            <h1 className="mt-8 text-3xl font-semibold">欢迎回来</h1>
+          </div>
+          <form
+            className="mt-10"
+            onSubmit={(event) => {
+              event.preventDefault();
+              loginMutation.mutate();
+            }}
+          >
+            <div className="relative">
               <input
                 id="login-password"
+                aria-label="密码"
                 type={showPassword ? "text" : "password"}
                 required
                 autoFocus
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full rounded-lg bg-background px-3 py-2.5 pr-11 text-base shadow-[0_1px_2px_rgba(15,17,21,0.06),0_4px_12px_rgba(15,17,21,0.06)] outline-none focus-visible:shadow-[0_0_0_3px_var(--accent-soft),0_1px_2px_rgba(15,17,21,0.06),0_4px_12px_rgba(15,17,21,0.06)]"
+                className="w-full border-b border-foreground/40 bg-transparent px-0 py-3 pr-11 text-base outline-none focus-visible:border-foreground"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((visible) => !visible)}
                 aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground active:text-foreground"
+                className="absolute inset-y-0 right-0 flex cursor-pointer items-center text-muted-foreground active:text-foreground"
               >
                 {showPassword ? (
                   <EyeOff className="h-5 w-5" />
@@ -113,21 +110,21 @@ export function LoginPage() {
                 )}
               </button>
             </div>
-          </div>
-          <button
-            type="submit"
-            disabled={loginMutation.isPending || password === ""}
-            className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground active:opacity-80 disabled:opacity-50"
-          >
-            {loginMutation.isPending ? "登录中…" : "登录"}
-          </button>
-          {loginMutation.isError && (
-            <p className="mt-2 text-sm text-destructive">
-              {describeError(loginMutation.error)}
-            </p>
-          )}
-        </form>
-      </section>
+            <button
+              type="submit"
+              disabled={loginMutation.isPending}
+              className="mt-10 inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-xl bg-primary px-4 text-base font-semibold text-primary-foreground hover:opacity-80 active:opacity-80"
+            >
+              {loginMutation.isPending ? "登录中…" : "登录"}
+            </button>
+            {loginMutation.isError && (
+              <p className="mt-2 text-sm text-destructive">
+                {describeError(loginMutation.error)}
+              </p>
+            )}
+          </form>
+        </section>
+      </div>
     </div>
   );
 }
