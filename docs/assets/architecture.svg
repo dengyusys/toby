@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="338" viewBox="0 0 860 338" role="img" aria-label="Toby core architecture: deterministic on both sides, a fenced AI in the middle">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,1.4 L8.6,5 L0,8.6 z" fill="#8A8F98"/></marker>
+  </defs>
+  <style>text{font-family:'Segoe UI','PingFang SC','HarmonyOS Sans SC','Microsoft YaHei',system-ui,sans-serif}</style>
+
+  <rect x="1" y="1" width="858" height="336" rx="16" fill="#FFFFFF" stroke="#E7E5E4" stroke-width="1.2"/>
+
+  <!-- zone rects first: crossings paint on top of them -->
+  <rect x="48" y="44" width="230" height="270" rx="12" fill="#F7F7F8" stroke="#BCBEC4" stroke-width="1.2"/>
+  <rect x="318" y="44" width="230" height="270" rx="12" fill="#FFFFFF" stroke="#6E7480" stroke-width="1.6"/>
+  <rect x="588" y="44" width="230" height="270" rx="12" fill="#F7F7F8" stroke="#BCBEC4" stroke-width="1.2"/>
+
+  <!-- column 1: orchestration -->
+  <text x="66" y="68" font-size="11" font-weight="700" letter-spacing="1.5" fill="#6B7280">orchestration</text>
+
+  <rect x="93" y="90" width="140" height="40" rx="10" fill="#FFFFFF" stroke="#D8D6D3" stroke-width="1.2"/>
+  <text x="163" y="114" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3F3F46">one sentence</text>
+  <line x1="163" y1="130" x2="163" y2="150" stroke="#8A8F98" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <rect x="93" y="154" width="140" height="40" rx="10" fill="#FFFFFF" stroke="#D8D6D3" stroke-width="1.2"/>
+  <text x="163" y="178" text-anchor="middle" font-size="11" font-weight="700" fill="#272524">session guard</text>
+  <line x1="163" y1="194" x2="163" y2="214" stroke="#8A8F98" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <rect x="93" y="218" width="140" height="40" rx="10" fill="#FFFFFF" stroke="#D8D6D3" stroke-width="1.2"/>
+  <text x="163" y="242" text-anchor="middle" font-size="11" font-weight="700" fill="#272524">chat</text>
+
+  <!-- column 2: the fenced AI zone, loop runs top to bottom -->
+  <text x="336" y="68" font-size="11" font-weight="700" letter-spacing="1.5" fill="#525660">AI</text>
+
+  <rect x="363" y="98" width="140" height="40" rx="10" fill="#FAFAFA" stroke="#E7E6E4" stroke-width="1.2"/>
+  <text x="433" y="122" text-anchor="middle" font-size="11" font-weight="700" fill="#272524">prompts</text>
+  <line x1="433" y1="138" x2="433" y2="156" stroke="#8A8F98" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <rect x="363" y="162" width="140" height="40" rx="10" fill="#FAFAFA" stroke="#E7E6E4" stroke-width="1.2"/>
+  <text x="433" y="186" text-anchor="middle" font-size="11" font-weight="700" fill="#272524">reasoning</text>
+  <line x1="433" y1="202" x2="433" y2="220" stroke="#8A8F98" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <rect x="363" y="226" width="140" height="40" rx="10" fill="#FAFAFA" stroke="#E7E6E4" stroke-width="1.2"/>
+  <text x="433" y="250" text-anchor="middle" font-size="11" font-weight="700" fill="#272524">tools</text>
+
+  <path d="M 363,250 H 355 Q 347,250 347,242 V 198 Q 347,190 355,190 H 359" fill="none" stroke="#8A8F98" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <!-- column 3: execution, one vertical chain -->
+  <text x="606" y="68" font-size="11" font-weight="700" letter-spacing="1.5" fill="#6B7280">execution</text>
+
+  <rect x="633" y="74" width="140" height="40" rx="10" fill="#FFFFFF" stroke="#D8D6D3" stroke-width="1.2"/>
+  <text x="703" y="98" text-anchor="middle" font-size="11" font-weight="700" fill="#272524">validate</text>
+  <line x1="703" y1="114" x2="703" y2="132" stroke="#8A8F98" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <rect x="633" y="136" width="140" height="40" rx="10" fill="#FFFFFF" stroke="#C9C7C4" stroke-width="1.4"/>
+  <text x="703" y="160" text-anchor="middle" font-size="12" font-weight="700" fill="#272524">actions kernel</text>
+  <line x1="703" y1="176" x2="703" y2="196" stroke="#8A8F98" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <path d="M 633,204 V 244 A 70 9 0 0 0 773,244 V 204" fill="#FDFDFD" stroke="#B0B3BA" stroke-width="1.2"/>
+  <ellipse cx="703" cy="204" rx="70" ry="9" fill="#FAFAFA" stroke="#B0B3BA" stroke-width="1.2"/>
+  <text x="703" y="229" text-anchor="middle" font-size="9" font-weight="700" fill="#3F3F46">database</text>
+
+  <line x1="703" y1="253" x2="703" y2="263" stroke="#9CA1A9" stroke-width="1.1" marker-end="url(#arr)"/>
+  <rect x="633" y="267" width="140" height="40" rx="10" fill="#FFFFFF" stroke="#D8D6D3" stroke-width="1.2"/>
+  <text x="703" y="291" text-anchor="middle" font-size="7.5" font-weight="700" fill="#3F3F46">domain services</text>
+
+  <!-- crossings last: they paint over the zone rects -->
+  <path d="M 233,234 H 284 Q 292,234 292,226 V 126 Q 292,118 300,118 H 359" fill="none" stroke="#8A8F98" stroke-width="1.4" marker-end="url(#arr)"/>
+  <path d="M 363,186 H 316 Q 308,186 308,194 V 244 Q 308,252 300,252 H 237" fill="none" stroke="#8A8F98" stroke-width="1.4" marker-end="url(#arr)"/>
+  <text x="371" y="178" font-size="7" fill="#6B7280">answer</text>
+
+  <path d="M 503,246 H 554 Q 562,246 562,238 V 102 Q 562,94 570,94 H 629" fill="none" stroke="#8A8F98" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#arr)"/>
+  <text x="606" y="86" text-anchor="middle" font-size="8" font-weight="600" fill="#6B7280">proposal</text>
+  <path d="M 633,287 H 584 Q 576,287 576,279 V 254 Q 576,246 568,246 H 552" fill="none" stroke="#9CA1A9" stroke-width="1.1" marker-end="url(#arr)"/>
+  <text x="568" y="300" text-anchor="middle" font-size="7" fill="#6B7280">query data</text>
+</svg>

@@ -19,6 +19,12 @@ Say one sentence — your money, schedule, and notes fall into place. The AI tur
       └────────────────────────────────────────────────┘
 ```
 
+## 🏗️ Architecture
+
+One process: deterministic orchestration and execution on the sides, a fenced AI loop in the middle — **the AI only drafts; every way in and out is deterministic.** The full picture, including the end-to-end sequence of a single write, is in [docs/system-overview.md](docs/system-overview.md).
+
+![Architecture overview](docs/assets/architecture.svg)
+
 ## 🤖 Features
 
 **Available today**
