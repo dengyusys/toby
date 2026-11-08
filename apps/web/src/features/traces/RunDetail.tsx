@@ -18,6 +18,7 @@ import type {
   PiUserMessage,
   TraceMessage,
 } from "@toby/contract";
+import { Markdown } from "@/components/markdown.tsx";
 import { formatDuration } from "./format.ts";
 import type { TraceRun } from "./trace-stream-context.ts";
 
@@ -256,12 +257,7 @@ function AssistantView({ message }: { message: PiAssistantMessage }) {
         ) : null,
       )}
       {texts.map((block, index) => (
-        <p
-          key={`text-${index}`}
-          className="whitespace-pre-wrap text-sm leading-relaxed"
-        >
-          {block.text}
-        </p>
+        <Markdown key={`text-${index}`} text={block.text} />
       ))}
       {(message.usage !== undefined || message.durationMs !== undefined) && (
         <p className="mt-2 text-[10px] tabular-nums text-muted-foreground">

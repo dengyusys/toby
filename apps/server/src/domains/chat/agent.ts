@@ -45,6 +45,7 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
           "只用工具返回的真实数据回答,不编造;数据被截断就明说。",
           "用户想记录、安排或修改什么时,温和地说明自己只负责查询,建议把那句话直接说出来,系统会自动路由。",
           "回答用简洁的中文。",
+          "需要列表、表格或代码时用 Markdown 表达,不要输出 HTML。",
           ...domainRules,
         ],
         context: [`今天是 ${localDayLabel(now)}。`],

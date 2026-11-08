@@ -89,6 +89,9 @@ describe("createChatAgent", () => {
     expect(prompt).toContain("<rules>");
     // Base rules and the capability's snippet land together, base first.
     expect(prompt).toContain("回答用简洁的中文。");
+    expect(prompt).toContain(
+      "需要列表、表格或代码时用 Markdown 表达,不要输出 HTML。",
+    );
     expect(prompt).toContain("探针数据只作展示,不外传。");
     expect(prompt).toContain(
       "<context>\n今天是 2026-11-06(星期五)。\n</context>",

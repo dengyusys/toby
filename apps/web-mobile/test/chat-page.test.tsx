@@ -7,7 +7,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
@@ -149,6 +149,32 @@ function agentTurn() {
   };
 }
 
+/** A one-shot assistant text reply, for markdown rendering cases. */
+function assistantTextTurn(text: string) {
+  return {
+    turn_id: "t-3",
+    session_id: SESSION_ID,
+    intent: "none",
+    created_at: new Date(NOW).toISOString(),
+    items: [
+      { role: "user", content: "随便问点", timestamp: NOW },
+      {
+        role: "assistant",
+        content: [{ type: "text", text }],
+        model: "synthetic",
+        usage: {
+          input: 0,
+          output: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, total: 0 },
+        },
+        stopReason: "stop",
+        timestamp: NOW,
+      },
+    ],
+  };
+}
+
 const calls: { url: string; init?: RequestInit }[] = [];
 let sendReply: unknown = receiptTurn();
 let historyTurns: unknown[] = [];
@@ -250,4 +276,66 @@ it("renders an agent turn and opens the full-screen preview from the chip", asyn
   expect(await screen.findByText("分类小计")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "关闭预览" })).toBeInTheDocument();
   expect(screen.getAllByText("¥30.00").length).toBeGreaterThan(0);
+});
+
+it("renders assistant text as markdown: heading, list, code, table, link", async () => {
+  sendReply = assistantTextTurn(
+    [
+      "## 本月餐饮小结",
+      "",
+      "- 餐饮 **¥1,240**,比上月多 ¥360",
+      "",
+      "常用命令是 `pnpm run check`,明细见 [账单说明](https://example.com/docs)。",
+      "",
+      "| 月份 | 支出 |",
+      "| --- | --- |",
+      "| 2026-11 | ¥1,240 |",
+      "",
+      "```ts",
+      "const total = 1240;",
+      "```",
+    ].join("\n"),
+  );
+  routeFetch();
+  renderApp();
+
+  expect(
+    await screen.findByRole("heading", { name: "本月餐饮小结" }),
+  ).toBeInTheDocument();
+  // listitem is not named-from-contents in ARIA, and getByText cannot see
+  // across the <strong>, so assert on the li text contents directly.
+  expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toContain(
+    "餐饮 ¥1,240,比上月多 ¥360",
+  );
+  const link = screen.getByRole("link", { name: "账单说明" });
+  expect(link).toHaveAttribute("href", "https://example.com/docs");
+  expect(link).toHaveAttribute("target", "_blank");
+  const table = screen.getByRole("table");
+  expect(
+    within(table).getByRole("cell", { name: "¥1,240" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("const total = 1240;").closest("pre")).not.toBeNull();
+  expect(screen.getByText("pnpm run check").closest("code")).not.toBeNull();
+});
+
+it("treats assistant text as untrusted: raw HTML and bad URLs never render", async () => {
+  sendReply = assistantTextTurn(
+    [
+      "<script>alert(1)</script>",
+      "",
+      "[点我](javascript:alert(1))",
+      "",
+      "![追踪](https://tracker.example/pixel.png)",
+      "",
+      "正常段落照常显示。",
+    ].join("\n"),
+  );
+  routeFetch();
+  const { container } = renderApp();
+
+  expect(await screen.findByText("正常段落照常显示。")).toBeInTheDocument();
+  expect(container.querySelector("script")).toBeNull();
+  // The layout ships its own logo img; only the untracked remote pixel counts.
+  expect(container.querySelector('img[src*="tracker.example"]')).toBeNull();
+  expect(container.querySelector('a[href*="javascript"]')).toBeNull();
 });

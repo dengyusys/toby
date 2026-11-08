@@ -13,6 +13,7 @@ import type {
   PiToolResultMessage,
 } from "@toby/contract";
 import { ExternalLink } from "lucide-react";
+import { Markdown } from "@/components/markdown.tsx";
 import { cardRendererFor } from "./card-renderers.tsx";
 import { usePreview } from "@/features/preview/preview-context.tsx";
 
@@ -98,7 +99,7 @@ function UserItem({ item }: { item: ChatItem }) {
         : "";
   return (
     <div className="flex justify-end">
-      <div className="max-w-[86%] rounded-lg rounded-br-sm bg-accent-soft px-4 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere]">
+      <div className="max-w-[86%] rounded-lg rounded-br-sm bg-accent-soft px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
         {text}
       </div>
     </div>
@@ -150,12 +151,7 @@ function AssistantItem({
           );
         }
         return (
-          <p
-            key={`text-${index}`}
-            className="whitespace-pre-wrap px-1 text-sm leading-relaxed text-foreground"
-          >
-            {block.text}
-          </p>
+          <Markdown key={`text-${index}`} text={block.text} className="px-1" />
         );
       })}
       {!hasText && item.content.length === 0 && (

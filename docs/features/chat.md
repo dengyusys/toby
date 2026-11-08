@@ -70,6 +70,10 @@ error.
 - The turn stores the user's original sentence; the agent receives the
   classifier's self-contained sentence. The UI reads the former, the model the
   latter.
+- Assistant `text` blocks are rendered as GFM Markdown by both webs (tables,
+  lists, code); raw HTML is never rendered and images degrade to their alt
+  text — AI output is untrusted input. User messages and notices stay plain
+  text.
 
 A turn takes one route, so a card and a tool loop never share a turn. The two
 live routes: a write turn carries the receipt (or one clarifying question), a

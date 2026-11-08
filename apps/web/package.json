@@ -16,7 +16,10 @@
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-markdown": "catalog:",
     "react-router": "catalog:",
+    "remark-breaks": "catalog:",
+    "remark-gfm": "catalog:",
     "tw-animate-css": "catalog:"
   },
   "devDependencies": {
