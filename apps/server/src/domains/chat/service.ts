@@ -108,9 +108,12 @@ export function createChatService(deps: {
     }
     try {
       const run = await deps.agent.run(sentence, history);
+      // Items come from the run's own transcript only — run.messages also
+      // carries the replayed history, which must never be re-stored as this
+      // turn's output (each polluted turn would then pollute the next).
       const items = [
-        ...transcriptItemsOf(run.messages),
-        ...inspectLinksOf(run.messages, capabilities),
+        ...transcriptItemsOf(run.producedMessages),
+        ...inspectLinksOf(run.producedMessages, capabilities),
       ];
       // A run that produced nothing visible still answers honestly.
       return {

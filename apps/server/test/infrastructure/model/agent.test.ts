@@ -122,6 +122,22 @@ describe("createTobyAgentFactory", () => {
       role: "user",
       content: [{ type: "text", text: "那今天呢" }],
     });
+
+    // The run's own transcript excludes the replayed history: chat items
+    // are built from producedMessages, or every turn would re-store the
+    // previous turns' replies as new output.
+    expect(result.producedMessages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+    ]);
+    expect(result.producedMessages[0]).toMatchObject({
+      role: "user",
+      content: [{ type: "text", text: "那今天呢" }],
+    });
+    expect(result.producedMessages[1]).toMatchObject({
+      role: "assistant",
+      content: [{ type: "text", text: "今天还好" }],
+    });
   });
 
   it("renders the tool snippet and guidelines into the system prompt", async () => {

@@ -158,13 +158,20 @@ export interface TobyAgentRunResult {
   readonly stopReason: StopReason | "none";
   readonly usage?: Usage;
   /**
-   * The run's pi-ai transcript verbatim (system prompt + user prompt +
-   * assistant turns with thinking/tool calls + tool results) — the same
-   * snapshot the trace feed reports. Consumers persist the roles they
-   * need: the chat domain stores user/assistant/toolResult as message
-   * items, zero-translation (docs/features/chat.md).
+   * The run's pi-ai transcript verbatim (system prompt + replayed history +
+   * user prompt + assistant turns with thinking/tool calls + tool results) —
+   * the same snapshot the trace feed reports. It carries everything the
+   * model saw, so it must never become a turn's items directly: replayed
+   * history would be re-stored as new output. Consumers persist the roles
+   * they need from `producedMessages` instead (docs/features/chat.md).
    */
   readonly messages: readonly Message[];
+  /**
+   * Only what this run produced: the new user prompt plus its assistant
+   * turns and tool results — the system message and the replayed history
+   * are excluded. Chat items come from here, never from `messages`.
+   */
+  readonly producedMessages: readonly Message[];
 }
 
 /** A prepared agent: one prompt in, a settled outcome out. */
@@ -369,6 +376,12 @@ function createTobyAgent(
       // One frozen snapshot serves both the trace feed and the result's
       // verbatim transcript; later mutations cannot rewrite history.
       const messages: readonly Message[] = [...agent.state.messages];
+      // state.messages starts with the system message followed by the seeded
+      // history (pinned by the history-replay test); everything after that
+      // is this run's own transcript — the only part that may become items.
+      const producedMessages: readonly Message[] = messages.slice(
+        1 + history.length,
+      );
 
       // The trace capture mirrors both exits: run-finished carries the
       // verbatim pi-ai transcript (system prompt + tool declarations
@@ -401,6 +414,7 @@ function createTobyAgent(
           stopReason,
           ...(usage ? { usage } : {}),
           messages,
+          producedMessages,
         };
       } catch (error) {
         capture?.finish({

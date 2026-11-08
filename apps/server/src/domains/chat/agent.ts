@@ -57,7 +57,11 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
         maxTokens: CHAT_AGENT_MAX_TOKENS,
       });
       const result = await agent.run(prompt);
-      return { text: result.text, messages: result.messages };
+      return {
+        text: result.text,
+        messages: result.messages,
+        producedMessages: result.producedMessages,
+      };
     },
   };
 }

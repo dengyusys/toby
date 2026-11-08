@@ -307,30 +307,117 @@ describe("chat api: send and the item stream", () => {
       },
     ];
     const specs: TobyAgentSpec[] = [];
+    let runCount = 0;
     const agentFactory: TobyAgentFactory = (spec) => {
       specs.push(spec);
       return {
-        run: async () => ({
-          text: "这个月吃饭花了 ¥120。",
-          turns: 2,
-          turnCapped: false,
-          stopReason: "stop" as const,
-          usage: {
-            input: 2,
-            output: 2,
-            cacheRead: 0,
-            cacheWrite: 0,
-            totalTokens: 4,
-            cost: {
-              input: 0,
-              output: 0,
+        run: async () => {
+          runCount += 1;
+          if (runCount === 1) {
+            return {
+              text: "这个月吃饭花了 ¥120。",
+              turns: 2,
+              turnCapped: false,
+              stopReason: "stop" as const,
+              usage: {
+                input: 2,
+                output: 2,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 4,
+                cost: {
+                  input: 0,
+                  output: 0,
+                  cacheRead: 0,
+                  cacheWrite: 0,
+                  total: 0,
+                },
+              },
+              messages: runMessages,
+              // The runtime's own transcript: the snapshot minus system.
+              producedMessages: runMessages.slice(1),
+            };
+          }
+          // Later runs replay the settled exchange as seeded history: the
+          // full snapshot carries it, producedMessages must not.
+          const secondMessages: Message[] = [
+            { role: "system", content: "你是 Toby", timestamp: 1 },
+            { role: "user", content: "这个月吃饭花了多少", timestamp: BASE_MS },
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "这个月吃饭花了 ¥120。" }],
+              model: "faux-1",
+              api: "faux",
+              provider: "faux",
+              usage: {
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 2,
+                cost: {
+                  input: 0,
+                  output: 0,
+                  cacheRead: 0,
+                  cacheWrite: 0,
+                  total: 0,
+                },
+              },
+              stopReason: "stop",
+              timestamp: BASE_MS,
+            },
+            {
+              role: "user",
+              content: [{ type: "text", text: "那昨天呢" }],
+              timestamp: BASE_MS,
+            },
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "昨天花了 ¥30。" }],
+              model: "faux-1",
+              api: "faux",
+              provider: "faux",
+              usage: {
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 2,
+                cost: {
+                  input: 0,
+                  output: 0,
+                  cacheRead: 0,
+                  cacheWrite: 0,
+                  total: 0,
+                },
+              },
+              stopReason: "stop",
+              timestamp: BASE_MS,
+            },
+          ];
+          return {
+            text: "昨天花了 ¥30。",
+            turns: 1,
+            turnCapped: false,
+            stopReason: "stop" as const,
+            usage: {
+              input: 1,
+              output: 1,
               cacheRead: 0,
               cacheWrite: 0,
-              total: 0,
+              totalTokens: 2,
+              cost: {
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                total: 0,
+              },
             },
-          },
-          messages: runMessages,
-        }),
+            messages: secondMessages,
+            producedMessages: secondMessages.slice(3),
+          };
+        },
       };
     };
     // The ledger capability registers so the transcript's ledger tool
@@ -394,6 +481,20 @@ describe("chat api: send and the item stream", () => {
         timestamp: BASE_MS,
       },
     ]);
+    // Replayed history never re-lands as items: the second turn shows only
+    // its own user message and the new answer — the snapshot that carried
+    // the whole seeded history stays out of the stored items.
+    const secondTurn = second.json();
+    expect(
+      secondTurn.items.map((item: { role?: string }) => item.role),
+    ).toEqual(["user", "assistant"]);
+    expect(JSON.stringify(secondTurn.items)).not.toContain(
+      "这个月吃饭花了 ¥120。",
+    );
+    expect(secondTurn.items[1].content[0]).toMatchObject({
+      type: "text",
+      text: "昨天花了 ¥30。",
+    });
 
     // Six hours later the thread is stale: both settled turns are dropped,
     // so the agent starts a new conversation instead of replaying old news.

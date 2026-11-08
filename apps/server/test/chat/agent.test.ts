@@ -29,6 +29,7 @@ const agentFactory: TobyAgentFactory = (spec) => {
         turnCapped: false,
         stopReason: "stop" as const,
         messages: [],
+        producedMessages: [{ role: "user", content: "fresh", timestamp: 0 }],
       };
     },
   };
@@ -67,7 +68,12 @@ describe("createChatAgent", () => {
       capabilities: [capability],
       clock,
     });
-    await agent.run("查一下探针", []);
+    const run = await agent.run("查一下探针", []);
+    // The runtime's own-transcript field rides through untouched: turn
+    // items are built from it downstream.
+    expect(run.producedMessages).toEqual([
+      { role: "user", content: "fresh", timestamp: 0 },
+    ]);
 
     const spec = specs[0]!;
     expect(spec.tools.map((entry) => entry.tool.name)).toEqual([

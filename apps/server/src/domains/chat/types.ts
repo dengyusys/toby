@@ -107,6 +107,12 @@ export interface ChatAgentRun {
   readonly text: string;
   /** The run's pi-ai transcript verbatim (system message included). */
   readonly messages: readonly unknown[];
+  /**
+   * Only this run's own messages (the new user prompt plus assistant turns
+   * and tool results); the replayed history never re-lands here. Turn
+   * items are built from this, not from `messages`.
+   */
+  readonly producedMessages: readonly unknown[];
 }
 
 /** The `none`-intent agent: read-only tools, bounded rounds, real data. */
