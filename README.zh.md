@@ -61,7 +61,6 @@ docker compose up -d --build    # Docker 部署 —— 手册: docs/operations/d
 - [docs/product-overview.md](docs/product-overview.md) —— 产品介绍(面向用户)
 - [docs/system-overview.md](docs/system-overview.md) —— 系统架构
 - [docs/features/](docs/features/) —— 各域目标契约
-- [docs/design/](docs/design/) —— 视觉设计理念
 - [docs/decisions/](docs/decisions/) —— 架构决策记录(ADR)
 - [docs/operations/](docs/operations/) —— 本地开发、端口与部署说明
 - [CONTRIBUTING.zh.md](CONTRIBUTING.zh.md)([英文](CONTRIBUTING.md))—— 贡献指南

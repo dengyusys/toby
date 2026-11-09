@@ -10,7 +10,7 @@ Instructions for AI coding agents working in this repository.
 
 Self-hosted personal assistant: the user says one sentence, the AI drafts a constrained write; additive operations land at once (revertible within minutes), destructive operations still wait for confirmation — every write goes through the actions kernel transactionally. Product: [README.md](README.md) · architecture: [docs/system-overview.md](docs/system-overview.md) · per-domain contracts: [docs/features/](docs/features/).
 
-Before implementing: find the currently authoritative doc (feature docs + ADRs) in `docs/features/` and `docs/decisions/`, and for UI work the visual rules in `docs/design/` — do not trust memory; check for an existing implementation — do not build a parallel one.
+Before implementing: find the currently authoritative doc (feature docs + ADRs) in `docs/features/` and `docs/decisions/` — do not trust memory; check for an existing implementation — do not build a parallel one.
 
 ## Commands
 

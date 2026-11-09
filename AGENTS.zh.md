@@ -10,7 +10,7 @@
 
 自托管个人助手:用户说一句话,AI 拟一条受限写入;追加类操作立即落库(数分钟内可撤回),破坏类操作仍需确认——一切写入经 actions kernel 事务执行。产品:[README.zh.md](README.zh.md) · 架构:[docs/system-overview.zh.md](docs/system-overview.zh.md) · 各域契约:[docs/features/](docs/features/)。
 
-动手前:从 `docs/features/` 与 `docs/decisions/` 找「当前算数」的那份文档(功能文档 + ADR),UI 工作另见 `docs/design/` 的视觉规则,别信记忆;先查有没有现成实现,别造平行方案。
+动手前:从 `docs/features/` 与 `docs/decisions/` 找「当前算数」的那份文档(功能文档 + ADR),别信记忆;先查有没有现成实现,别造平行方案。
 
 ## 命令
 
