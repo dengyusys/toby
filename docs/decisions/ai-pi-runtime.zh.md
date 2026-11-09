@@ -99,4 +99,5 @@ kind(联网搜索、生图)已有预案,待有域需要时再引入。
 
 本决策取代原 ai-integration.md —— 它规定了"不使用端点原生工具调用"的
 受限 JSON 协议与手写 OpenAI 兼容 fetch 适配器,已于 2026-10-24 退役,
-可从 git 历史取回。
+可从 git 历史取回。约束阶梯本身——提示词承载意图、schema 承载形状、代码承载
+语义——由 [ai-output-constraints.zh.md](ai-output-constraints.zh.md) 拥有。

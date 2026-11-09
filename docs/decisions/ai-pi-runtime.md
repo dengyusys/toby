@@ -127,4 +127,6 @@ regression runs separately with explicit authorization.
 This decision supersedes the former ai-integration.md — the restricted
 JSON protocol that banned endpoint-native tool calling and prescribed a
 hand-written OpenAI-compatible fetch adapter. That ADR was retired on
-2026-10-24 and remains retrievable from git history.
+2026-10-24 and remains retrievable from git history. The constraint
+ladder itself — prompts for intent, schemas for shape, code for
+semantics — is owned by [ai-output-constraints.md](ai-output-constraints.md).

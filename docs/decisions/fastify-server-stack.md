@@ -20,6 +20,18 @@ explicit dependencies, and composition is ordinary function calls. No
 decorators, no container, no reflection — the server follows the same
 erasable-syntax rules as every other package and compiles with plain `tsc`.
 
+One more driver depends on who writes the code: this repository is
+developed agent-first, and an agent's reliable output tracks corpus
+density. NestJS's load-bearing layer — decorators, provider tokens, the
+module graph — sits where model corpora are thinnest: the agent
+reproduces the surface (a controller, a module) while the wiring
+underneath stays effectively the underlying platform's, and those
+metaprogrammed connections are exactly the lines a reviewer cannot check
+by reading. Plain Fastify with closure factories keeps every
+load-bearing part in the dense region — route tables, hooks, `inject`,
+ordinary function calls — which is also the region a reviewer can verify
+line by line.
+
 ## In this repository
 
 - `src/composition-root.ts` is the composition root: the HTTP shell (body limit, error
