@@ -8,6 +8,7 @@ import { PreviewOfferCard } from "@/features/preview/PreviewOfferCard.tsx";
 import { PreviewPanel } from "@/features/preview/PreviewPanel.tsx";
 import { MonitorPanel } from "@/features/traces/MonitorPanel.tsx";
 import logo from "@/assets/logo.svg";
+import { Button } from "@/components/ui/button.tsx";
 
 /** Primary-route nav entries: icon + label, rendered as sidebar pills. */
 const NAV_ITEMS = [
@@ -69,33 +70,36 @@ export function AppLayout() {
               </NavLink>
             ))}
           </nav>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => logoutMutation.mutate()}
             disabled={logoutMutation.isPending}
-            className="mt-auto flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent-soft/60 hover:text-foreground disabled:opacity-50 max-[767px]:justify-center max-[767px]:px-0"
+            className="mt-auto h-auto w-full justify-start gap-2.5 rounded-lg px-3 py-2 text-muted-foreground hover:bg-accent-soft/60 hover:text-foreground max-[767px]:justify-center max-[767px]:px-0"
           >
             <LogOut className="size-[18px] shrink-0" />
             <span className="max-[767px]:hidden">退出登录</span>
-          </button>
+          </Button>
         </aside>
         <main className="relative flex min-w-0 flex-1 overflow-hidden">
           <div className="relative flex min-w-0 flex-1 overflow-hidden">
             <div className="relative min-w-0 flex-1 overflow-hidden">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => setMonitorOpen((open) => !open)}
                 aria-label={monitorOpen ? "关闭监控" : "打开 AI 调用监控"}
                 title={monitorOpen ? "关闭监控" : "AI 调用监控"}
                 aria-expanded={monitorOpen}
-                className={`absolute right-4 top-4 z-20 flex size-9 items-center justify-center rounded-lg border shadow-sm transition-colors ${
+                className={`absolute right-4 top-4 z-20 rounded-lg border shadow-sm ${
                   monitorOpen
                     ? "border-primary/40 bg-primary/10 text-primary"
                     : "bg-card text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Activity className="size-4" />
-              </button>
+              </Button>
               <Outlet />
             </div>
             <PreviewOfferCard />

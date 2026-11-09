@@ -6,6 +6,7 @@ import { authClient } from "@/lib/api.ts";
 import { PreviewProvider } from "@/features/preview/preview-context.tsx";
 import { PreviewPanel } from "@/features/preview/PreviewPanel.tsx";
 import logo from "@/assets/logo.svg";
+import { Button } from "@/components/ui/button.tsx";
 
 /** Drawer slide transition length; keeps the unmount timer in sync. */
 const DRAWER_TRANSITION_MS = 300;
@@ -92,15 +93,17 @@ export function AppLayout() {
     <PreviewProvider>
       <div className="flex h-dvh flex-col">
         <header className="flex h-12 shrink-0 items-center gap-1.5 border-b bg-card/80 px-3 backdrop-blur">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
+            className="rounded-lg text-muted-foreground"
             aria-label="打开菜单"
             aria-expanded={mounted}
             onClick={openDrawer}
-            className="flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <Menu className="size-5" />
-          </button>
+          </Button>
           <img src={logo} alt="" className="size-5" />
           <span className="text-sm font-semibold tracking-tight">Toby</span>
         </header>
@@ -134,15 +137,16 @@ export function AppLayout() {
                 </span>
               </div>
               <NavPills onNavigate={closeDrawer} />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={logout}
                 disabled={logoutMutation.isPending}
-                className="mt-auto flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+                className="mt-auto h-auto w-full justify-start gap-2.5 rounded-lg px-3 py-2.5 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
               >
                 <LogOut className="size-[18px] shrink-0" />
                 退出登录
-              </button>
+              </Button>
             </aside>
           </div>
         )}

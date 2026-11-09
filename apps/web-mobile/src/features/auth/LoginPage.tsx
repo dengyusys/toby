@@ -11,6 +11,7 @@ import { useState } from "react";
 import { ApiError } from "@toby/contract";
 import { authClient } from "@/lib/api.ts";
 import logo from "@/assets/logo.svg";
+import { Button } from "@/components/ui/button.tsx";
 
 function describeError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -97,26 +98,28 @@ export function LoginPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 className="w-full border-b border-foreground/40 bg-transparent px-0 py-3 pr-11 text-base outline-none focus-visible:border-foreground"
               />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowPassword((visible) => !visible)}
                 aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                className="absolute inset-y-0 right-0 flex cursor-pointer items-center text-muted-foreground active:text-foreground"
+                className="absolute inset-y-0 right-0 h-auto text-muted-foreground active:text-foreground"
               >
                 {showPassword ? (
                   <EyeOff className="h-5 w-5" />
                 ) : (
                   <Eye className="h-5 w-5" />
                 )}
-              </button>
+              </Button>
             </div>
-            <button
+            <Button
               type="submit"
               disabled={loginMutation.isPending}
-              className="mt-10 inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-xl bg-primary px-4 text-base font-semibold text-primary-foreground hover:opacity-80 active:opacity-80"
+              className="mt-10 h-14 w-full rounded-xl text-base font-semibold hover:opacity-80 active:opacity-80"
             >
               {loginMutation.isPending ? "登录中…" : "登录"}
-            </button>
+            </Button>
             {loginMutation.isError && (
               <p className="mt-2 text-sm text-destructive">
                 {describeError(loginMutation.error)}

@@ -15,6 +15,7 @@ import { ExternalLink } from "lucide-react";
 import { Markdown } from "@/components/markdown.tsx";
 import { cardRendererFor } from "./card-renderers.tsx";
 import { usePreview } from "@/features/preview/preview-context.tsx";
+import { Button } from "@/components/ui/button.tsx";
 
 const MONO = "whitespace-pre-wrap break-all font-mono text-xs leading-relaxed";
 
@@ -185,14 +186,16 @@ function InspectChip({
 }) {
   const preview = usePreview();
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="xs"
       onClick={() => preview.open(item.target)}
-      className="inline-flex items-center gap-1.5 self-start rounded-full border px-3 py-1.5 text-xs text-muted-foreground active:bg-accent-soft active:text-foreground"
+      className="h-auto gap-1.5 self-start rounded-full px-3 py-1.5 text-muted-foreground active:bg-accent-soft active:text-foreground"
     >
       <ExternalLink className="size-3" />
       查看 {item.label}
-    </button>
+    </Button>
   );
 }
 
@@ -201,13 +204,15 @@ function UnsupportedCard({ onDismiss }: { onDismiss: () => void }) {
   return (
     <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
       <p>这是一张本版本暂不支持的卡片。</p>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="xs"
         onClick={onDismiss}
-        className="mt-2 rounded-md border px-2 py-1 active:bg-accent-soft"
+        className="mt-2 active:bg-accent-soft"
       >
         知道了
-      </button>
+      </Button>
     </div>
   );
 }

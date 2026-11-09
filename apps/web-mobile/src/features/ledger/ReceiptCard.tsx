@@ -9,12 +9,8 @@
  */
 
 import type { LedgerReceiptView } from "@toby/contract";
-import {
-  describeError,
-  formatCents,
-  formatCountdown,
-  secondaryButtonClass,
-} from "./ledger-view.ts";
+import { describeError, formatCents, formatCountdown } from "./ledger-view.ts";
+import { Button } from "@/components/ui/button.tsx";
 
 interface ReceiptCardProps {
   receipt: LedgerReceiptView;
@@ -84,23 +80,25 @@ export function ReceiptCard({
         </p>
       )}
       {revertible ? (
-        <button
+        <Button
           type="button"
+          variant="outline"
+          className="mt-3"
           disabled={revertPending}
           onClick={() => onRevert(receipt.proposal_id)}
-          className={`${secondaryButtonClass} mt-3`}
         >
           {revertPending ? "撤销中…" : "撤销"}
-        </button>
+        </Button>
       ) : (
         reverted && (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            className="mt-3"
             onClick={onDismiss}
-            className={`${secondaryButtonClass} mt-3`}
           >
             知道了
-          </button>
+          </Button>
         )
       )}
       {revertible && revertError && (

@@ -5,6 +5,7 @@
  */
 
 import { ExternalLink, X } from "lucide-react";
+import { Button } from "@/components/ui/button.tsx";
 import { usePreview } from "./preview-context.tsx";
 
 export function PreviewOfferCard() {
@@ -22,23 +23,26 @@ export function PreviewOfferCard() {
         >
           <div className="flex items-start justify-between gap-2">
             <p className="text-xs text-muted-foreground">可以看</p>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="-m-1 shrink-0"
               aria-label={`关闭 ${offer.label} 提示`}
               onClick={() => dismiss(offer.target)}
-              className="-m-1 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <X className="size-3.5" />
-            </button>
+            </Button>
           </div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => open(offer.target)}
-            className="mt-1 flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent-soft"
+            className="mt-1 w-full justify-between gap-2 rounded-lg px-2 py-1.5 text-left"
           >
             <span className="font-medium">{offer.label}</span>
             <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
-          </button>
+          </Button>
         </div>
       ))}
     </div>

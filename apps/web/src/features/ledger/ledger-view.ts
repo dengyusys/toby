@@ -64,8 +64,3 @@ export function describeError(error: unknown): string {
   }
   return "请求失败,请稍后重试";
 }
-
-export const primaryButtonClass =
-  "inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50";
-export const secondaryButtonClass =
-  "inline-flex h-9 items-center rounded-lg border px-4 text-sm font-medium hover:bg-accent disabled:opacity-50";

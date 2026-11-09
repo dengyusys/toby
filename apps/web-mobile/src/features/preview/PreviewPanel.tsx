@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import { ledgerMonthOf, usePreview } from "./preview-context.tsx";
 import { LedgerMonthPreview } from "./LedgerMonthPreview.tsx";
+import { Button } from "@/components/ui/button.tsx";
 
 function panelTitle(target: string): string {
   const month = ledgerMonthOf(target);
@@ -37,14 +38,16 @@ export function PreviewPanel() {
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <header className="flex h-12 shrink-0 items-center justify-between border-b bg-card px-3">
         <h2 className="text-sm font-medium">{panelTitle(target)}</h2>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
+          className="rounded-lg text-muted-foreground active:bg-accent"
           aria-label="关闭预览"
           onClick={close}
-          className="flex size-9 items-center justify-center rounded-lg text-muted-foreground active:bg-accent"
         >
           <X className="size-4" />
-        </button>
+        </Button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto pt-4">
         {panelBody(target)}

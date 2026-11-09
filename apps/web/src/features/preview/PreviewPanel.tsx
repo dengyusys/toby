@@ -6,6 +6,7 @@
 
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/button.tsx";
 import { ledgerMonthOf, usePreview } from "./preview-context.tsx";
 import { LedgerMonthPreview } from "./LedgerMonthPreview.tsx";
 
@@ -37,14 +38,15 @@ export function PreviewPanel() {
     <aside className="z-30 flex w-2/5 shrink-0 flex-col border-l bg-card max-[767px]:absolute max-[767px]:inset-0">
       <header className="flex items-center justify-between border-b px-5 py-3">
         <h2 className="text-sm font-medium">{panelTitle(target)}</h2>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-sm"
           aria-label="关闭预览"
           onClick={close}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <X className="size-4" />
-        </button>
+        </Button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">{panelBody(target)}</div>
     </aside>

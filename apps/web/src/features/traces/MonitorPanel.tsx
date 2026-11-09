@@ -13,6 +13,7 @@ import { StatusDot, type StatusDotState } from "@/components/StatusDot.tsx";
 import { formatDuration } from "./format.ts";
 import { RunDetail } from "./RunDetail.tsx";
 import { type TraceRun, useTraceStream } from "./trace-stream-context.ts";
+import { Button } from "@/components/ui/button.tsx";
 
 const KIND_TEXT = { agent: "工具循环", "single-shot": "单发" } as const;
 
@@ -29,22 +30,20 @@ export function MonitorPanel({ onClose }: { onClose: () => void }) {
         <span className="text-xs text-muted-foreground">
           {connected ? "实时" : "未连接"}
         </span>
-        <button
-          type="button"
-          onClick={clear}
-          className="rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
+        <Button type="button" variant="ghost" size="xs" onClick={clear}>
           清空
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="ml-auto"
           onClick={onClose}
           aria-label="关闭监控"
           title="关闭监控"
-          className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <X className="size-4" />
-        </button>
+        </Button>
       </header>
       <div className="flex-1 overflow-y-auto">
         {selected ? (

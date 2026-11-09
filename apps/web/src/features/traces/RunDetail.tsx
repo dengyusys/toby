@@ -21,6 +21,7 @@ import type {
 import { Markdown } from "@/components/markdown.tsx";
 import { formatDuration } from "./format.ts";
 import type { TraceRun } from "./trace-stream-context.ts";
+import { Button } from "@/components/ui/button.tsx";
 
 const MONO = "whitespace-pre-wrap break-all font-mono text-xs leading-relaxed";
 
@@ -46,13 +47,15 @@ export function RunDetail({
   const finished = run.phase === "finished";
   return (
     <div className="flex flex-col gap-4 p-4">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="xs"
+        className="self-start"
         onClick={onBack}
-        className="self-start rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         ← 返回列表
-      </button>
+      </Button>
       <section className="rounded-xl border bg-card p-5 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold">{run.label}</h2>

@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import type { LedgerTransactionRow } from "@toby/contract";
 import { ledgerClient } from "@/lib/api.ts";
 import { describeError, formatCents, weekdayOf } from "./ledger-view.ts";
+import { Button } from "@/components/ui/button.tsx";
 
 interface LedgerDayPanelProps {
   date: string | null;
@@ -95,31 +96,36 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                   </span>
                   {confirmingId === transaction.id ? (
                     <span className="flex items-baseline gap-1.5">
-                      <button
+                      <Button
                         type="button"
+                        variant="destructive"
+                        size="xs"
                         disabled={deleteMutation.isPending}
                         onClick={() => deleteMutation.mutate(transaction.id)}
-                        className="cursor-pointer rounded-sm bg-destructive px-2 py-0.5 text-xs text-destructive-foreground transition-opacity duration-150 hover:opacity-85 disabled:cursor-default disabled:opacity-50"
                       >
                         {deleteMutation.isPending ? "删除中…" : "确认删除"}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="xs"
                         onClick={() => setConfirmingId(null)}
-                        className="cursor-pointer text-xs text-muted-foreground transition-colors duration-150 hover:text-foreground"
+                        className="text-muted-foreground"
                       >
                         取消
-                      </button>
+                      </Button>
                     </span>
                   ) : (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="xs"
                       aria-label={`删除 ${transaction.category} ¥${formatCents(transaction.amount)}`}
                       onClick={() => setConfirmingId(transaction.id)}
-                      className="cursor-pointer text-xs text-muted-foreground transition-colors duration-150 hover:text-danger"
+                      className="text-muted-foreground hover:text-danger"
                     >
                       删除
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

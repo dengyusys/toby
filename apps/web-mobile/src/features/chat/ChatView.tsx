@@ -22,6 +22,7 @@ import type { ChatItem, ChatTurnView, LedgerReceiptView } from "@toby/contract";
 import { chatClient, ledgerClient } from "@/lib/api.ts";
 import { describeError } from "@/features/ledger/ledger-view.ts";
 import { ItemView } from "./ItemView.tsx";
+import { Button } from "@/components/ui/button.tsx";
 
 /** The empty-conversation hero headline, centered until the first send. */
 const EMPTY_HEADLINE = "有什么我能帮你的吗？";
@@ -310,15 +311,16 @@ export function ChatView() {
             placeholder="说点什么，例如：记一笔，昨天午饭花了 25"
             className="max-h-[120px] min-h-[34px] flex-1 resize-none border-none bg-transparent py-1.5 text-base leading-relaxed outline-none"
           />
-          <button
+          <Button
             type="submit"
+            size="icon"
             disabled={sendPending || draft.trim().length === 0}
             aria-label="发送"
             title="发送（Enter）"
-            className="flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-[0.92] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45"
+            className="size-[34px] shrink-0 hover:opacity-90 active:scale-[0.92]"
           >
             <ArrowUp className="size-[16px]" />
-          </button>
+          </Button>
         </div>
       </form>
     </section>

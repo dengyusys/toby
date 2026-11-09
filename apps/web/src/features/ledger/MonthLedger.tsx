@@ -11,6 +11,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { LedgerMonthReport } from "@toby/contract";
 import { formatCents, monthLabel, todayLocal } from "./ledger-view.ts";
+import { Button } from "@/components/ui/button.tsx";
 
 interface MonthLedgerProps {
   months: string[];
@@ -197,27 +198,29 @@ export function MonthLedger({
       {/* Header: the month pager plus the running month summary. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface-hover px-4 py-2.5 max-[767px]:px-3.5">
         <div className="flex items-center gap-1" aria-label="月份导航">
-          <button
-            className="flex size-7 cursor-pointer items-center justify-center rounded-sm text-subtle transition-colors duration-150 hover:bg-accent-soft hover:text-foreground disabled:cursor-default disabled:opacity-30"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             type="button"
             aria-label="上一月"
             disabled={previousMonth === undefined}
             onClick={() => previousMonth && onNavigate(previousMonth)}
           >
             <ChevronLeft className="size-4" />
-          </button>
+          </Button>
           <span className="min-w-[96px] px-1 text-center font-serif text-base font-semibold tracking-tight tabular-nums">
             {monthLabel(currentMonth)}
           </span>
-          <button
-            className="flex size-7 cursor-pointer items-center justify-center rounded-sm text-subtle transition-colors duration-150 hover:bg-accent-soft hover:text-foreground disabled:cursor-default disabled:opacity-30"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             type="button"
             aria-label="下一月"
             disabled={nextMonth === undefined}
             onClick={() => nextMonth && onNavigate(nextMonth)}
           >
             <ChevronRight className="size-4" />
-          </button>
+          </Button>
         </div>
         {data && (
           <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">
