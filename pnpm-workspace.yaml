@@ -77,11 +77,11 @@ catalog:
 
   # Web build toolchain — Vite + Tailwind v4 + the shadcn CLI.
   # 前端构建工具链 —— Vite + Tailwind v4 + shadcn CLI。
-  vite: ^6.0.0
-  "@vitejs/plugin-react": ^4.3.4
+  vite: ^8.0.0
+  "@vitejs/plugin-react": ^6.0.0
   shadcn: ^4.19.0
   tailwindcss: ^4.3.3
-  "@tailwindcss/vite": ^4.3.3
+  "@tailwindcss/vite": ^4.3.5
 
   # Server runtime — @toby/server only.
   # 服务端运行时 —— 仅 @toby/server 使用。
@@ -111,8 +111,8 @@ catalog:
 
   # Testing — vitest everywhere, DOM stack for the web apps.
   # 测试 —— vitest 全局使用,DOM 栈归前端应用。
-  vitest: ^5.0.1
-  "@vitest/coverage-v8": ^5.0.1
+  vitest: ^5.1.0
+  "@vitest/coverage-v8": ^5.1.0
   happy-dom: ^20.14.5
   "@testing-library/react": ^16.3.3
   "@testing-library/jest-dom": ^7.0.1
