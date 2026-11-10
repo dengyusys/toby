@@ -1,6 +1,6 @@
 /**
  * Ledger client against a stubbed fetch: request paths, bodies and typed
- * decoding for every endpoint; error-envelope mapping for proposal states.
+ * decoding for every endpoint; error-envelope mapping for write failures.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,10 +23,10 @@ afterEach(() => {
 });
 
 describe("createLedgerClient", () => {
-  it("posts the structured entry to /api/ledger/proposals", async () => {
+  it("posts the structured entry to /api/ledger/entries", async () => {
     const fetchMock = stubFetch();
     const client = createLedgerClient("http://127.0.0.1:8629/");
-    await client.createStructuredProposal({
+    await client.writeStructuredEntry({
       date: "2026-10-20",
       type: "expense",
       category: "餐饮",
@@ -38,7 +38,7 @@ describe("createLedgerClient", () => {
       string,
       RequestInit | undefined,
     ];
-    expect(url).toBe("http://127.0.0.1:8629/api/ledger/proposals");
+    expect(url).toBe("http://127.0.0.1:8629/api/ledger/entries");
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({
       entry: {
@@ -55,26 +55,14 @@ describe("createLedgerClient", () => {
   it("posts a sentence for the AI path", async () => {
     const fetchMock = stubFetch();
     const client = createLedgerClient("");
-    await client.createTextProposal("午饭花了25");
+    await client.writeFromText("午饭花了25");
     const [url, init] = fetchMock.mock.calls[0] as [
       string,
       RequestInit | undefined,
     ];
-    expect(url).toBe("/api/ledger/proposals");
+    expect(url).toBe("/api/ledger/entries");
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({ text: "午饭花了25" });
-  });
-
-  it("revert hits its endpoint with an empty body", async () => {
-    const fetchMock = stubFetch();
-    const client = createLedgerClient("");
-    await client.revertProposal("lp-1");
-    const [url, init] = fetchMock.mock.calls[0] as [
-      string,
-      RequestInit | undefined,
-    ];
-    expect(url).toBe("/api/ledger/proposals/lp-1/revert");
-    expect(init?.method).toBe("POST");
   });
 
   it("encodes the month into the transactions query", async () => {
@@ -99,28 +87,35 @@ describe("createLedgerClient", () => {
     expect(await client.listMonths()).toEqual(["2026-10", "2026-09"]);
   });
 
-  it("proposal state failures decode into ApiError codes", async () => {
+  it("write failures decode into ApiError codes", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(
         async () =>
           new Response(
             JSON.stringify({
-              statusCode: 410,
-              message: "proposal has expired",
-              error: "Gone",
-              errorCode: "PROPOSAL_EXPIRED",
+              statusCode: 400,
+              message: "amount has more than two decimals",
+              error: "Bad Request",
+              errorCode: "INVALID_ENTRY",
             }),
-            { status: 410 },
+            { status: 400 },
           ),
       ),
     );
     const client = createLedgerClient("");
     const error = (await client
-      .revertProposal("lp-late")
+      .writeStructuredEntry({
+        date: "2026-10-20",
+        type: "expense",
+        category: "餐饮",
+        account: "微信",
+        amount: "25.555",
+        note: "午饭",
+      })
       .catch((thrown: unknown) => thrown)) as ApiError;
     expect(error).toBeInstanceOf(ApiError);
-    expect(error.status).toBe(410);
-    expect(error.code).toBe("PROPOSAL_EXPIRED");
+    expect(error.status).toBe(400);
+    expect(error.code).toBe("INVALID_ENTRY");
   });
 });

@@ -38,7 +38,6 @@ import type { ToolDefinition } from "./infrastructure/model/agent.ts";
 export type ChatWriteOutcome =
   | {
       kind: "receipt";
-      proposalId: string;
       confirmText: string;
       receipt: Readonly<Record<string, unknown>>;
     } // 不透明透传
@@ -50,8 +49,8 @@ export interface ChatDomainCapability {
   readonly label: string; // "记账"
   /** 分类器 prompt 的一行,逐字使用:"- ledger(记账):记一笔钱、查账、问花了多少。" */
   readonly intentDescription: string;
-  /** 写路径。调用域的 service,与今天完全一样经过 actions kernel
-   *  (按分层规则 immediate 或 gated)。 */
+  /** 写路径。调用域的 service——一次经过校验的事务写入
+   *  事务写入。 */
   handleWrite(sentence: string): Promise<ChatWriteOutcome>;
   /** none-agent 的只读工具;经共享工厂保持种类门控。 */
   readonly tools: readonly ToolDefinition[];
@@ -67,14 +66,14 @@ export interface ChatDomainCapability {
 
 里面嵌着的决策,明说:
 
-- **确认文案归域。** `已记入 2 笔,短时间内在卡片上可撤销` 引用的
+- **凭据文案归域。** `已记入 2 笔` 引用的
   是 ledger 自己的 receipt 字段,今天却写在 chat 的 `route()` 里。
   以后它作为 `receipt` 结果里的 `confirmText` 随能力携带,chat 不再
   替域措辞。
 - **receipt 对 chat 不透明**——与 chat 对 pi-ai transcript 项的既有
   立场一致:服务端不解释内容,渲染是 webs 的事。chat 原样拷进卡片
   项。
-- **`handleWrite` 不得用 throw 表达域结果。** 拒绝(kernel 冲突、
+- **`handleWrite` 不得用 throw 表达域结果。** 拒绝(校验失败、
   意外失败)沿现有 catch 路径落为通用"查询出了点问题"notice——
   把现有语义写死下来。
 
@@ -123,8 +122,9 @@ chat)。红线因此保全:
 
 ## 不变的部分
 
-- actions kernel 仍是唯一写路径;`handleWrite` → 域 service →
-  kernel,分层语义与撤销窗口不动。
+- 写路径仍是一次写一个事务、先过校验
+  ;`handleWrite` → 域 service → 仓库事务,
+  中间没有任何机器。
 - 闭合的 item 联合保持闭合——能力产出 `ChatWriteOutcome` 形状,
   映射到既有 item 类型;新增 item 类型仍是 chat 的显式决策。
 - 零翻译回放、`card_outcome`/`reportOutcome`、限流、各域线路错误

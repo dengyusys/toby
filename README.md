@@ -1,10 +1,10 @@
 # Toby
 
-**Self-hosted AI assistant: everyday writes land at once (revertible); destructive ones still wait for your confirm.**
+**Self-hosted AI assistant: say one sentence — every write lands at once, validated and transactional.**
 
 English | [简体中文](README.zh.md)
 
-Say one sentence — your money, schedule, and notes fall into place. The AI turns your words into a structured **write card** (what to record, where, and with which values) and the server performs a deterministic, transactional write. Everyday additive writes land immediately — the card is a receipt with a minutes-long revert window; destructive operations (rewriting your notes, redefining trackers) still show a confirm card first. Every write goes through the actions kernel — and the AI has no write access of its own.
+Say one sentence — your money, schedule, and notes fall into place. The AI turns your words into a structured **write draft** (what to record, where, and with which values); the server validates it deterministically and performs one transactional write — append, rewrite, and delete all the same. An unclear sentence gets a clarifying question, never a guess. The AI has no write access of its own: it only ever proposes drafts, and validation is code.
 
 ```text
       ┌─ You ──────────────────────────────────────────┐
@@ -14,14 +14,12 @@ Say one sentence — your money, schedule, and notes fall into place. The AI tur
       ┌─ Toby · written ✓ ─────────────────────────────┐
       │ Expense · Dining · ¥30.00                      │
       │ Date 2026-10-22 · Account not linked           │
-      │                                                │
-      │ [ Revert (within 10 min) ]                     │
       └────────────────────────────────────────────────┘
 ```
 
 ## 🏗️ Architecture
 
-One process: deterministic orchestration and execution on the sides, a fenced AI loop in the middle — **the AI only drafts; every way in and out is deterministic.** The full picture, including the end-to-end sequence of a single write, is in [docs/system-overview.md](docs/system-overview.md).
+One process: deterministic orchestration and execution on the sides, a tool-bound AI loop in the middle — **the AI has no tools but the registered ones; every way in and out is deterministic.** The full picture, including the end-to-end sequence of a single write, is in [docs/system-overview.md](docs/system-overview.md).
 
 ![Architecture overview](docs/assets/architecture.svg)
 
@@ -29,15 +27,15 @@ One process: deterministic orchestration and execution on the sides, a fenced AI
 
 **Available today**
 
-- One-sentence bookkeeping: speak (or type) an expense or income; it lands at once as a receipt card with a revert window
+- One-sentence bookkeeping: speak (or type) an expense or income; it lands at once as a receipt card
 - Login protection for deployments, PC (`/`) and mobile (`/m/`) web apps
 - Self-hosted and single-user: your data stays in local SQLite files on your machine
 
 **On their way**
 
-- Schedule, notes, todos, and a personal library — each lands as a domain with its own contract (see [docs/features/](docs/features/))
+- Schedule, notes, todos, and a personal library — each lands as a domain; its contract doc is written when it lands
 
-> **Current phase:** live domains are whatever sits in [`apps/server/src/domains/`](apps/server/src/domains/); `docs/features/` holds the target contracts. Details in [AGENTS.md](AGENTS.md).
+> **Current phase:** live domains are whatever sits in [`apps/server/src/domains/`](apps/server/src/domains/); `docs/features/` holds the live contracts of landed domains. Details in [AGENTS.md](AGENTS.md).
 
 ## 🚀 Quick start
 
@@ -60,7 +58,7 @@ The name: **8629** — the server's port — spells TOBY on a T9 keypad.
 
 - [docs/product-overview.md](docs/product-overview.md) — the product, user-facing
 - [docs/system-overview.md](docs/system-overview.md) — architecture
-- [docs/features/](docs/features/) — per-domain target contracts
+- [docs/features/](docs/features/) — live contracts of landed domains
 - [docs/decisions/](docs/decisions/) — architecture decision records (ADRs)
 - [docs/operations/](docs/operations/) — local dev, ports, deployment notes
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute ([中文](CONTRIBUTING.zh.md))

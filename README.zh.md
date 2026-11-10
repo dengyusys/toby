@@ -1,10 +1,10 @@
 # Toby
 
-**自托管 AI 助手:日常写入即刻落库、可撤回;破坏性改动仍先问过你。**
+**自托管 AI 助手:一句话,每笔写入经校验、以事务即刻落库。**
 
 [English](README.md) | 简体中文
 
-一句话说清——账、日程、笔记各就各位。AI 把你的话变成一张结构化**写入卡**(记什么、记到哪儿、什么值),服务端随即执行确定性事务写入。日常追加类写入即刻落库——卡是凭据,带几分钟的撤回窗口;破坏性操作(改写笔记、调整记录项定义)仍先出确认卡。一切写入都经 actions kernel——AI 自己没有任何写权限。
+一句话说清——账、日程、笔记各就各位。AI 把你的话变成一份结构化**写入草稿**(记什么、记到哪儿、什么值);服务端确定性校验后执行一次事务写入——追加、改写、删除一视同仁。没说清的句子会得到一句追问,绝不瞎猜。AI 自己没有任何写权限:它只能出草稿,把关的永远是代码。
 
 ```text
       ┌─ 你 ───────────────────────────────────────────┐
@@ -14,14 +14,12 @@
       ┌─ Toby · 已写入 ✓ ──────────────────────────────┐
       │ 支出 · 餐饮 · ¥30.00                           │
       │ 日期 2026-10-22 · 账户 未关联                  │
-      │                                                │
-      │ [ 撤回(10 分钟内) ]                           │
       └────────────────────────────────────────────────┘
 ```
 
 ## 🏗️ 架构
 
-一个进程:两侧是确定区(编排与执行),中间是围栏里的 AI——**AI 只起草,进出都是确定区。**完整架构与一次写入的端到端时序见 [docs/system-overview.zh.md](docs/system-overview.zh.md)。
+一个进程:两侧是确定区(编排与执行),中间是只能用注册工具的 AI——**AI 只有注册过的工具可用;进出都是确定区。**完整架构与一次写入的端到端时序见 [docs/system-overview.zh.md](docs/system-overview.zh.md)。
 
 ![架构总览](docs/assets/architecture.zh.svg)
 
@@ -29,15 +27,15 @@
 
 **已可用**
 
-- 一句话记账:说出(或输入)一笔收支,即刻落库为凭据卡,带撤回窗口
+- 一句话记账:说出(或输入)一笔收支,即刻落库为凭据卡
 - 部署可开启登录保护,PC(`/`)与移动端(`/m/`)双 Web 应用
 - 自托管、单用户:数据保存在你机器上的本地 SQLite 文件里
 
 **陆续到来**
 
-- 日程、笔记、待办与个人书库——每个功能作为一个业务域落地,各带契约文档(见 [docs/features/](docs/features/))
+- 日程、笔记、待办与个人书库——每个功能作为一个业务域落地,契约文档落地时立
 
-> **当前阶段:** 已上线域以 [`apps/server/src/domains/`](apps/server/src/domains/) 目录为准;`docs/features/` 存放目标契约。详见 [AGENTS.zh.md](AGENTS.zh.md)。
+> **当前阶段:** 已上线域以 [`apps/server/src/domains/`](apps/server/src/domains/) 目录为准;`docs/features/` 只收录已落地域的现行契约,不预写。详见 [AGENTS.zh.md](AGENTS.zh.md)。
 
 ## 🚀 快速开始
 
@@ -60,7 +58,7 @@ docker compose up -d --build    # Docker 部署 —— 手册: docs/operations/d
 
 - [docs/product-overview.md](docs/product-overview.md) —— 产品介绍(面向用户)
 - [docs/system-overview.md](docs/system-overview.md) —— 系统架构
-- [docs/features/](docs/features/) —— 各域目标契约
+- [docs/features/](docs/features/) —— 已落地域的现行契约
 - [docs/decisions/](docs/decisions/) —— 架构决策记录(ADR)
 - [docs/operations/](docs/operations/) —— 本地开发、端口与部署说明
 - [CONTRIBUTING.zh.md](CONTRIBUTING.zh.md)([英文](CONTRIBUTING.md))—— 贡献指南

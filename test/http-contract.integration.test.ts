@@ -168,8 +168,8 @@ describe("http contract (api)", () => {
 });
 
 describe("http contract (ledger flow)", () => {
-  it("records a transaction end to end: immediate write, revert, delete", async () => {
-    const created = await fetch(`${baseUrl}/api/ledger/proposals`, {
+  it("records a transaction end to end: write, delete", async () => {
+    const created = await fetch(`${baseUrl}/api/ledger/entries`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -185,36 +185,20 @@ describe("http contract (ledger flow)", () => {
     });
     expect(created.status).toBe(200);
     const receipt = (await created.json()) as {
-      status: string;
-      proposal_id: string;
       written: number;
-      revert_until: string;
+      created_at: string;
       entries: { amount: number }[];
     };
-    // Immediate tier: the batch has already landed when the reply arrives.
-    expect(receipt.status).toBe("committed");
+    // Direct write: the batch has already landed when the reply arrives.
     expect(receipt.written).toBe(1);
     expect(receipt.entries[0]!.amount).toBe(2500);
-    expect(!Number.isNaN(Date.parse(receipt.revert_until))).toBe(true);
+    expect(!Number.isNaN(Date.parse(receipt.created_at))).toBe(true);
 
     const months = await fetch(`${baseUrl}/api/ledger/months`);
     expect(await months.json()).toEqual({ months: ["2026-10"] });
 
-    // Revert inside the window removes the batch.
-    const revert = await fetch(
-      `${baseUrl}/api/ledger/proposals/${receipt.proposal_id}/revert`,
-      { method: "POST" },
-    );
-    expect(revert.status).toBe(200);
-    expect(await revert.json()).toMatchObject({
-      proposal_id: receipt.proposal_id,
-      status: "reverted",
-    });
-    const afterRevert = await fetch(`${baseUrl}/api/ledger/months`);
-    expect(await afterRevert.json()).toEqual({ months: [] });
-
     // A second write; the user-initiated delete removes the row; repeat 404s.
-    const second = await fetch(`${baseUrl}/api/ledger/proposals`, {
+    const second = await fetch(`${baseUrl}/api/ledger/entries`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -242,8 +226,9 @@ describe("http contract (ledger flow)", () => {
       expense_total: number;
     };
     expect(report.status).toBe(200);
-    expect(body.transactions).toHaveLength(1);
-    expect(body.expense_total).toBe(2500);
+    // Two direct writes have landed: the first row plus the second's.
+    expect(body.transactions).toHaveLength(2);
+    expect(body.expense_total).toBe(5000);
 
     const deleted = await fetch(
       `${baseUrl}/api/ledger/transactions/${transactionId}`,
@@ -261,7 +246,8 @@ describe("http contract (ledger flow)", () => {
     const afterBody = (await afterDelete.json()) as {
       transactions: unknown[];
     };
-    expect(afterBody.transactions).toHaveLength(0);
+    // The deleted row is gone; the earlier direct write stays.
+    expect(afterBody.transactions).toHaveLength(1);
 
     const repeat = await fetch(
       `${baseUrl}/api/ledger/transactions/${transactionId}`,

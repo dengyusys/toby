@@ -10,7 +10,7 @@ Toby 是自托管个人助手(定位:像贴身书童,记录日程、笔记,管�
 
 ## 已确认决策
 
-- 技术栈:Node 22 + pnpm workspaces + Fastify 5 + better-sqlite3 + React 19/Vite 6/Tailwind v4/shadcn + vitest
+- 技术栈:Node 22 + pnpm workspaces + Fastify 5 + better-sqlite3 + React 19/Vite 8/Tailwind v4/shadcn + vitest
 - 数据库访问:自建适配 port,推荐 SQLite;MySQL 适配器出于作者学习目的,第三种数据库加入只需再加一个适配器(不引入 ORM/查询构建器,domain store 手写 SQL、类型安全自维护;见 docs/decisions/db-adapter.md;方案已定,实现为批次四)
 - 后端服务命名:**`server`**(目录 `apps/server`、包名 `@toby/server`、组合根 `src/composition-root.ts`(`src/main.ts` 只负责启动)、文档术语"服务端 / Toby server"),不用旧项目的 gateway
 - 保留"对话→AI提案→确认→写入"模式,框架期仅做**架构预留**(ADR + 文档,不写代码)
@@ -113,7 +113,7 @@ toby/
 
 ### 7. 版本要点(沿用旧项目实测组合)
 
-fastify ^5.12.8、@fastify/cookie ^11.1.5、@fastify/static ^10.1.8(见 docs/decisions/fastify-server-stack.md;fastify 5.12.8 经 minimumReleaseAgeExclude 放行)、better-sqlite3 ^13.0.3、mysql2 ^3.24.6(数据库驱动各配各的适配器、共用一个 port;mysql2 纯 JS、自带类型、无需 allowBuilds)、pino ^10.4.0(结构化日志,见 docs/decisions/server-logging.md;本就是 fastify 的传递依赖,直接依赖同版本零新增)、zod ^4.6.7、@earendil-works/pi-ai 1.5.0、@earendil-works/pi-agent-core 1.5.0、@earendil-works/pi-schema 1.5.0(三者精确钉:pi-agent-core 对 pi-ai / pi-schema 是精确依赖,用 ^ 会装出双副本类型分叉;pi-schema 另作服务端直接依赖,用于工具 schema 的启动时编译自检)、react 19、vite 6、@tailwindcss/vite ^4.3.3、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。版本单一真相关在 `pnpm-workspace.yaml` 的 `catalog`,各 package.json 以 `"catalog:"` 引用。**不引入**:openai 等厂商 SDK(应用代码不直接 import 厂商 SDK;LLM 接入统一经 @earendil-works/pi-ai,其传递依赖除外)、sqlite-vec、Python(随业务域提交进)
+fastify ^5.12.8、@fastify/cookie ^11.1.5、@fastify/static ^10.1.8(见 docs/decisions/fastify-server-stack.md;fastify 5.12.8 经 minimumReleaseAgeExclude 放行)、better-sqlite3 ^13.0.3、mysql2 ^3.24.6(数据库驱动各配各的适配器、共用一个 port;mysql2 纯 JS、自带类型、无需 allowBuilds)、pino ^10.4.0(结构化日志,见 docs/decisions/server-logging.md;本就是 fastify 的传递依赖,直接依赖同版本零新增)、zod ^4.6.7、@earendil-works/pi-ai 1.5.0、@earendil-works/pi-agent-core 1.5.0、@earendil-works/pi-schema 1.5.0(三者精确钉:pi-agent-core 对 pi-ai / pi-schema 是精确依赖,用 ^ 会装出双副本类型分叉;pi-schema 另作服务端直接依赖,用于工具 schema 的启动时编译自检)、react 19、vite 8、@vitejs/plugin-react 6、@tailwindcss/vite ^4.3.5、@tanstack/react-query ^5.104.1、react-router ^8.3.1、vitest ^5、happy-dom、@testing-library/*、typescript ~6.0.3、pnpm 11.18.0(packageManager)。版本单一真相关在 `pnpm-workspace.yaml` 的 `catalog`,各 package.json 以 `"catalog:"` 引用。**不引入**:openai 等厂商 SDK(应用代码不直接 import 厂商 SDK;LLM 接入统一经 @earendil-works/pi-ai,其传递依赖除外)、sqlite-vec、Python(随业务域提交进)
 
 ### 8. AGENTS.md(英文 + 中文)—— 已完成(不设 CLAUDE.md,AI 规则统一走 AGENTS.md)
 

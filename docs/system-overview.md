@@ -15,7 +15,7 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 | Runtime  | Node 22.23.2; server built with `tsc`, webs with Vite                                                                                                      |
 | Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                                                          |
 | Server   | Fastify 5 + own db adapter port — "port" as in ports-and-adapters, not a network port — (SQLite default, MySQL optional) + zod (AI: pi-ai + pi-agent-core) |
-| Web      | React 19 + Vite 6 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                                                  |
+| Web      | React 19 + Vite 8 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                                                  |
 | Tests    | vitest + happy-dom + @testing-library                                                                                                                      |
 
 ## System context
@@ -23,22 +23,22 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 ```mermaid
 flowchart LR
     U(("User")) --> W["Two web apps (React SPAs:<br/>PC at / and mobile at /m/)"]
-    W -->|"read-only APIs / write cards (HTTP)"| S["Toby server · single process (Fastify)<br/>vertical domains · write lifecycle (actions kernel)"]
+    W -->|"read-only APIs / write receipts (HTTP)"| S["Toby server · single process (Fastify)<br/>vertical domains · direct writes (one transaction each)"]
     S --> DB[("Databases via the adapter port<br/>SQLite (default) · MySQL (optional)<br/>only the server writes")]
-    S -->|"kind-gated tools; writes only via the actions kernel"| AI(("AI via pi-ai / pi-agent-core"))
+    S -->|"kind-gated tools; writes are validated drafts"| AI(("AI via pi-ai / pi-agent-core"))
 ```
 
 - The web apps reach data only through server APIs; they never touch the file system.
-- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete runs through the shared **actions kernel** in `infrastructure/actions-kernel/` (`registry.ts`) — additive operations execute immediately with a revert window, destructive operations pass proposal confirmation (tiering: [write-confirmation-tiers.md](decisions/write-confirmation-tiers.md); ledger is live on it; semantics: [actions-kernel.md](decisions/actions-kernel.md)).
-- AI tools carry a safety kind (read-only / write-intent) and run behind a policy gate; real effects still require proposal confirmation (docs/decisions/ai-pi-runtime.md).
+- The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete is one validated, transactional repository write — no proposals, no confirmation gates (ledger is live on it).
+- AI tools carry a safety kind (read-only / write-intent) and run behind a policy gate; every write a tool produces is deterministic validation plus one transaction (docs/decisions/ai-pi-runtime.md).
 - Root `scripts/` only orchestrates dev and multi-process startup; it never touches data.
-- The remaining business domains (chat, greeting, schedule, notes, todo, memory, library) land one at a time; each establishes its contract doc in `docs/features/` on arrival. The write kernel is already shared (see above), not a domain.
+- The remaining business domains (greeting, schedule, notes, todo, memory, library) land one at a time; each writes its contract doc in `docs/features/` when it lands — not before. The write rule is one sentence shared by all of them, not a shared module.
 
 ## Repository layout
 
 ```text
 apps/
-├─ server/        # @toby/server: Fastify single process — pages, APIs, proposals, safe writes
+├─ server/        # @toby/server: Fastify single process — pages, APIs, validated writes
 ├─ web/           # @toby/web: PC app (entry /)
 ├─ web-mobile/    # @toby/web-mobile: mobile app (entry /m/)
 packages/
@@ -66,7 +66,7 @@ test/             # root HTTP integration tests
 
 ## APIs and the write data flow (target shape)
 
-One write, end to end (endpoint contracts are finalized in each domain's `features/` doc). The sequence below is the **gated tier** (destructive operations); the immediate tier (additive) runs the same transactional write at once and returns a born-confirmed card with a revert window — see the [tier decision](decisions/write-confirmation-tiers.md):
+One write, end to end (endpoint contracts are finalized in each domain's `features/` doc). Every write — additive or destructive — takes the same direct path:
 
 ```mermaid
 sequenceDiagram
@@ -80,33 +80,23 @@ sequenceDiagram
     S->>A: parse request (instruction text only)
     A-->>S: schema-validated entry drafts (submit_entries)
     S->>S: schema, domain, and semantic validation
-    S->>D: read current fields
-    S-->>W: short-lived proposal (proposal_id, before, after)
-
-    alt user confirms (submits proposal_id only)
-        W->>S: commit (empty body)
-        S->>D: re-read target fields in-transaction, check conflicts
-        alt no conflict
-            S->>D: execute writes serially and commit
-            S-->>W: in-transaction result snapshot
-        else field conflict
-            S-->>W: reject the whole proposal, zero writes
-        end
-    else cancel / expired / left the page
-        W->>S: cancel (empty body)
-        S-->>W: proposal voided, zero writes
+    alt the sentence cannot be resolved
+        S-->>W: clarifying question, never a guess (nothing written)
+    else validated draft
+        S->>D: one transaction: write serially and commit
+        S-->>W: receipt (what was written)
     end
 ```
 
-Two non-inferable details: the AI's draft passes shape, domain, and semantic validation before any proposal exists — `validation.ts` is the trust boundary; and client requests carry no state beyond the `proposal_id` (empty bodies on commit/cancel).
+Two non-inferable details: the AI's draft passes shape, domain, and semantic validation before anything is written — `validation.ts` is the trust boundary; and a wrong write is corrected by writing again or restoring from backup — there is no in-product undo, by design.
 
 ## Data boundaries
 
 - `data/` is production data: nobody touches it by default; maintenance requires explicit user instruction, with SHA-256 compared before and after any move or restore.
-- Daily reads go only through server APIs; daily writes only through the actions kernel — immediate or confirmed tier. Clients, AI, and scripts never connect to a database directly.
+- Daily reads go only through server APIs; daily writes only as one validated repository transaction each. Clients, AI, and scripts never connect to a database directly.
 - Explicit `false` and numeric `0` are valid data, never treated as missing.
 - The server edits field by field: `NULL` means missing, omitted on read; unrelated fields stay untouched.
-- A multi-field commit is one database transaction; failure or interruption rolls back via the database. No user history; the only rewind is the immediate tier's revert window — deliberately not general undo.
+- A multi-field commit is one database transaction; failure or interruption rolls back via the database. No user history and no in-product undo — deliberately; recovery is backup.
 - Each domain owns one database — a SQLite file `data/<domain>.db`, or a MySQL schema `toby_<domain>` when that dialect is on (see the [db adapter decision](decisions/db-adapter.md)); databases are never shared across domains.
 
 ## Security and dependency direction
@@ -114,7 +104,7 @@ Two non-inferable details: the AI's draft passes shape, domain, and semantic val
 ```mermaid
 flowchart TB
     BOOT["composition-root.ts<br/>one line per domain; all cross-domain wiring lives here"]
-    INFRA["infrastructure/<br/>config (TOBY_*) · http (body limits / error body / no-store / dual-SPA static)<br/>model (AI runtime) · actions-kernel (proposal kernel) · db (adapter port: sqlite / mysql)"]
+    INFRA["infrastructure/<br/>config (TOBY_*) · http (body limits / error body / no-store / dual-SPA static)<br/>model (AI runtime) · db (adapter port: sqlite / mysql)"]
     DOM["domains/*<br/>business domains, landing one by one"]
     BOOT --> INFRA
     BOOT --> DOM
@@ -129,8 +119,8 @@ Domain organization discipline:
 
 Security boundaries:
 
-- HTTP write paths must go through the actions kernel — immediate (additive) or confirmed (destructive) per tier; any write endpoint bypassing the kernel is a defect. Ledger is live on it; later domains reuse the same kernel (`infrastructure/actions-kernel/` (`registry.ts`)).
-- The AI gets no file paths, no data contents, and no shell; its tools are kind-gated, and write-intent tools only produce write drafts — the effect still goes through the kernel, immediate or confirmed per tier (docs/decisions/ai-pi-runtime.md). Secrets live only in local environment config, never inside web bundles.
+- HTTP write paths are one validated, transactional repository write each; any write that is not — a bypass, a two-step write, a partial write — is a defect.
+- The AI gets no file paths, no data contents, and no shell; its tools are kind-gated, and a write-intent tool's effect is deterministic validation plus one transaction (docs/decisions/ai-pi-runtime.md). Secrets live only in local environment config, never inside web bundles.
 - Introducing new runtimes (Python etc.) requires an ADR first.
 - These import disciplines are machine-enforced by `test/boundaries.test.ts`.
 
@@ -145,18 +135,14 @@ Security boundaries:
 
 Terms this repository uses with a specific meaning; one line each — the authoritative definition lives where the term is introduced.
 
-| Term                           | Meaning                                                                                                                                                                                                             |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| proposal / proposal card       | The gated tier's short-lived, user-confirmable write suggestion; nothing is written until confirmed. Immediate-tier cards are born confirmed — receipts with a revert window                                        |
-| write tier                     | Which lane an operation takes: immediate (additive — executes at once, card born confirmed, revert window) or gated (destructive — proposal confirmation)                                                           |
-| actions kernel                 | The shared write state machine in `infrastructure/actions-kernel/` (`registry.ts`) — single write path for both tiers (execute-then-journal / journal-then-execute; 30 s tacit window, TTL backstop, single-flight) |
-| safety kind                    | A tool's registered class: `read-only` (no state change) or `write-intent` (effect only via proposal); a `costly` kind is reserved for the future                                                                   |
-| gate (policy / shape / health) | Enforcement points: policy = tool kinds an agent may call; shape = Zod schema check; health = dev startup readiness                                                                                                 |
-| trust boundary                 | Deterministic server-side validation — the AI's output (and every other foreign input) is untrusted until it passes                                                                                                 |
-| adapter port                   | "Port" as in ports-and-adapters: the interface behind which SQLite / MySQL swap                                                                                                                                     |
-| composition root               | `apps/server/src/composition-root.ts` — the only place cross-domain wiring happens                                                                                                                                  |
-| vertical domain slice          | One business = one directory owning its routes, service, store, and rules                                                                                                                                           |
-| modular monolith               | Modules isolated in code, assembled and run by one process                                                                                                                                                          |
-| single-flight                  | Concurrent confirms and the sweeper share one execution                                                                                                                                                             |
-| error body                     | The one error shape: `{ statusCode, message, error }` plus a machine-readable `errorCode` (the sanitized 500 keeps only `statusCode` and `message`)                                                                 |
-| sweeper                        | The periodic task that auto-writes due proposals and prunes expired ones                                                                                                                                            |
+| Term                           | Meaning                                                                                                                                                                |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| direct write                   | Every write — additive or destructive — is deterministic validation plus one transactional repository write; no proposals, no confirmation gates, no undo              |
+| safety kind                    | A tool's registered class: `read-only` (no state change) or `write-intent` (real effect: a validated, transactional write); a `costly` kind is reserved for the future |
+| gate (policy / shape / health) | Enforcement points: policy = tool kinds an agent may call; shape = Zod schema check; health = dev startup readiness                                                    |
+| trust boundary                 | Deterministic server-side validation — the AI's output (and every other foreign input) is untrusted until it passes                                                    |
+| adapter port                   | "Port" as in ports-and-adapters: the interface behind which SQLite / MySQL swap                                                                                        |
+| composition root               | `apps/server/src/composition-root.ts` — the only place cross-domain wiring happens                                                                                     |
+| vertical domain slice          | One business = one directory owning its routes, service, store, and rules                                                                                              |
+| modular monolith               | Modules isolated in code, assembled and run by one process                                                                                                             |
+| error body                     | The one error shape: `{ statusCode, message, error }` plus a machine-readable `errorCode` (the sanitized 500 keeps only `statusCode` and `message`)                    |

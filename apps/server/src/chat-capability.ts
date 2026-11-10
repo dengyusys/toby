@@ -19,8 +19,7 @@ import type { TobyTool } from "./infrastructure/model/agent.ts";
 export type ChatWriteOutcome =
   | {
       readonly kind: "receipt";
-      readonly proposal_id: string;
-      /** The confirmation copy; it references the domain's own fields. */
+      /** The receipt copy; it references the domain's own fields. */
       readonly confirmText: string;
       /**
        * Opaque passthrough: chat copies it verbatim into the card item.
@@ -43,8 +42,8 @@ export interface ChatDomainCapability {
   /** One classifier-prompt intent line, used verbatim. */
   readonly intentDescription: string;
   /**
-   * The write path. Calls the domain's service, which goes through the
-   * actions kernel exactly as before (immediate or gated per tier).
+   * The write path. Calls the domain's service — one validated,
+   * transactional write.
    */
   handleWrite(sentence: string): Promise<ChatWriteOutcome>;
   /** Read-only tools for the none-agent; kind-gated by the shared factory. */

@@ -26,14 +26,3 @@
   这条信任边界从第一天起就在,从未移动。
 
 每层一句话:提示词什么都不被信任,schema 只被信任形状,手写的门被信任一切。
-
-## 关系与沿革
-
-- [ai-pi-runtime.zh.md](ai-pi-runtime.zh.md) 拥有跑这套阶梯的运行时——传输、
-  agent 循环、工具类别、coercion 与提示词组装的细节。
-- 校验通过之后发生的事——分级写入、actions kernel——由
-  [write-confirmation-tiers.zh.md](write-confirmation-tiers.zh.md) 与
-  [actions-kernel.zh.md](actions-kernel.zh.md) 拥有。
-- 本记录取代已退役的 ai-integration.md 的"提示词定格式"协议(受限 JSON、一次
-  盲目重试)。确定性红线——AI 输出不可信、任何写入之前先过服务端校验——在两个
-  时代之间原样延续。

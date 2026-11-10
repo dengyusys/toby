@@ -38,14 +38,13 @@ export function noticeItem(text: string): ChatItem {
   return { type: "notice", text };
 }
 
-/** A born-confirmed card from a capability's receipt outcome. */
+/** A write card from a capability's receipt outcome. */
 export function cardItemOf(
   domain: string,
   outcome: Extract<ChatWriteOutcome, { kind: "receipt" }>,
 ): ChatItem {
   return {
     type: "proposal_card",
-    proposal_id: outcome.proposal_id,
     domain,
     receipt: outcome.receipt,
   };

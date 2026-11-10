@@ -178,14 +178,12 @@ describe("chat api: send and the item stream", () => {
     expect(turn.items[0]).toMatchObject({ role: "user", content: "午饭 30" });
     // ② a short assistant confirmation…
     expect(turn.items[1].role).toBe("assistant");
-    // ③ …and the born-confirmed receipt card.
+    // ③ …and the receipt card.
     expect(turn.items[2]).toMatchObject({
       type: "proposal_card",
       domain: "ledger",
       receipt: {
-        status: "committed",
         written: 1,
-        revert_until: new Date(BASE_MS + 600_000).toISOString(),
       },
     });
     // The write has landed through the port.
@@ -636,7 +634,7 @@ describe("chat api: sessions and paging", () => {
     expect(missingWithCursor.json().errorCode).toBe("SESSION_NOT_FOUND");
 
     const outcome = await inject("POST", "/api/chat/messages/nope/outcome", {
-      outcome: "reverted",
+      outcome: "viewed",
     });
     expect(outcome.statusCode).toBe(404);
     expect(outcome.json().errorCode).toBe("TURN_NOT_FOUND");
@@ -668,7 +666,7 @@ describe("chat api: sessions and paging", () => {
     const reported = await inject(
       "POST",
       `/api/chat/messages/${turnId}/outcome`,
-      { outcome: "reverted" },
+      { outcome: "viewed" },
     );
     expect(reported.statusCode).toBe(200);
     expect(reported.json()).toEqual({ status: "recorded" });
@@ -677,7 +675,7 @@ describe("chat api: sessions and paging", () => {
       "GET",
       `/api/chat/sessions/${sessionId}/messages`,
     );
-    expect(page.json().turns[0].card_outcome).toBe("reverted");
+    expect(page.json().turns[0].card_outcome).toBe("viewed");
   });
 
   it("the send endpoint validates the limit parameter", async () => {

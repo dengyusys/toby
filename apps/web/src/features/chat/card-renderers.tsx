@@ -13,17 +13,12 @@ import { ReceiptCard } from "@/features/ledger/ReceiptCard.tsx";
 
 export interface CardRendererProps {
   receipt: unknown;
-  nowMs: number;
-  revertPending: boolean;
-  revertError: Error | null;
-  onRevert: (proposalId: string) => void;
-  onDismiss: () => void;
 }
 
 export type CardRenderer = (props: CardRendererProps) => ReactNode;
 
-function ledgerCard({ receipt, ...rest }: CardRendererProps): ReactNode {
-  return <ReceiptCard receipt={receipt as LedgerReceiptView} {...rest} />;
+function ledgerCard({ receipt }: CardRendererProps): ReactNode {
+  return <ReceiptCard receipt={receipt as LedgerReceiptView} />;
 }
 
 const renderers = new Map<string, CardRenderer>([["ledger", ledgerCard]]);

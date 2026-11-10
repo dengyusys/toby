@@ -1,9 +1,8 @@
 /**
  * The unified chat page against a fetch stub: the item stream renders in
  * order (user bubble, transcript blocks, receipt card, notices, inspect
- * chips), a send lands as a persisted turn, the receipt reverts, and
- * inspect chips open the preview panel with the month report. No real
- * network, no server.
+ * chips), a send lands as a persisted turn, and inspect chips open the
+ * preview panel with the month report. No real network, no server.
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -41,7 +40,6 @@ const REPORT = {
   categories: [{ type: "expense", category: "餐饮", total: 3000 }],
 };
 
-// Relative to the real clock: the revert window must be open inside the test.
 const NOW = Date.now();
 const SESSION_ID = "s-1";
 
@@ -56,9 +54,7 @@ function receiptTurn(overrides: Record<string, unknown> = {}) {
       { role: "user", content: "午饭 30", timestamp: NOW },
       {
         role: "assistant",
-        content: [
-          { type: "text", text: "已记入 1 笔,短时间内在卡片上可撤销。" },
-        ],
+        content: [{ type: "text", text: "已记入 1 笔。" }],
         model: "synthetic",
         usage: {
           input: 0,
@@ -71,14 +67,9 @@ function receiptTurn(overrides: Record<string, unknown> = {}) {
       },
       {
         type: "proposal_card",
-        proposal_id: "lp-1",
         domain: "ledger",
         receipt: {
-          proposal_id: "lp-1",
-          status: "committed",
           created_at: new Date(NOW).toISOString(),
-          committed_at: new Date(NOW).toISOString(),
-          revert_until: new Date(NOW + 600_000).toISOString(),
           written: 1,
           transaction_ids: [1],
           entries: [
@@ -228,15 +219,9 @@ function routeFetch(): void {
             ? MONTHS
             : url.startsWith("/api/ledger/transactions")
               ? REPORT
-              : url.endsWith("/api/ledger/proposals/lp-1/revert")
-                ? {
-                    proposal_id: "lp-1",
-                    status: "reverted",
-                    reverted_at: new Date(NOW).toISOString(),
-                  }
-                : url.endsWith("/api/chat/messages")
-                  ? (historyTurns.push(reply), reply)
-                  : { status: "recorded" };
+              : url.endsWith("/api/chat/messages")
+                ? (historyTurns.push(reply), reply)
+                : { status: "recorded" };
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,
@@ -276,30 +261,8 @@ it("restores the persisted turn and renders its items in order", async () => {
 
   // User bubble, assistant text, receipt card — in stream order.
   expect(await screen.findByText("午饭 30")).toBeInTheDocument();
-  expect(
-    await screen.findByText("已记入 1 笔,短时间内在卡片上可撤销。"),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("已记入 1 笔。")).toBeInTheDocument();
   expect(await screen.findByText("已记入")).toBeInTheDocument();
-  expect(await screen.findByText(/内可撤销/)).toBeInTheDocument();
-});
-
-it("reverts the receipt card and reports the final state", async () => {
-  routeFetch();
-  renderApp();
-  await screen.findByText(/内可撤销/);
-
-  await userEvent.setup().click(screen.getByRole("button", { name: "撤销" }));
-  expect(await screen.findByText("已撤销")).toBeInTheDocument();
-  expect(
-    calls.some(({ url }) => url.endsWith("/api/ledger/proposals/lp-1/revert")),
-  ).toBe(true);
-  expect(
-    calls.some(
-      ({ url, init }) =>
-        url.endsWith("/api/chat/messages/t-1/outcome") &&
-        JSON.parse(String(init?.body)).outcome === "reverted",
-    ),
-  ).toBe(true);
 });
 
 it("renders an agent turn: transcript, pairing, and the inspect chip opens the panel", async () => {

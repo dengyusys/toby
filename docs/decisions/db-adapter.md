@@ -43,7 +43,7 @@ export interface DomainDb extends DbOperations {
 - **Positional `?` placeholders only.** Both drivers accept them natively. Named placeholders and array-binding for `IN` lists are forbidden — expand `IN` lists manually.
 - **One error type.** Adapters map driver errors to a single `DbError` with a closed code union (`unique-violation | foreign-key-violation | constraint | syntax | busy | connection | unknown`) and keep the raw error as `cause`. Raw driver errors never cross the port.
 - **One database per domain, as before.** SQLite dialect: one file `data/<domain>.db`. MySQL dialect: one schema `toby_<domain>`, created with `CREATE DATABASE IF NOT EXISTS … CHARACTER SET utf8mb4` at startup. Databases are never shared across domains.
-- **Transactions are first-class**, because the proposal pipeline's commit step — re-read targets, check conflicts, write serially — is exactly one transaction.
+- **Transactions are first-class**, because a write — validate, execute, journal in one go — is exactly one transaction.
   - SQLite adapter: manual `BEGIN` / `COMMIT` / `ROLLBACK` (better-sqlite3's synchronous `.transaction()` cannot host an async body), with **every operation serialized through an internal promise queue** — a transaction holds the queue for its whole span, so no foreign `await` can slip statements into it.
   - MySQL adapter: a small per-domain connection pool; a transaction checks out one connection and pins its body to it.
   - Rule for both: inside a transaction body, only await port methods.

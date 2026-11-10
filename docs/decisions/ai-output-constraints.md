@@ -37,16 +37,3 @@ point earlier.
 
 One line per layer: the prompt is trusted with nothing, the schema with
 shape only, the hand-written gate with everything.
-
-## Relationship and history
-
-- [ai-pi-runtime.md](ai-pi-runtime.md) owns the runtime that runs this
-  ladder — transport, agent loop, tool kinds, the coercion and
-  prompt-assembly details.
-- What happens after validation passes — tiered writes, the actions kernel —
-  is owned by [write-confirmation-tiers.md](write-confirmation-tiers.md)
-  and [actions-kernel.md](actions-kernel.md).
-- This record supersedes the format-by-prompt protocol of the retired
-  ai-integration.md (restricted JSON, one blind retry). The deterministic
-  red line — untrusted AI output, server-side validation before any write —
-  carried across both eras unchanged.

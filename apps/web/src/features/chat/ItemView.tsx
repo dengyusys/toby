@@ -22,44 +22,20 @@ const MONO = "whitespace-pre-wrap break-all font-mono text-xs leading-relaxed";
 
 interface ItemViewProps {
   item: ChatItem;
-  nowMs: number;
   /** Unpaired tool calls render as 进行中 (structural in-progress state). */
   pendingToolCallIds: ReadonlySet<string>;
-  revertPending: boolean;
-  revertError: Error | null;
-  onRevert: (proposalId: string) => void;
-  onDismissCard: () => void;
 }
 
-export function ItemView({
-  item,
-  nowMs,
-  pendingToolCallIds,
-  revertPending,
-  revertError,
-  onRevert,
-  onDismissCard,
-}: ItemViewProps) {
+export function ItemView({ item, pendingToolCallIds }: ItemViewProps) {
   if ("type" in item) {
     if (item.type === "proposal_card") {
       const render = cardRendererFor(item.domain);
       if (render !== undefined) {
-        return (
-          <>
-            {render({
-              receipt: item.receipt,
-              nowMs,
-              revertPending,
-              revertError,
-              onRevert,
-              onDismiss: onDismissCard,
-            })}
-          </>
-        );
+        return <>{render({ receipt: item.receipt })}</>;
       }
       // An unknown domain id (a newer server than this build) degrades
       // to a neutral shell instead of a crash.
-      return <UnsupportedCard onDismiss={onDismissCard} />;
+      return <UnsupportedCard />;
     }
     if (item.type === "inspect_link") {
       return <InspectChip item={item} />;
@@ -201,19 +177,10 @@ function InspectChip({
 }
 
 /** A card whose domain this build cannot render: degrade, don't crash. */
-function UnsupportedCard({ onDismiss }: { onDismiss: () => void }) {
+function UnsupportedCard() {
   return (
     <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
       <p>这是一张本版本暂不支持的卡片。</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
-        onClick={onDismiss}
-        className="mt-2 hover:bg-accent-soft"
-      >
-        知道了
-      </Button>
     </div>
   );
 }

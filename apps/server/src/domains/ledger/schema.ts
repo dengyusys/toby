@@ -68,7 +68,7 @@ export const LEDGER_ENTRIES_TOOL_SCHEMA = z
 export type LedgerEntriesToolArgs = z.infer<typeof LEDGER_ENTRIES_TOOL_SCHEMA>;
 
 /**
- * POST /api/ledger/proposals body: one of the two intake paths. Only the
+ * POST /api/ledger/entries body: one of the two intake paths. Only the
  * envelope is checked at the route — `validation.ts` checks an entry against
  * the same schema the tool hands the model.
  */
@@ -76,7 +76,7 @@ export type LedgerEntriesToolArgs = z.infer<typeof LEDGER_ENTRIES_TOOL_SCHEMA>;
 /** A value that must be present; the domain decides what it may be. */
 const present = z.custom<unknown>((value) => value !== undefined);
 
-export const PROPOSAL_BODY_SCHEMA = z.union(
+export const ENTRY_BODY_SCHEMA = z.union(
   [
     z.object({ text: z.string() }).strict(),
     z.object({ entry: present }).strict(),
@@ -84,4 +84,4 @@ export const PROPOSAL_BODY_SCHEMA = z.union(
   { error: 'body must carry exactly one of "text" or "entry"' },
 );
 
-export type ProposalBody = z.infer<typeof PROPOSAL_BODY_SCHEMA>;
+export type EntryBody = z.infer<typeof ENTRY_BODY_SCHEMA>;

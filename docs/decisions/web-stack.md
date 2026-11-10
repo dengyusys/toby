@@ -9,7 +9,7 @@ One criterion: **mainstream ecosystem, minimal config — and every choice must 
 ## React + Vite
 
 - **React 19**: the largest ecosystem; whatever you need exists
-- **Vite 6**: fast dev, minimal config; two apps with nearly identical configs are cheap to maintain
+- **Vite 8**: fast dev, minimal config; two apps with nearly identical configs are cheap to maintain
 
 No Next-style full-stack framework: the single server process (Fastify) already serves both the API and the static builds, and the frontend only needs pure static output.
 
@@ -22,7 +22,7 @@ Not MUI / AntD-style component libraries: custom themes fight the library's syst
 
 ## State and routing
 
-- **TanStack Query**: caching, invalidation, and retrying for server state; after a proposal commits, one `invalidateQueries` and every view refetches
+- **TanStack Query**: caching, invalidation, and retrying for server state; after a write lands, one `invalidateQueries` and every view refetches
 - **react-router** (HashRouter): static serving needs no SPA fallback
 
 ## Testing
@@ -31,6 +31,6 @@ vitest + happy-dom + Testing Library: vitest shares Vite's resolver, near-zero c
 
 ## Conventions in this repository
 
-- Both apps run the identical stack — React 19 + Vite 6 + Tailwind v4 + shadcn; they differ only in form
+- Both apps run the identical stack — React 19 + Vite 8 + Tailwind v4 + shadcn; they differ only in form
 - Build output is pure static SPA, served by the single server process
 - Shared logic goes only into `@toby/contract`; components and styles are never shared

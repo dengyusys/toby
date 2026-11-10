@@ -25,10 +25,9 @@ export type ChatMessageItem = { readonly role: string } & Readonly<
   Record<string, unknown>
 >;
 
-/** A write card: the receipt snapshot at creation time (born confirmed). */
+/** A write card: the receipt snapshot at creation time. */
 export interface ProposalCardItem {
   readonly type: "proposal_card";
-  readonly proposal_id: string;
   /** The capability id whose write produced this card. */
   readonly domain: string;
   /** Opaque passthrough — the webs render it per domain id. */

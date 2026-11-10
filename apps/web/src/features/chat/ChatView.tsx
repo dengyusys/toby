@@ -2,9 +2,7 @@
  * The unified conversation (chat-box form): the persisted item stream —
  * restored on refresh — plus the bottom composer. One sentence per send;
  * the reply is an ordered stream of items (docs/features/chat.md):
- * transcript messages, the receipt card, notices, and inspect chips. The
- * receipt's revert window keeps its countdown; a revert reports the
- * card's final state back as display metadata.
+ * transcript messages, the receipt card, notices, and inspect chips.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,8 +15,8 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ChatItem, ChatTurnView, LedgerReceiptView } from "@toby/contract";
-import { chatClient, ledgerClient } from "@/lib/api.ts";
+import type { ChatItem, ChatTurnView } from "@toby/contract";
+import { chatClient } from "@/lib/api.ts";
 import { describeError } from "@/features/ledger/ledger-view.ts";
 import { usePreview } from "@/features/preview/preview-context.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -51,34 +49,11 @@ function pendingToolCallIdsOf(turns: readonly ChatTurnView[]): Set<string> {
   return pending;
 }
 
-/** Narrow an opaque card receipt to the ledger view this build renders. */
-function ledgerReceiptOf(item: ChatItem): LedgerReceiptView | undefined {
-  if (!("type" in item) || item.type !== "proposal_card") {
-    return undefined;
-  }
-  return item.domain === "ledger"
-    ? (item.receipt as LedgerReceiptView)
-    : undefined;
-}
-
-/** Receipt cards with a live revert window drive the countdown ticker. */
-function hasOpenWindow(turns: readonly ChatTurnView[], nowMs: number): boolean {
-  return turns.some((turn) =>
-    turn.items.some((item) => {
-      const receipt = ledgerReceiptOf(item);
-      return (
-        receipt !== undefined &&
-        receipt.status === "committed" &&
-        Date.parse(receipt.revert_until) > nowMs
-      );
-    }),
-  );
-}
+/** Receipt cards no longer drive any live state (no revert window). */
 
 export function ChatView() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
-  const [nowTick, setNowTick] = useState(() => Date.now());
   const [errorText, setErrorText] = useState<string | null>(null);
   const nextId = useRef(1);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -133,14 +108,6 @@ export function ChatView() {
   );
   const pendingCalls = pendingToolCallIdsOf(allTurns);
 
-  useEffect(() => {
-    if (!hasOpenWindow(allTurns, nowTick)) {
-      return;
-    }
-    const timer = setInterval(() => setNowTick(Date.now()), 1_000);
-    return () => clearInterval(timer);
-  }, [allTurns, nowTick]);
-
   // Keep the newest item in view.
   useEffect(() => {
     const list = listRef.current;
@@ -148,60 +115,6 @@ export function ChatView() {
       list.scrollTop = list.scrollHeight;
     }
   }, [allTurns.length, optimistic]);
-
-  const revertMutation = useMutation({
-    mutationFn: async (variables: { proposalId: string; turnId?: string }) => {
-      const result = await ledgerClient.revertProposal(variables.proposalId);
-      if (variables.turnId !== undefined) {
-        // Display metadata only; a failure here never blocks the revert.
-        await chatClient
-          .reportOutcome(variables.turnId, "reverted")
-          .catch(() => undefined);
-      }
-      return result;
-    },
-    onSuccess: (result) => {
-      // The cached page is a ChatTurnPage, not a bare array.
-      queryClient.setQueryData(messagesKey, (page) => {
-        if (page === undefined || page === null) {
-          return page;
-        }
-        const current = page as { turns: ChatTurnView[] };
-        return {
-          ...current,
-          turns: current.turns.map((turn) => ({
-            ...turn,
-            card_outcome: turn.items.some(
-              (item) =>
-                "type" in item &&
-                item.type === "proposal_card" &&
-                item.proposal_id === result.proposal_id,
-            )
-              ? "reverted"
-              : turn.card_outcome,
-            items: turn.items.map((item) =>
-              "type" in item &&
-              item.type === "proposal_card" &&
-              item.proposal_id === result.proposal_id
-                ? {
-                    ...item,
-                    receipt:
-                      ledgerReceiptOf(item) === undefined
-                        ? item.receipt
-                        : {
-                            ...(item.receipt as LedgerReceiptView),
-                            status: "reverted" as const,
-                            reverted_at: result.reverted_at,
-                          },
-                  }
-                : item,
-            ),
-          })),
-        };
-      });
-      void queryClient.invalidateQueries({ queryKey: ["ledger"] });
-    },
-  });
 
   const sendMutation = useMutation({
     mutationFn: (text: string) => chatClient.sendMessage(text),
@@ -265,8 +178,6 @@ export function ChatView() {
     }
   }
 
-  const dismissed = useRef(new Set<string>());
-
   return (
     // Yuanbao-style flow: items sit directly on the page background (user
     // turns as bubbles, everything else as document content); only the
@@ -286,37 +197,13 @@ export function ChatView() {
         ) : (
           <>
             {allTurns.flatMap((turn) =>
-              turn.items
-                .filter(
-                  (item) =>
-                    !(
-                      "type" in item &&
-                      item.type === "proposal_card" &&
-                      dismissed.current.has(item.proposal_id)
-                    ),
-                )
-                .map((item: ChatItem, index: number) => (
-                  <ItemView
-                    key={`${turn.turn_id}-${index}`}
-                    item={item}
-                    nowMs={nowTick}
-                    pendingToolCallIds={pendingCalls}
-                    revertPending={revertMutation.isPending}
-                    revertError={revertMutation.error}
-                    onRevert={(proposalId) =>
-                      revertMutation.mutate({
-                        proposalId,
-                        turnId: turn.turn_id,
-                      })
-                    }
-                    onDismissCard={() => {
-                      if ("type" in item && item.type === "proposal_card") {
-                        dismissed.current.add(item.proposal_id);
-                        setNowTick(Date.now());
-                      }
-                    }}
-                  />
-                )),
+              turn.items.map((item: ChatItem, index: number) => (
+                <ItemView
+                  key={`${turn.turn_id}-${index}`}
+                  item={item}
+                  pendingToolCallIds={pendingCalls}
+                />
+              )),
             )}
             {sendPending && (
               <p className="px-1 text-xs text-muted-foreground">正在思考…</p>

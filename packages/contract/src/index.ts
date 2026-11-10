@@ -15,11 +15,9 @@ export type {
   LedgerEntryType,
   LedgerFollowUp,
   LedgerMonthReport,
-  LedgerProposalResult,
-  LedgerReceiptStatus,
   LedgerReceiptView,
-  LedgerRevertResult,
   LedgerTransactionRow,
+  LedgerWriteResult,
 } from "./ledger-client.ts";
 export { createAuthClient } from "./auth-client.ts";
 export type {

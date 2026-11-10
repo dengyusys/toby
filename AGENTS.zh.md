@@ -4,11 +4,11 @@
 
 给 AI 编码代理看的仓库工作指南。
 
-> **当前状态:** 已上线域以 `apps/server/src/domains/` 目录为准;`docs/features/` 存放目标契约(不是落地标记),`docs/decisions/` 存放 ADR。`PLAN.md` 保留为框架期规划,其版本矩阵仍是 pnpm catalog(工作区集中版本清单)的唯一事实来源。
+> **当前状态:** 已上线域以 `apps/server/src/domains/` 目录为准;`docs/features/` 只存放已落地域的现行契约(落地时写,不预写),`docs/decisions/` 存放 ADR。`PLAN.md` 保留为框架期规划,其版本矩阵仍是 pnpm catalog(工作区集中版本清单)的唯一事实来源。
 
 ## 项目简介
 
-自托管个人助手:用户说一句话,AI 拟一条受限写入;追加类操作立即落库(数分钟内可撤回),破坏类操作仍需确认——一切写入经 actions kernel 事务执行。产品:[README.zh.md](README.zh.md) · 架构:[docs/system-overview.zh.md](docs/system-overview.zh.md) · 各域契约:[docs/features/](docs/features/)。
+自托管个人助手:用户说一句话,AI 拟一条受限写入,服务端直接执行——确定性校验、一个事务、无确认门。产品:[README.zh.md](README.zh.md) · 架构:[docs/system-overview.zh.md](docs/system-overview.zh.md) · 各域契约:[docs/features/](docs/features/)。
 
 动手前:从 `docs/features/` 与 `docs/decisions/` 找「当前算数」的那份文档(功能文档 + ADR),别信记忆;先查有没有现成实现,别造平行方案。
 
@@ -76,6 +76,6 @@
 
 - `data/` 下所有库与文件都是正式数据。平时谁也不许改;只有用户明确点名的维护任务才能动。挪动或恢复前后,必须比对 **SHA-256**。
 - 数据库只有服务端(`apps/server`)能写。Web、AI、脚本都不许直连数据库。
-- 一切新增/修改/删除都经 actions kernel 事务执行:追加类操作立即写入、带撤回窗口,破坏类操作仍走「AI 提案 → 用户确认」(docs/decisions/write-confirmation-tiers.zh.md);绕过内核的写接口都算缺陷。AI 工具注册时必须携带安全分级(read-only 只读 / write-intent 写意图:只能产出写入草稿)并由策略门控强制;禁区能力(数据库、Shell、文件路径)作为工具定义根本不存在。见 docs/decisions/ai-pi-runtime.zh.md。
+- 一切新增/修改/删除都是域仓库拥有的一次"先校验、后事务"的写入:没有提案、没有确认门、没有撤回窗口——AI 解决不了的句子会得到一句追问(绝不瞎猜),备份是恢复路径;任何不是"一个仓库事务"的写入都算缺陷。AI 工具注册时必须携带安全分级(read-only 只读 / write-intent 写意图)并由策略门控强制;禁区能力(数据库、Shell、文件路径)作为工具定义根本不存在。见 docs/decisions/ai-pi-runtime.zh.md。
 - API key、Token、证书私钥、服务器凭据、个人敏感数据、完整生产日志:不进源码、文档、测试、快照、提交,哪儿都不进。
 - 代码和文档打架、又牵扯数据/安全/对外接口?停下来问用户,别自己挑边。

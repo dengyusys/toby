@@ -21,11 +21,6 @@ export function formatCents(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
-export function formatCountdown(ms: number): string {
-  const seconds = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
 const WEEKDAY_NAMES = ["日", "一", "二", "三", "四", "五", "六"] as const;
 
 export function weekdayOf(date: string): string {
@@ -44,14 +39,6 @@ export function describeError(error: unknown): string {
         return `录入有误:${error.message}`;
       case "INVALID_MONTH":
         return "月份参数不正确";
-      case "PROPOSAL_EXPIRED":
-        return "撤销窗口已过,不能再撤销";
-      case "PROPOSAL_NOT_FOUND":
-        return "记录不存在或已被清理";
-      case "PROPOSAL_NOT_REVERTIBLE":
-        return "该写入不可撤销";
-      case "REVERT_CONFLICT":
-        return "已有后续改动,不能撤销——新的改动优先";
       case "TRANSACTION_NOT_FOUND":
         return "账目不存在,可能已被删除";
       case "AI_UNAVAILABLE":

@@ -16,11 +16,7 @@ import type {
 } from "../../src/domains/ledger/types.ts";
 
 const receipt: LedgerReceiptView = {
-  proposal_id: "p1",
-  status: "committed",
   created_at: "2026-11-05T08:00:00.000Z",
-  committed_at: "2026-11-05T08:00:00.000Z",
-  revert_until: "2026-11-05T08:10:00.000Z",
   written: 2,
   transaction_ids: [1, 2],
   entries: [],
@@ -28,7 +24,7 @@ const receipt: LedgerReceiptView = {
 
 function fakeService(
   overrides: {
-    createProposal?: LedgerService["createProposal"];
+    write?: LedgerService["write"];
     monthReport?: LedgerService["monthReport"];
     dayReport?: LedgerService["dayReport"];
   } = {},
@@ -59,18 +55,13 @@ function fakeService(
     transactions: [],
   };
   return {
-    createProposal: overrides.createProposal ?? (async () => receipt),
-    revert: async () => {
-      throw new Error("unused");
-    },
+    write: overrides.write ?? (async () => receipt),
     deleteTransaction: async () => {
       throw new Error("unused");
     },
     months: async () => ({ months: ["2026-11", "2026-10"] }),
     monthReport: overrides.monthReport ?? (async () => month),
     dayReport: overrides.dayReport ?? (async () => day),
-    start: () => undefined,
-    stop: async () => undefined,
   };
 }
 
@@ -80,16 +71,15 @@ describe("ledger chat capability", () => {
     const outcome = await capability.handleWrite("午饭 30 微信");
     expect(outcome).toMatchObject({
       kind: "receipt",
-      proposal_id: "p1",
-      confirmText: "已记入 2 笔,短时间内在卡片上可撤销。",
-      receipt: { status: "committed", written: 2 },
+      confirmText: "已记入 2 笔。",
+      receipt: { written: 2 },
     });
   });
 
   it("maps a clarifying question to the question outcome", async () => {
     const capability = createLedgerChatCapability(
       fakeService({
-        createProposal: async () => ({ question: "这笔用的哪个账户?" }),
+        write: async () => ({ question: "这笔用的哪个账户?" }),
       }),
     );
     const outcome = await capability.handleWrite("记一笔 8 块");

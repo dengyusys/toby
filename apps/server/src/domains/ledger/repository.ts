@@ -19,7 +19,7 @@ export function monthBounds(month: string): { start: string; end: string } {
 }
 
 export interface LedgerRepository {
-  /** Insert a whole proposal batch in one transaction; returns the ids. */
+  /** Insert a whole entry batch in one transaction; returns the ids. */
   insertTransactions(
     entries: readonly LedgerEntry[],
   ): Promise<readonly number[]>;
@@ -31,12 +31,6 @@ export interface LedgerRepository {
   listDayTransactions(date: string): Promise<readonly LedgerTransactionRow[]>;
   /** Delete one row by id; true when the row existed. */
   deleteTransaction(id: number): Promise<boolean>;
-  /**
-   * Revert one immediate-tier batch in a single transaction: refuse
-   * (false) when any row has since been touched — rows are immutable, so
-   * a missing id is the only possible touch; the newer write wins.
-   */
-  revertTransactions(ids: readonly number[]): Promise<boolean>;
 }
 
 export function createLedgerRepository(deps: {
@@ -104,30 +98,6 @@ export function createLedgerRepository(deps: {
         id,
       ]);
       return result.changes > 0;
-    },
-
-    async revertTransactions(ids) {
-      if (ids.length === 0) {
-        return true;
-      }
-      const handle = await db.open();
-      const placeholders = ids.map(() => "?").join(", ");
-      return handle.transaction(async (tx) => {
-        const rows = await tx.query<{ id: number }>(
-          `SELECT id FROM transactions WHERE id IN (${placeholders})`,
-          ids,
-        );
-        // Same id twice would double-count the SELECT; the kernel only
-        // journals ids one insert produced, so lengths compare directly.
-        if (rows.length !== ids.length) {
-          return false;
-        }
-        await tx.run(
-          `DELETE FROM transactions WHERE id IN (${placeholders})`,
-          ids,
-        );
-        return true;
-      });
     },
   };
 }

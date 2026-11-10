@@ -1,12 +1,12 @@
 /**
  * Ledger service against a fake repository and an injected clock: the
- * immediate-tier write lifecycle — execute-at-once receipts, the revert
- * window, conflict semantics, retention — and the pruner's start/stop
- * lifecycle.
+ * direct-write lifecycle — a validated batch lands in one repository
+ * call, the receipt is what landed — plus the month/day reports and the
+ * one-sentence AI path.
  */
 
-import { describe, expect, it, vi } from "vitest";
-import type { ProposalBody } from "../../src/domains/ledger/schema.ts";
+import { describe, expect, it } from "vitest";
+import type { EntryBody } from "../../src/domains/ledger/schema.ts";
 import {
   createLedgerService,
   type LedgerService,
@@ -27,14 +27,10 @@ import { AiError } from "../../src/infrastructure/model/errors.ts";
 type LedgerRepositoryLike = Pick<
   LedgerRepository,
   | "insertTransactions"
-  | "revertTransactions"
   | "listMonths"
   | "listMonthTransactions"
   | "listDayTransactions"
 >;
-
-const REVERT_WINDOW_MS = 600_000;
-const RETENTION_MS = 3_600_000;
 
 function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
   return {
@@ -59,9 +55,6 @@ function fakeRepository(
   } = {},
 ) {
   const calls: RepositoryCall[] = [];
-  const reverted: number[][] = [];
-  /** Simulated stored rows: ids the "database" still holds. */
-  const stored = new Set<number>();
   let nextId = 1;
   const repository: LedgerRepositoryLike = {
     async insertTransactions(entries) {
@@ -69,23 +62,7 @@ function fakeRepository(
         throw new Error("repository down");
       }
       calls.push({ entries });
-      const ids = entries.map(() => {
-        const id = nextId++;
-        stored.add(id);
-        return id;
-      });
-      return ids;
-    },
-    async revertTransactions(ids) {
-      reverted.push([...ids]);
-      // Conflict semantics: every row of the batch must still be there.
-      if (ids.some((id) => !stored.has(id))) {
-        return false;
-      }
-      for (const id of ids) {
-        stored.delete(id);
-      }
-      return true;
+      return entries.map(() => nextId++);
     },
     async listMonths() {
       return [];
@@ -97,13 +74,7 @@ function fakeRepository(
       return options.dayRows ?? [];
     },
   };
-  return {
-    repository,
-    calls,
-    reverted,
-    stored,
-    deleteRow: (id: number) => stored.delete(id),
-  };
+  return { repository, calls };
 }
 
 function makeService(
@@ -114,10 +85,6 @@ function makeService(
   const service = createLedgerService({
     repository: repository as unknown as LedgerRepository,
     clock: () => nowMs,
-    timing: {
-      revertWindowMs: REVERT_WINDOW_MS,
-      retentionMs: RETENTION_MS,
-    },
     extractor,
   });
   return {
@@ -129,7 +96,7 @@ function makeService(
   };
 }
 
-const structuredBody: ProposalBody = {
+const structuredBody: EntryBody = {
   entry: {
     date: "2026-10-20",
     type: "expense",
@@ -142,90 +109,38 @@ const structuredBody: ProposalBody = {
 
 // Structured-path helper: narrows the receipt|follow-up union.
 async function record(service: LedgerService): Promise<LedgerReceiptView> {
-  const result = await service.createProposal(structuredBody);
-  if (!("proposal_id" in result)) {
+  const result = await service.write(structuredBody);
+  if (!("written" in result)) {
     throw new Error("expected a receipt from the structured path");
   }
   return result;
 }
 
-describe("ledger service immediate writes", () => {
-  it("executes the structured path at once and returns a born-confirmed receipt", async () => {
+describe("ledger service direct writes", () => {
+  it("executes the structured path at once and returns what landed", async () => {
     const { repository, calls } = fakeRepository();
     const { service, nowMs } = makeService(repository);
     const receipt = await record(service);
     expect(calls).toHaveLength(1); // written before the reply exists
-    expect(receipt.status).toBe("committed");
     expect(receipt.entries).toEqual([entry()]);
     expect(receipt.entries[0]!.amount).toBe(2500);
     expect(receipt.written).toBe(1);
     expect(receipt.transaction_ids).toEqual([1]);
-    expect(receipt.committed_at).toBe(new Date(nowMs()).toISOString());
-    expect(receipt.revert_until).toBe(
-      new Date(nowMs() + REVERT_WINDOW_MS).toISOString(),
-    );
+    expect(receipt.created_at).toBe(new Date(nowMs()).toISOString());
   });
 
-  it("a failing write rejects the create call and leaves no receipt behind", async () => {
+  it("a failing write rejects the write call and returns no receipt", async () => {
     const { repository } = fakeRepository({ failWrites: true });
     const { service } = makeService(repository);
     await expect(record(service)).rejects.toThrow("repository down");
   });
 
-  it("revert inside the window removes exactly the batch", async () => {
-    const { repository, reverted } = fakeRepository();
-    const { service } = makeService(repository);
-    const receipt = await record(service);
-    const outcome = await service.revert(receipt.proposal_id);
-    expect(outcome).toEqual({
-      proposal_id: receipt.proposal_id,
-      status: "reverted",
-      reverted_at: expect.any(String),
-    });
-    expect(reverted).toEqual([[1]]);
-  });
-
-  it("revert is idempotent: a settled revert echoes its outcome", async () => {
-    const { repository, reverted } = fakeRepository();
-    const { service } = makeService(repository);
-    const receipt = await record(service);
-    const first = await service.revert(receipt.proposal_id);
-    const second = await service.revert(receipt.proposal_id);
-    expect(second).toEqual(first);
-    expect(reverted).toHaveLength(1);
-  });
-
-  it("a later write touching the batch refuses the revert (newer write wins)", async () => {
-    const { repository, deleteRow } = fakeRepository();
-    const { service } = makeService(repository);
-    const receipt = await record(service);
-    deleteRow(1); // the user deleted one row of the batch in the meantime
-    await expect(service.revert(receipt.proposal_id)).rejects.toMatchObject({
-      code: "REVERT_CONFLICT",
-      statusCode: 409,
-    });
-  });
-
-  it("revert past the window reports 410 and the write stands", async () => {
-    const { repository } = fakeRepository();
-    const { service, advance } = makeService(repository);
-    const receipt = await record(service);
-    advance(REVERT_WINDOW_MS + 1);
-    await expect(service.revert(receipt.proposal_id)).rejects.toMatchObject({
-      code: "PROPOSAL_EXPIRED",
-      statusCode: 410,
-    });
-  });
-
-  it("unknown proposals are 404; text without an extractor answers 501", async () => {
+  it("text without an extractor answers 501", async () => {
     const { service } = makeService(fakeRepository().repository);
-    await expect(service.revert("missing")).rejects.toMatchObject({
-      code: "PROPOSAL_NOT_FOUND",
-      statusCode: 404,
+    await expect(service.write({ text: "午饭花了25" })).rejects.toMatchObject({
+      code: "AI_UNAVAILABLE",
+      statusCode: 501,
     });
-    await expect(
-      service.createProposal({ text: "午饭花了25" }),
-    ).rejects.toMatchObject({ code: "AI_UNAVAILABLE", statusCode: 501 });
   });
 
   it("month reports reject bad months and aggregate empty months", async () => {
@@ -293,20 +208,6 @@ describe("ledger service immediate writes", () => {
   });
 });
 
-describe("ledger service pruner lifecycle", () => {
-  it("start ticks without overlap and stop resolves cleanly", async () => {
-    vi.useFakeTimers();
-    try {
-      const { service } = makeService(fakeRepository().repository);
-      service.start();
-      await vi.advanceTimersByTimeAsync(3_500); // a few prune ticks
-      await expect(service.stop()).resolves.toBeUndefined();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-});
-
 describe("ledger service one-sentence path", () => {
   function fakeExtractor(draft: () => LedgerDraft | Promise<LedgerDraft>) {
     const texts: string[] = [];
@@ -348,13 +249,12 @@ describe("ledger service one-sentence path", () => {
         }),
       ],
     }));
-    const result = await service.createProposal({
+    const result = await service.write({
       text: "昨晚外卖35,今天退了个12块5",
     });
     if (!("entries" in result)) {
       throw new Error("expected a receipt");
     }
-    expect(result.status).toBe("committed");
     expect(result.written).toBe(2);
     expect(result.entries).toEqual([
       entry({
@@ -380,7 +280,7 @@ describe("ledger service one-sentence path", () => {
     const { service, calls } = makeAiService(() => ({
       question: "这笔是支出还是收入?",
     }));
-    const result = await service.createProposal({ text: "book 25" });
+    const result = await service.write({ text: "book 25" });
     expect(result).toEqual({ question: "这笔是支出还是收入?" });
     // A question writes nothing — the user retries with more detail.
     expect(calls).toHaveLength(0);
@@ -391,7 +291,7 @@ describe("ledger service one-sentence path", () => {
       throw new AiError("unconfigured", "no key");
     });
     await expect(
-      unconfigured.service.createProposal({ text: "x" }),
+      unconfigured.service.write({ text: "x" }),
     ).rejects.toMatchObject({
       code: "AI_UNAVAILABLE",
       statusCode: 501,
@@ -399,18 +299,14 @@ describe("ledger service one-sentence path", () => {
     const upstream = makeAiService(() => {
       throw new AiError("request-failed", "provider 500");
     });
-    await expect(
-      upstream.service.createProposal({ text: "x" }),
-    ).rejects.toMatchObject({
+    await expect(upstream.service.write({ text: "x" })).rejects.toMatchObject({
       code: "AI_REQUEST_FAILED",
       statusCode: 502,
     });
     const capped = makeAiService(() => {
       throw new AiError("max-turns-exceeded", "capped");
     });
-    await expect(
-      capped.service.createProposal({ text: "x" }),
-    ).rejects.toMatchObject({
+    await expect(capped.service.write({ text: "x" })).rejects.toMatchObject({
       code: "AI_REQUEST_FAILED",
       statusCode: 502,
     });
@@ -418,11 +314,9 @@ describe("ledger service one-sentence path", () => {
 
   it("empty text is rejected before the extractor runs", async () => {
     const { service, texts } = makeAiService(() => ({ entries: [] }));
-    await expect(service.createProposal({ text: "   " })).rejects.toMatchObject(
-      {
-        code: "INVALID_ENTRY",
-      },
-    );
+    await expect(service.write({ text: "   " })).rejects.toMatchObject({
+      code: "INVALID_ENTRY",
+    });
     expect(texts).toHaveLength(0);
   });
 });

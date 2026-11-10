@@ -15,7 +15,7 @@
 | 运行   | Node 22.23.2;服务端经 `tsc` 构建,前端经 Vite 构建                                                                                            |
 | 包管理 | pnpm 11.18.0 workspaces(`apps/*` + `packages/*`)                                                                                             |
 | 服务端 | Fastify 5 + 自建数据库适配 port —— 指 ports-and-adapters 架构概念,非网络端口 —— （默认 SQLite，可选 MySQL）+ zod（AI:pi-ai + pi-agent-core） |
-| 前端   | React 19 + Vite 6 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`)                                                                        |
+| 前端   | React 19 + Vite 8 + Tailwind v4 + shadcn,双应用(PC `/`、移动端 `/m/`)                                                                        |
 | 测试   | vitest + happy-dom + @testing-library                                                                                                        |
 
 ## 系统上下文
@@ -23,22 +23,22 @@
 ```mermaid
 flowchart LR
     U(("用户")) --> W["Web 双应用(React SPA:<br/>PC 端 / 与移动端 /m/)"]
-    W -->|"只读 API / 写入卡(HTTP)"| S["Toby server 单进程(Fastify)<br/>垂直域 · 写入生命周期(actions 内核)"]
+    W -->|"只读 API / 写入凭据(HTTP)"| S["Toby server 单进程(Fastify)<br/>垂直域 · 直接写入(一次一事务)"]
     S --> DB[("数据库，经适配 port 访问<br/>SQLite（默认）·MySQL（可选）<br/>只有 server 写")]
-    S -->|"按安全分级门控的工具调用;写入只经 actions 内核"| AI(("AI 经 pi-ai / pi-agent-core 接入"))
+    S -->|"按安全分级门控的工具调用;写入即经过校验的草稿"| AI(("AI 经 pi-ai / pi-agent-core 接入"))
 ```
 
 - Web 只能通过 server API 访问数据,不能读取文件系统。
-- server 是唯一日常读写入口:查询走只读 API;新增、修改和删除一律经 `infrastructure/actions-kernel/` (`registry.ts`) 中的共享**写入内核**(actions kernel)——追加类操作立即执行、带撤回窗口,破坏类操作过提案确认(分级见 [write-confirmation-tiers.zh.md](decisions/write-confirmation-tiers.zh.md));记账域已在使用;语义详见 [actions-kernel.zh.md](decisions/actions-kernel.zh.md)。
-- AI 工具携带安全分级(read-only / write-intent)并在策略门控下运行;write-intent 工具只产出写入草稿——真实效果仍经内核落地,按分级立即执行或待确认(docs/decisions/ai-pi-runtime.zh.md)。
+- server 是唯一日常读写入口:查询走只读 API;新增、修改和删除一律是域仓库拥有的一次"先校验、后事务"的写入——没有提案、没有确认门;记账域已在使用。
+- AI 工具携带安全分级(read-only / write-intent)并在策略门控下运行;write-intent 工具产生的效果是确定性校验加一次事务写入(docs/decisions/ai-pi-runtime.zh.md)。
 - 根 `scripts/` 只做开发与多进程启动编排,不接触数据。
-- 九个业务域中,写入内核已下沉为共享机制(见上)而非域;其余(对话 chat、问候 greeting、日程 schedule、手账 notes、待办 todo、记忆 memory、书库 library)逐个独立落地,每个域落地时在 `docs/features/` 立契约文档。
+- 其余业务域(问候 greeting、日程 schedule、手账 notes、待办 todo、记忆 memory、书库 library)逐个独立落地;每个域落地时才在 `docs/features/` 立契约文档,不预写。写入规矩一句话共享,不是共享模块。
 
 ## 仓库结构
 
 ```text
 apps/
-├─ server/        # @toby/server:Fastify 单进程——页面、API、提案与安全写入
+├─ server/        # @toby/server:Fastify 单进程——页面、API、经校验的写入
 ├─ web/           # @toby/web:PC 端(入口 /)
 ├─ web-mobile/    # @toby/web-mobile:移动端(入口 /m/)
 packages/
@@ -66,7 +66,7 @@ test/             # 根 HTTP 集成测试
 
 ## API 与写入数据流(目标形态)
 
-一次写入的完整路径(端点契约随各域 `features/` 文档定稿)。下图是**门控级**(破坏类操作);直写级(追加类)执行同一套事务写入、立即落地,返回出生即 confirmed 的凭据卡并带撤回窗口——见[分级决策](decisions/write-confirmation-tiers.zh.md):
+一次写入的完整路径(端点契约随各域 `features/` 文档定稿)。追加与破坏同一条直接写入路径:
 
 ```mermaid
 sequenceDiagram
@@ -80,33 +80,23 @@ sequenceDiagram
     S->>A: 解析请求(只含指令文字)
     A-->>S: schema 校验过的条目草稿(submit_entries)
     S->>S: schema、领域与语义校验
-    S->>D: 读取当前字段
-    S-->>W: 短期提案(proposal_id、前值、后值)
-
-    alt 用户确认(只提交 proposal_id)
-        W->>S: commit(空请求体)
-        S->>D: 事务内重读目标字段并检查冲突
-        alt 无冲突
-            S->>D: 串行执行写入并提交
-            S-->>W: 事务内结果快照
-        else 字段冲突
-            S-->>W: 拒绝整条提案,零写入
-        end
-    else 取消 / 过期 / 离开页面
-        W->>S: cancel(空请求体)
-        S-->>W: 提案作废,零写入
+    alt 句子解析不了
+        S-->>W: 追问一句,绝不瞎猜(未写入)
+    else 校验通过的草稿
+        S->>D: 一个事务:串行写入并提交
+        S-->>W: 凭据(写了什么)
     end
 ```
 
-两个无法靠推理得知的细节:AI 的草稿必须先过形状、领域与语义校验才可能成为提案——`validation.ts` 是信任边界;客户端请求除 `proposal_id` 外不携带任何状态(commit/cancel 请求体为空)。
+两个无法靠推理得知的细节:AI 的草稿必须先过形状、领域与语义校验才会发生任何写入——`validation.ts` 是信任边界;写错了就再写一次或从备份恢复——产品内刻意没有 undo。
 
 ## 数据边界
 
 - `data/` 是生产数据:默认谁都不碰;维护任务需用户点名,挪动或恢复前后比对 SHA-256。
-- 日常读取只经 server API;日常写入只经 actions 内核——直写级或门控级。客户端、AI 和脚本不能直连数据库。
+- 日常读取只经 server API;日常写入每次都是一次经校验的仓库事务。客户端、AI 和脚本不能直连数据库。
 - 显式 `false` 和数值 `0` 是有效数据,不能按缺失值处理。
 - server 做字段级修改:`NULL` 表示缺失,读取时省略;无关字段保持不变。
-- 多字段提交是一条数据库事务;失败或中断由数据库回滚。不提供用户历史;唯一的回退是直写级的撤回窗口——刻意不是通用撤销。
+- 多字段提交是一条数据库事务;失败或中断由数据库回滚。不提供用户历史,也不提供产品内 undo——刻意为之;恢复靠备份。
 - 每个域拥有自己的数据库 —— SQLite 方言为文件 `data/<域>.db`,MySQL 方言为 schema `toby_<域>`(见[数据库适配器决策](decisions/db-adapter.zh.md));跨域永不共享数据库。
 
 ## 安全与依赖方向
@@ -114,7 +104,7 @@ sequenceDiagram
 ```mermaid
 flowchart TB
     BOOT["composition-root.ts<br/>每域一行装配,跨域接线只在这里"]
-    INFRA["infrastructure/<br/>config(TOBY_*)·http(请求体上限/错误体/no-store/双 SPA 静态)<br/>model(AI 运行时)·actions-kernel(提案内核)·db(适配 port:sqlite / mysql)"]
+    INFRA["infrastructure/<br/>config(TOBY_*)·http(请求体上限/错误体/no-store/双 SPA 静态)<br/>model(AI 运行时)·db(适配 port:sqlite / mysql)"]
     DOM["domains/*<br/>业务域,逐个落地"]
     BOOT --> INFRA
     BOOT --> DOM
@@ -129,8 +119,8 @@ flowchart TB
 
 安全边界:
 
-- HTTP 写路径必须经 actions 内核——按分级直写(追加类)或确认(破坏类);任何绕过内核的写端点都是缺陷。记账域已在使用;后续域复用同一内核(infrastructure/actions-kernel/)。
-- AI 不获得文件路径、数据内容与 shell;其工具经安全分级门控,write-intent(写意图)工具只产出提案(docs/decisions/ai-pi-runtime.zh.md)。密钥只存在于本地环境配置,Web 包内不得包含密钥。
+- HTTP 写路径每次都是一次经校验的仓库事务;任何不是这样的写入——绕过、两段式、半截写入——都是缺陷。
+- AI 不获得文件路径、数据内容与 shell;其工具经安全分级门控,write-intent(写意图)工具的效果是确定性校验加一次事务(docs/decisions/ai-pi-runtime.zh.md)。密钥只存在于本地环境配置,Web 包内不得包含密钥。
 - 引入 Python 等新运行时需先立 ADR。
 - 上述导入纪律由 `test/boundaries.test.ts` 机器强制。
 
@@ -145,20 +135,16 @@ flowchart TB
 
 本仓库中带特定含义的术语,每词一行——权威定义见该术语首次出现处。
 
-| 术语                                    | 含义                                                                                                                                               |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 提案 / 提案卡(proposal / proposal card) | 门控级的短期、需用户确认的写入建议;确认之前不写入任何数据。直写级的卡出生即 confirmed——凭据卡,带撤回窗口                                           |
-| 写入分级(write tier)                    | 操作走的通道:直写(追加类——立即执行、卡出生即 confirmed、带撤回窗口)或门控(破坏类——提案确认)                                                        |
-| 写入内核(actions kernel)                | `infrastructure/actions-kernel/` (`registry.ts`) 中的共享写入状态机——两级的唯一写入路径(先执行后留档 / 先留档后执行;30 秒默许窗口、TTL 兜底、单飞) |
-| 安全分级(safety kind)                   | 工具注册时的类别:`read-only`(无状态改变)或 `write-intent`(只能经提案产生效果);`costly` 为将来预留                                                  |
-| 门控(policy / shape / health gate)      | 三类强制点:policy = agent 可调用的工具分级;shape = Zod schema 校验;health = 开发期启动就绪检查                                                     |
-| 信任边界(trust boundary)                | 服务端确定性校验——AI 输出(以及一切外来输入)通过校验之前都是非受信的                                                                                |
-| 适配 port(adapter port)                 | ports-and-adapters 意义上的 port:SQLite / MySQL 在其后替换的接口                                                                                   |
-| 组合根(composition root)                | `apps/server/src/composition-root.ts` —— 跨域接线唯一发生的地方                                                                                    |
-| 垂直域切片(vertical domain slice)       | 一个业务 = 一个目录,自含路由、service、store 与规则                                                                                                |
-| 模块化单体(modular monolith)            | 模块在代码层隔离,由单进程装配运行                                                                                                                  |
-| 单飞(single-flight)                     | 并发确认与清扫任务合并为同一次执行                                                                                                                 |
-| 错误体(error body)                      | 唯一错误形状:`{ statusCode, message, error }` 外加机器可读的 `errorCode`(净化后的 500 只保留 `statusCode` 与 `message`)                            |
-| 清扫任务(sweeper)                       | 周期任务:自动写入到期的提案并清理已过期的记录                                                                                                      |
+| 术语                               | 含义                                                                                                                    |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 直接写入(direct write)             | 一切写入——追加或破坏——都是确定性校验加一次仓库事务;无提案、无确认门、无 undo                                            |
+| 安全分级(safety kind)              | 工具注册时的类别:`read-only`(无状态改变)或 `write-intent`(真实效果:一次经校验的事务写入);`costly` 为将来预留            |
+| 门控(policy / shape / health gate) | 三类强制点:policy = agent 可调用的工具分级;shape = Zod schema 校验;health = 开发期启动就绪检查                          |
+| 信任边界(trust boundary)           | 服务端确定性校验——AI 输出(以及一切外来输入)通过校验之前都是非受信的                                                     |
+| 适配 port(adapter port)            | ports-and-adapters 意义上的 port:SQLite / MySQL 在其后替换的接口                                                        |
+| 组合根(composition root)           | `apps/server/src/composition-root.ts` —— 跨域接线唯一发生的地方                                                         |
+| 垂直域切片(vertical domain slice)  | 一个业务 = 一个目录,自含路由、service、store 与规则                                                                     |
+| 模块化单体(modular monolith)       | 模块在代码层隔离,由单进程装配运行                                                                                       |
+| 错误体(error body)                 | 唯一错误形状:`{ statusCode, message, error }` 外加机器可读的 `errorCode`(净化后的 500 只保留 `statusCode` 与 `message`) |
 
 中文域名对照:记账=ledger、对话=chat、问候=greeting、日程=schedule、手账=notes、待办=todo、记忆=memory、书库=library。

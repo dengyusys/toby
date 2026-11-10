@@ -43,7 +43,7 @@ export interface DomainDb extends DbOperations {
 - **占位符只用位置 `?`。** 两个驱动都原生接受。禁用命名占位符和 `IN` 列表的数组绑定——`IN` 列表手工展开。
 - **单一错误类型。** 适配器把驱动错误映射为一个 `DbError`,code 是封闭联合(`unique-violation | foreign-key-violation | constraint | syntax | busy | connection | unknown`),原始错误保留在 `cause`。原始驱动错误不越过 port。
 - **每域一库,一如既往。** SQLite 方言:一个文件 `data/<domain>.db`。MySQL 方言:一个 schema `toby_<domain>`,启动时 `CREATE DATABASE IF NOT EXISTS … CHARACTER SET utf8mb4`。跨域永不共享数据库。
-- **事务是一等公民**,因为提案管线的提交一步——重读目标、检查冲突、串行写入——恰好就是一个事务。
+- **事务是一等公民**,因为一次写入——校验、执行、记档一气呵成——恰好就是一个事务。
   - SQLite 适配器:手工 `BEGIN` / `COMMIT` / `ROLLBACK`(better-sqlite3 的同步 `.transaction()` 装不下异步事务体),且**所有操作经内部 promise 队列串行化**——事务在整个跨度内独占队列,任何外部 `await` 都无法把语句插进去。
   - MySQL 适配器:每域一个小连接池;事务签出一条连接,事务体绑定在这条连接上。
   - 两者共同的规则:事务体内只 await port 方法。

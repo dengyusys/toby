@@ -4,7 +4,7 @@ English | [简体中文](product-overview.zh.md)
 
 ## What it is
 
-Toby is your personal agent: it remembers your schedule, todos, money, and notes — everyday writes land at once and stay revertible for minutes; destructive changes still wait for your confirm.
+Toby is your personal agent: it remembers your schedule, todos, money, and notes — say one sentence and every write lands at once, validated and transactional.
 
 It runs on your own machine, for you alone. No accounts, no cloud, no data leaving your computer.
 
@@ -16,9 +16,9 @@ Open the page and say one plain sentence:
 > "I need to clean my shoes this week"
 > "Spent 32 on the taxi and 18 on lunch today"
 
-Toby hands you a **write card** with every write: what to record, where, and with which values — in plain sight. Everyday appends land immediately; the card is a receipt with a minutes-long revert button. Operations that rewrite or delete your content show a confirm card first — nothing destructive lands unseen.
+Toby shows you a **receipt card** with every write: what was recorded, where, and with which values — in plain sight. Append, rewrite, and delete are all the same: deterministic validation, one transaction, landed. When a sentence is unclear, the AI asks — it never guesses.
 
-Worried the AI might act on its own? Its only power is drafting and executing through one audited kernel: it can never write outside it, never read your files, never run commands — and it never reverts on your behalf.
+Worried the AI might act on its own? It cannot read your files or run commands; and every write must first pass code validation, then land as one transaction — it cannot slip around any of the three.
 
 ## Where you use it
 
@@ -39,8 +39,8 @@ The foundation comes first; these abilities land one by one.
 ## What it promises you
 
 - Your data lives only on your own machine
-- The AI writes only through the audited kernel: never outside it, never reading your files, never running commands
-- Everyday writes land at once and can be reverted within the window; destructive changes are shown for confirmation first — cancel always means zero writes
+- Every AI write first passes code validation, then lands as one transaction — it cannot read your files, cannot run commands
+- Every write lands at once — one transaction, all or nothing; unclear sentences get a question first, never a guess
 - If a write fails midway, everything rolls back — no half-written state
 
 Curious how it works inside? Read the [System Overview](system-overview.md); for engineering progress see the [README](../README.md).

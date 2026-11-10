@@ -1,8 +1,8 @@
 /**
- * The ledger chat capability: the write path (one-sentence proposals
- * through the service, hence the actions kernel) and the none-agent's
- * read-only ledger tools, together with their inspect-link mapping —
- * everything chat used to hard-code for ledger, now owned here
+ * The ledger chat capability: the write path (one-sentence direct
+ * writes through the service) and the none-agent's read-only ledger
+ * tools, together with their inspect-link mapping — everything chat
+ * used to hard-code for ledger, now owned here
  * (docs/decisions/chat-domain-capabilities.md). Built from the ledger
  * service and ledger types; the capability contract
  * (src/chat-capability.ts) is satisfied structurally, never imported
@@ -153,14 +153,13 @@ export function createLedgerChatCapability(
     label: "记账",
     intentDescription: "- ledger(记账):记一笔钱、查账、问花了多少。",
     async handleWrite(sentence) {
-      const result = await service.createProposal({ text: sentence });
+      const result = await service.write({ text: sentence });
       if ("question" in result) {
         return { kind: "question", text: result.question };
       }
       const outcome: ChatWriteOutcome = {
         kind: "receipt",
-        proposal_id: result.proposal_id,
-        confirmText: `已记入 ${result.written} 笔,短时间内在卡片上可撤销。`,
+        confirmText: `已记入 ${result.written} 笔。`,
         receipt: result,
       };
       return outcome;

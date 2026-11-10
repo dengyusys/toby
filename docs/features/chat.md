@@ -3,8 +3,8 @@
 English | [简体中文](chat.zh.md)
 
 > Live contract: the conversation model, the routing pipeline, and the failure
-> semantics. Implementation details live in code and tests; the write tiers are
-> in [write-confirmation-tiers](../decisions/write-confirmation-tiers.md).
+> semantics. Implementation details live in code and tests; the write rule is
+> one sentence: validation plus one transaction, no confirmation gates.
 
 ## What this is
 
@@ -12,8 +12,8 @@ The app's only input. The user says one sentence in plain language; the server
 decides what it means and answers. Business intents go to the domain that owns
 them; everything else goes to a read-only agent. A reply is an ordered list of
 items — transcript messages, write cards, preview links, notices — and every
-write is drafted and executed through the actions kernel. The chat box never
-writes directly.
+write is a validated draft executed by the owning domain as one transaction.
+The chat box never writes directly.
 
 ## Responsibilities and boundaries
 
@@ -22,7 +22,7 @@ Chat is the router, not the business logic. It owns the conversation store
 every other domain through the registered capabilities the composition root
 hands it (docs/decisions/chat-domain-capabilities.md) — never through domain
 imports. It does not own those domains'
-rules, the actions kernel, AI transport and credentials, or the previews
+rules, AI transport and credentials, or the previews
 themselves. No domain file imports another business domain.
 
 ## The conversation model
@@ -102,8 +102,8 @@ lands the receipt:
 
 ```text
 user            "记一笔午饭 30 元"
-assistant       text("已记入 1 笔,短时间内在卡片上可撤销。")
-proposal_card   born-confirmed receipt + revert_until
+assistant       text("已记入 1 笔。")
+proposal_card   receipt (what landed)
 ```
 
 ## Routing
@@ -156,24 +156,19 @@ read-only agent path, never an error.
 
 ## Writes and cards
 
-- Every write goes through the actions kernel
-  ([write-confirmation-tiers](../decisions/write-confirmation-tiers.md)). The
+- Every write is one validated, transactional repository write
+  . The
   chat domain calls the owning capability's write path; it never writes. The
-  confirmation copy is the domain's own (`confirmText`), and the card's receipt
+  receipt copy is the domain's own (`confirmText`), and the card's receipt
   is an opaque passthrough — each web renders it through its card-renderer
   registry keyed by the card's `domain`; an unknown id renders a neutral
   shell.
-- **Immediate tier** (ledger today): the write lands at once; the card is a
-  born-confirmed receipt with a ten-minute revert window. Revert is the user's
-  click and applies the before-snapshot.
-- **Gated tier** (future domains): a pending card, 30-second tacit approval,
-  explicit confirm, and cancel as the only refusal. The card carries the
-  kernel's state machine.
-- A card embeds the receipt snapshot at creation time. Restored cards keep their
-  recorded status; the revert window is wall-clock, so a restored immediate
-  card stays revertible until the window closes.
-- `card_outcome` is display metadata the client reports (for example
-  `reverted`); it never changes the transcript.
+- Additive and destructive writes take the same path: validation, one
+  transaction, receipt. No confirm or cancel wire calls exist.
+- A card embeds the receipt snapshot at creation time; restored cards keep
+  their recorded snapshot.
+- `card_outcome` is display metadata the client reports; it never changes
+  the transcript.
 
 ## Sessions and history
 
@@ -225,7 +220,8 @@ standard body.
    call is "in progress" — no orphan cleanup.
 4. The item union is closed; a new kind is a contract change in
    `@toby/contract` and both webs.
-5. Writes only through the kernel; the chat domain writes only `chat.db`;
+5. Writes are one validated repository transaction each; the chat domain writes
+   only `chat.db`;
    cross-domain calls go through the registered capabilities.
 6. Intent, card outcome and excerpt are metadata or derived values, never items.
 7. Inspect links are deterministic from tool calls; the model never annotates

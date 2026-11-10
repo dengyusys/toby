@@ -43,7 +43,6 @@ import type { ToolDefinition } from "./infrastructure/model/agent.ts";
 export type ChatWriteOutcome =
   | {
       kind: "receipt";
-      proposalId: string;
       confirmText: string;
       receipt: Readonly<Record<string, unknown>>;
     } // opaque passthrough
@@ -55,8 +54,8 @@ export interface ChatDomainCapability {
   readonly label: string; // "记账"
   /** One classifier-prompt line, verbatim: "- ledger(记账):记一笔钱、查账、问花了多少。" */
   readonly intentDescription: string;
-  /** The write path. Calls the domain service, which goes through the
-   *  actions kernel exactly as today (immediate or gated per tier). */
+  /** The write path. Calls the domain service — one validated,
+   *  transactional write. */
   handleWrite(sentence: string): Promise<ChatWriteOutcome>;
   /** Read-only tools for the none-agent; kind-gated by the shared factory. */
   readonly tools: readonly ToolDefinition[];
@@ -72,7 +71,7 @@ export interface ChatDomainCapability {
 
 Decisions embedded there, stated plainly:
 
-- **The confirmation copy belongs to the domain.** `已记入 2 笔,短时间内在卡片上可撤销` references
+- **The receipt copy belongs to the domain.** `已记入 2 笔` references
   ledger's own receipt fields; today it sits in chat's `route()`. Under the
   capability it travels inside the `receipt` outcome as `confirmText`, so
   chat never phrases a domain's write for it.
@@ -80,7 +79,7 @@ Decisions embedded there, stated plainly:
   toward pi-ai transcript items: the server never interprets content,
   rendering is the webs' job. Chat copies it into the card item verbatim.
 - **`handleWrite` may not throw to signal a domain outcome.** Rejections
-  (kernel conflict, unexpected failure) propagate to chat's existing catch
+  (validation failure, unexpected failure) propagate to chat's existing catch
   and settle as the generic "查询出了点问题" notice — the current
   semantics, now written down.
 
@@ -136,8 +135,9 @@ import). This preserves the red lines:
 
 ## What does not change
 
-- The actions kernel stays the only write path; `handleWrite` → domain
-  service → kernel, tier semantics and revert windows untouched.
+- The write path stays one validated transaction per write;
+  `handleWrite` → domain service → repository
+  transaction, no intermediary machinery.
 - The closed item union stays closed — capabilities produce `ChatWriteOutcome`
   shapes that map onto existing item types; a new item type remains an
   explicit chat decision.

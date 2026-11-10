@@ -13,7 +13,7 @@ as the agent loop. The guardrails below are part of the deal.
   OpenAI, Anthropic, DeepSeek, …) behind one API; switching models is a
   one-line config change, not a code change.
 - **Agent-first by design:** the product is "say one sentence, get a
-  confirmed action". Tool calls with schema-validated arguments are the
+  landed write". Tool calls with schema-validated arguments are the
   model's native, most reliable structured-output channel — more so than
   prompting for JSON and scraping it out of prose.
 - **Correction becomes a loop:** a malformed draft is bounced back to the
@@ -37,12 +37,12 @@ as the agent loop. The guardrails below are part of the deal.
    draft 2020-12 default), so format semantics likewise stay in domain
    validation. AI output — including tool arguments — is untrusted input,
    always.
-2. **Every real effect goes through the actions kernel, transactionally.**
-   Writes are tiered ([write-confirmation-tiers.md](write-confirmation-tiers.md)):
-   additive operations execute immediately with a revert window; destructive
-   operations still pass proposal → user confirmation → execution. The kernel
-   lives in `infrastructure/actions-kernel/` (`registry.ts`); agents never
-   write directly, never confirm, and never revert on the user's behalf.
+2. **Every real effect is one transactional write.**
+   The AI produces a draft;
+   deterministic validation gates it; the domain's repository executes it
+   in a single transaction. There is no proposal machinery and no
+   confirmation gate — a sentence the AI cannot resolve gets a clarifying
+   question (never a guess), and backups are the recovery path.
 3. **Prohibited capabilities are absent, not blocked.** There is no shell
    tool, no file-system tool, no direct-database tool — they do not exist
    as tool definitions at all.
@@ -57,9 +57,9 @@ the gate re-checks registration as a cheap invariant:
 
 - **`read-only`** — no state change of any kind: queries, computations,
   and asking the user a clarifying question all belong here.
-- **`write-intent`** — produces an effect, but only as a proposal; the
-  effect happens solely after user confirmation. This covers future
-  external actions (notifications) as much as database writes.
+- **`write-intent`** — produces a real effect: a validated, transactional
+  write. This covers future external
+  actions (notifications) as much as database writes.
 
 Today the only production agent (ledger extraction) allows both kinds;
 the gate earns its keep with the next agent — the chat agent, which
@@ -70,15 +70,13 @@ is anticipated but not introduced until a domain needs it.
 
 - Two sibling layers, neither containing the other:
   `infrastructure/model/` is the AI runtime (agent loop, single-shot
-  client, model catalog, and the error/type contract), and
-  `infrastructure/actions-kernel/` is the proposal-confirmation state
-  machine. File roles are documented in the files themselves. Two
-  non-obvious decisions:
+  client, model catalog, and the error/type contract); the write path is
+  owned by each domain's repository — one transaction per write, no
+  shared kernel. One non-obvious
+  decision:
   the single-shot `AiClient` keeps the tolerant-parse + one-retry JSON
   protocol and currently has no production caller (chat's intent
-  classification is its expected first consumer); the actions kernel
-  uses single-flight — concurrent confirms and the sweeper share one
-  execution — with domains passing their executors at commit time.
+  classification is its expected first consumer).
 - Domains own prompts, tools, and schemas: ledger's draft schema is
   defined once in Zod and is simultaneously the model-facing tool
   contract and the server's shape gate; validation.ts remains the
@@ -119,14 +117,3 @@ Automated tests never call a real model: pi-ai's `fauxProvider` scripts
 responses (including error stop reasons and slow streams), and the agent
 factory accepts an injected model collection / stream function. Real-model
 regression runs separately with explicit authorization.
-
----
-
-## Reference
-
-This decision supersedes the former ai-integration.md — the restricted
-JSON protocol that banned endpoint-native tool calling and prescribed a
-hand-written OpenAI-compatible fetch adapter. That ADR was retired on
-2026-10-24 and remains retrievable from git history. The constraint
-ladder itself — prompts for intent, schemas for shape, code for
-semantics — is owned by [ai-output-constraints.md](ai-output-constraints.md).

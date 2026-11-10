@@ -1,9 +1,8 @@
 /**
- * Ledger domain client: typed access to the immediate-tier write path and
- * the month views. Mirrors the server's response shapes — amounts are
- * integer cents, dates are "YYYY-MM-DD" strings. Recording lands at once;
- * the returned receipt is born confirmed and revertible until
- * `revert_until`.
+ * Ledger domain client: typed access to the direct write path and the
+ * month views. Mirrors the server's response shapes — amounts are integer
+ * cents, dates are "YYYY-MM-DD" strings. Recording lands at once as one
+ * validated transaction; the returned receipt is what landed.
  */
 
 import { endpoint, requestJson } from "./request-json.ts";
@@ -30,28 +29,12 @@ export interface LedgerEntryInput {
   note?: string;
 }
 
-/** Card statuses the ledger can emit: born confirmed, possibly reverted. */
-export type LedgerReceiptStatus = "committed" | "reverted";
-
-/** The born-confirmed receipt of a write that has already landed. */
+/** The receipt of a direct write that has already landed. */
 export interface LedgerReceiptView {
-  proposal_id: string;
-  status: LedgerReceiptStatus;
-  created_at: string;
-  committed_at: string;
-  /** Until when a revert may still undo the batch. */
-  revert_until: string;
-  reverted_at?: string;
   written: number;
   transaction_ids: number[];
   entries: LedgerEntry[];
-}
-
-/** Result of reverting a landed batch inside its window. */
-export interface LedgerRevertResult {
-  proposal_id: string;
-  status: "reverted";
-  reverted_at: string;
+  created_at: string;
 }
 
 /** Result of a user-initiated delete (the sole non-card write). */
@@ -67,7 +50,7 @@ export interface LedgerFollowUp {
 }
 
 /** A landed receipt, or the AI asking for clarification. */
-export type LedgerProposalResult = LedgerReceiptView | LedgerFollowUp;
+export type LedgerWriteResult = LedgerReceiptView | LedgerFollowUp;
 
 export interface LedgerTransactionRow extends LedgerEntry {
   id: number;
@@ -89,12 +72,10 @@ export interface LedgerMonthReport {
 }
 
 export interface LedgerClient {
-  /** Lands the batch at once; the receipt is born confirmed. */
-  createStructuredProposal(entry: LedgerEntryInput): Promise<LedgerReceiptView>;
+  /** Lands the single structured entry at once. */
+  writeStructuredEntry(entry: LedgerEntryInput): Promise<LedgerReceiptView>;
   /** One-sentence AI path: a landed receipt, or a clarifying question. */
-  createTextProposal(text: string): Promise<LedgerProposalResult>;
-  /** Undo a landed batch inside its revert window; conflicts answer 409. */
-  revertProposal(id: string): Promise<LedgerRevertResult>;
+  writeFromText(text: string): Promise<LedgerWriteResult>;
   /** Delete one stored transaction by id; unknown ids 404. */
   deleteTransaction(id: number): Promise<LedgerDeleteResult>;
   /** Months that have records, descending. */
@@ -104,32 +85,18 @@ export interface LedgerClient {
 
 export function createLedgerClient(baseUrl: string): LedgerClient {
   return {
-    createStructuredProposal: (entry) =>
-      requestJson<LedgerReceiptView>(
-        endpoint(baseUrl, "/api/ledger/proposals"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ entry }),
-        },
-      ),
-    createTextProposal: (text) =>
-      requestJson<LedgerProposalResult>(
-        endpoint(baseUrl, "/api/ledger/proposals"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        },
-      ),
-    revertProposal: (id) =>
-      requestJson<LedgerRevertResult>(
-        endpoint(
-          baseUrl,
-          `/api/ledger/proposals/${encodeURIComponent(id)}/revert`,
-        ),
-        { method: "POST" },
-      ),
+    writeStructuredEntry: (entry) =>
+      requestJson<LedgerReceiptView>(endpoint(baseUrl, "/api/ledger/entries"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entry }),
+      }),
+    writeFromText: (text) =>
+      requestJson<LedgerWriteResult>(endpoint(baseUrl, "/api/ledger/entries"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      }),
     deleteTransaction: (id) =>
       requestJson<LedgerDeleteResult>(
         endpoint(baseUrl, `/api/ledger/transactions/${id}`),

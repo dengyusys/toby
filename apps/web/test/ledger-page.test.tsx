@@ -45,26 +45,16 @@ const REPORT = {
 };
 const FOLLOW_UP = { question: "这笔用的哪个账户?" };
 
-// Fresh receipts get unique ids and a future revert window (the countdown
-// must not reach zero inside a test); revert echoes the id from the URL.
+// Fresh receipts get unique transaction ids per stub call.
 let receiptCounter = 0;
 
-function receiptStub(
-  options: { windowClosed?: boolean; windowMs?: number } = {},
-) {
+function receiptStub() {
   receiptCounter += 1;
   const now = Date.now();
-  const windowMs = options.windowClosed
-    ? -1_000
-    : (options.windowMs ?? 600_000);
   return {
-    proposal_id: `lp-test-${receiptCounter}`,
-    status: "committed",
     created_at: new Date(now).toISOString(),
-    committed_at: new Date(now).toISOString(),
-    revert_until: new Date(now + windowMs).toISOString(),
     written: 2,
-    transaction_ids: [3, 4],
+    transaction_ids: [3 + receiptCounter * 2, 4 + receiptCounter * 2],
     entries: [
       {
         date: "2026-10-20",
@@ -86,26 +76,16 @@ function receiptStub(
   };
 }
 
-function proposalIdFromUrl(url: string): string {
-  return url.match(/proposals\/([^/?]+)/)?.[1] ?? "lp-unknown";
-}
-
 const calls: { url: string; init?: RequestInit }[] = [];
 
 function routeFetch({
   textResults = ["follow-up"],
-  windowClosed = false,
-  windowMs,
-  revertFails = false,
 }: {
   textResults?: ("follow-up" | "receipt")[];
-  windowClosed?: boolean;
-  windowMs?: number;
-  revertFails?: boolean;
 } = {}): void {
   calls.length = 0;
   receiptCounter = 0;
-  // One queued outcome per text proposal, in order; exhausted → follow-up.
+  // One queued outcome per text write, in order; exhausted → follow-up.
   const queue = [...textResults];
   vi.stubGlobal(
     "fetch",
@@ -113,19 +93,6 @@ function routeFetch({
       const url = String(input);
       calls.push({ url, init });
       const requestBody = init?.body ? JSON.parse(String(init.body)) : {};
-      if (url.endsWith("/revert") && revertFails) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              statusCode: 409,
-              message: "a later write touched this batch",
-              error: "Conflict",
-              errorCode: "REVERT_CONFLICT",
-            }),
-            { status: 409 },
-          ),
-        );
-      }
       const body = url.endsWith("/api/ledger/months")
         ? MONTHS
         : init?.method === "DELETE"
@@ -136,18 +103,12 @@ function routeFetch({
             }
           : url.startsWith("/api/ledger/transactions")
             ? REPORT
-            : url.endsWith("/revert")
-              ? {
-                  proposal_id: proposalIdFromUrl(url),
-                  status: "reverted",
-                  reverted_at: new Date().toISOString(),
-                }
-              : typeof requestBody.text === "string"
-                ? (queue.shift() ?? textResults.at(-1) ?? "follow-up") ===
-                  "follow-up"
-                  ? FOLLOW_UP
-                  : receiptStub({ windowClosed, windowMs })
-                : receiptStub({ windowClosed, windowMs });
+            : typeof requestBody.text === "string"
+              ? (queue.shift() ?? textResults.at(-1) ?? "follow-up") ===
+                "follow-up"
+                ? FOLLOW_UP
+                : receiptStub()
+              : receiptStub();
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,

@@ -6,7 +6,7 @@
 
 import type { FastifyPluginAsync } from "fastify";
 import { parseBody } from "../../infrastructure/http/body-schema.ts";
-import { PROPOSAL_BODY_SCHEMA } from "./schema.ts";
+import { ENTRY_BODY_SCHEMA } from "./schema.ts";
 import type { LedgerService } from "./service.ts";
 
 export interface LedgerRoutesOptions {
@@ -33,12 +33,8 @@ export const ledgerRoutes: FastifyPluginAsync<LedgerRoutesOptions> = async (
     },
   );
 
-  app.post("/api/ledger/proposals", (request) =>
-    service.createProposal(parseBody(PROPOSAL_BODY_SCHEMA, request)),
-  );
-
-  app.post<IdParams>("/api/ledger/proposals/:id/revert", (request) =>
-    service.revert(request.params.id),
+  app.post("/api/ledger/entries", (request) =>
+    service.write(parseBody(ENTRY_BODY_SCHEMA, request)),
   );
 
   app.delete<IdParams>("/api/ledger/transactions/:id", (request) =>

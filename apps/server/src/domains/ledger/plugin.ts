@@ -1,10 +1,9 @@
 /**
  * Ledger domain assembly: the database and the repository over it, the
- * service
- * (running the record pruner) and the routes. AI disabled (no
- * TOBY_AI_MODEL) keeps the extractor undefined: the service then answers
- * the one-sentence path with 501. A shared agentFactory (traced, from the
- * composition root) takes precedence over the locally built one.
+ * service and the routes. AI disabled (no TOBY_AI_MODEL) keeps the
+ * extractor undefined: the service then answers the one-sentence path
+ * with 501. A shared agentFactory (traced, from the composition root)
+ * takes precedence over the locally built one.
  */
 
 import type { FastifyPluginAsync } from "fastify";
@@ -17,11 +16,7 @@ import {
 import { createLedgerDb } from "./db.ts";
 import { createLedgerExtractor, type LedgerExtractor } from "./extraction.ts";
 import { ledgerRoutes } from "./routes.ts";
-import {
-  createLedgerService,
-  type LedgerService,
-  type LedgerTiming,
-} from "./service.ts";
+import { createLedgerService, type LedgerService } from "./service.ts";
 import { createLedgerRepository } from "./repository.ts";
 
 export interface LedgerPluginOptions {
@@ -31,8 +26,6 @@ export interface LedgerPluginOptions {
   extractor?: LedgerExtractor;
   /** A shared agent factory (the composition root passes a traced one). */
   agentFactory?: TobyAgentFactory;
-  /** Test seam: write-timing knobs instead of the kernel defaults. */
-  timing?: LedgerTiming;
 }
 
 /** The assembled ledger domain: its mount step and its service handle. */
@@ -67,15 +60,10 @@ export function createLedgerDomain(options: LedgerPluginOptions): LedgerDomain {
     repository,
     clock,
     extractor,
-    timing: options.timing,
   });
   const plugin: FastifyPluginAsync = async (app) => {
     await app.register(ledgerRoutes, { service });
-    service.start();
-    // Teardown ordering: the pruner (and any prune still running) must
-    // finish before the database closes. Do not reorder.
     app.addHook("onClose", async () => {
-      await service.stop();
       await db.close();
     });
   };

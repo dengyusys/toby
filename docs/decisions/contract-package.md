@@ -22,7 +22,7 @@ In one package, a contract change is made once and both apps get it.
 
 The package has one hard rule: **zero JSX, zero CSS, zero DOM.**
 
-- It answers only "how to talk to the server": API clients, types, request wrappers, proposal flows, pure functions
+- It answers only "how to talk to the server": API clients, types, request wrappers, write receipts, pure functions
 - Interfaces belong to each app (see the dual-app split): components and styles are presentation, and presentation forks by design
 - The rule keeps the package from becoming a junk drawer — stuff everything in, and the two apps get chained back together, making the split pointless
 

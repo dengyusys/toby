@@ -57,9 +57,8 @@ export function createLedgerExtractor(deps: {
       const submitEntries = defineTool("write-intent", {
         name: "submit_entries",
         label: "提交记账条目",
-        description:
-          "提交从用户语句中提取的记账条目。通过校验后立即写入账本,短时间内用户可撤销。",
-        promptSnippet: "提交记账条目(立即写入,可撤销)",
+        description: "提交从用户语句中提取的记账条目。通过校验后立即写入账本。",
+        promptSnippet: "提交记账条目(立即写入)",
         promptGuidelines: ["能确定就直接提交,单条也放进 entries 数组。"],
         parameters: LEDGER_ENTRIES_TOOL_SCHEMA,
         execute: async (_toolCallId, params) => {
