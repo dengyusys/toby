@@ -15,7 +15,7 @@ import type { ChatDomainCapability } from "../../chat-capability.ts";
 import { AiError } from "../../infrastructure/model/errors.ts";
 import { ChatRequestError } from "./errors.ts";
 import type { RateLimiter } from "./rate-limit.ts";
-import type { ChatRepository, StoredTurn } from "./repository.ts";
+import type { ChatRepository } from "./repository.ts";
 import type {
   ChatAgent,
   ChatHistoryMessage,
@@ -53,16 +53,10 @@ const MAX_PAGE_LIMIT = 100;
 export interface ChatService {
   sendMessage(text: string, clientIp: string): Promise<ChatTurnView>;
   listSessions(): Promise<{ sessions: readonly ChatSessionView[] }>;
-  createSession(): Promise<ChatSessionView>;
   listMessages(
     sessionId: string,
-    options: { limit?: string; before?: string },
+    options: { limit?: string },
   ): Promise<ChatTurnPage>;
-  deleteSession(id: string): Promise<{ status: "deleted" }>;
-  reportOutcome(
-    turnId: string,
-    outcome: string,
-  ): Promise<{ status: "recorded" }>;
 }
 
 export function createChatService(deps: {
@@ -201,24 +195,11 @@ export function createChatService(deps: {
       return { sessions: await repository.listSessions() };
     },
 
-    async createSession() {
-      const session = await repository.createSession();
-      return {
-        session_id: session.id,
-        created_at: session.created_at,
-        excerpt: "(新对话)",
-      };
-    },
-
     async listMessages(sessionId, options) {
       const limit = parseLimit(options.limit);
-      const page = await repository.listTurns(sessionId, {
-        limit,
-        ...(options.before !== undefined ? { before: options.before } : {}),
-      });
+      const page = await repository.listTurns(sessionId, { limit });
       if (page.turns.length === 0) {
-        // An empty page is honest for a live session that has no turns yet
-        // (created through the API) or for a cursor at the oldest turn;
+        // An empty page is honest for a live session that has no turns yet;
         // only a session that does not exist answers 404.
         const sessions = await repository.listSessions();
         if (!sessions.some((s) => s.session_id === sessionId)) {
@@ -230,31 +211,6 @@ export function createChatService(deps: {
         }
       }
       return page;
-    },
-
-    async deleteSession(id) {
-      const deleted = await repository.deleteSession(id);
-      if (!deleted) {
-        throw new ChatRequestError(
-          "SESSION_NOT_FOUND",
-          404,
-          "session does not exist",
-        );
-      }
-      return { status: "deleted" as const };
-    },
-
-    async reportOutcome(turnId, outcome) {
-      const turn: StoredTurn | undefined = await repository.getTurn(turnId);
-      if (!turn) {
-        throw new ChatRequestError(
-          "TURN_NOT_FOUND",
-          404,
-          "turn does not exist",
-        );
-      }
-      await repository.setCardOutcome(turnId, outcome);
-      return { status: "recorded" as const };
     },
   };
 }

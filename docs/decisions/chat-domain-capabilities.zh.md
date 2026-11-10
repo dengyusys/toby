@@ -49,13 +49,10 @@ export interface ChatDomainCapability {
   readonly label: string; // "记账"
   /** 分类器 prompt 的一行,逐字使用:"- ledger(记账):记一笔钱、查账、问花了多少。" */
   readonly intentDescription: string;
-  /** 写路径。调用域的 service——一次经过校验的事务写入
-   *  事务写入。 */
+  /** 写路径。调用域的 service——一次经过校验的事务写入。 */
   handleWrite(sentence: string): Promise<ChatWriteOutcome>;
   /** none-agent 的只读工具;经共享工厂保持种类门控。 */
   readonly tools: readonly ToolDefinition[];
-  /** 拼进 none-agent 规则的片段。 */
-  readonly agentRules?: readonly string[];
   /** toolCall → 预览面板 target("ledger:2026-11");undefined = 无 chip。 */
   inspectTarget(
     toolName: string,
@@ -88,7 +85,7 @@ export interface ChatDomainCapability {
 | `composition-root.ts` | 手写 `chatLedgerPort` 适配                                          | `capabilities: [ledgerChatCapability(ledgerDomain.service)]`——每域一行                                                            |
 | `domains/ledger/`     | 与 chat 无关                                                        | `chat-capability.ts`:写结果、三个工具、`inspectTarget`,全部用 ledger 自己的类型                                                   |
 
-装配时校验,启动即失败:`intent` 重复或 tools 加 rules 为空,在
+装配时校验,启动即失败:`intent` 重复或工具集为空,在
 `chatPlugin` 内、第一条消息之前 throw,而不是等第一句话。
 
 ## 契约类型放在哪

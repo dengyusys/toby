@@ -16,18 +16,12 @@ export interface ChatRoutesOptions {
 const SEND_BODY_SCHEMA = z.object({ text: z.string() }).strict();
 export type SendBody = z.infer<typeof SEND_BODY_SCHEMA>;
 
-const OUTCOME_BODY_SCHEMA = z.object({ outcome: z.string().min(1) }).strict();
-
 interface SessionParams {
   Params: { id: string };
 }
 
-interface TurnParams {
-  Params: { id: string };
-}
-
 interface MessagesQuery {
-  Querystring: { limit?: string | string[]; before?: string | string[] };
+  Querystring: { limit?: string | string[] };
 }
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -44,25 +38,11 @@ export const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (
 
   app.get("/api/chat/sessions", () => service.listSessions());
 
-  app.post("/api/chat/sessions", () => service.createSession());
-
   app.get<MessagesQuery & SessionParams>(
     "/api/chat/sessions/:id/messages",
     (request) =>
       service.listMessages(request.params.id, {
         limit: first(request.query.limit),
-        before: first(request.query.before),
       }),
-  );
-
-  app.delete<SessionParams>("/api/chat/sessions/:id", (request) =>
-    service.deleteSession(request.params.id),
-  );
-
-  app.post<TurnParams>("/api/chat/messages/:id/outcome", (request) =>
-    service.reportOutcome(
-      request.params.id,
-      parseBody(OUTCOME_BODY_SCHEMA, request).outcome,
-    ),
   );
 };

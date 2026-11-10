@@ -59,8 +59,6 @@ export interface ChatDomainCapability {
   handleWrite(sentence: string): Promise<ChatWriteOutcome>;
   /** Read-only tools for the none-agent; kind-gated by the shared factory. */
   readonly tools: readonly ToolDefinition[];
-  /** Rule snippets concatenated into the none-agent's rules. */
-  readonly agentRules?: readonly string[];
   /** toolCall → preview-panel target ("ledger:2026-11"); undefined = no chip. */
   inspectTarget(
     toolName: string,
@@ -85,17 +83,17 @@ Decisions embedded there, stated plainly:
 
 ## What each touch point becomes
 
-| File                  | Before                                                                         | After                                                                                                                                                                              |
-| --------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `chat/types.ts`       | `ChatIntent` union, `ChatLedgerReceipt`, month/day summaries, `ChatLedgerPort` | all deleted; `ChatIntent` = `string`, items unchanged                                                                                                                              |
-| `chat/intent.ts`      | `INTENTS` array, hand-written prompt section                                   | enum and intent lines derived from the registry at plugin assembly; the frame, `none` line, and folding rules stay                                                                 |
-| `chat/service.ts`     | `route()` if-chain, `ON_THE_WAY` map, port dependency                          | `route()` looks up `capabilities.get(intent)`; absent → none-agent (a stale/unregistered intent string degrades to `none`, never 404); `ON_THE_WAY` deleted                        |
-| `chat/agent.ts`       | three ledger tools, `inspectTargetOf`, format helpers                          | a generic none-agent: toolset = registry's concatenated tools, rules = base rules + each capability's snippets; ledger's tools/helpers move to `domains/ledger/chat-capability.ts` |
-| `composition-root.ts` | hand-written `chatLedgerPort` adapter                                          | `capabilities: [ledgerChatCapability(ledgerDomain.service)]` — one line per domain                                                                                                 |
-| `domains/ledger/`     | nothing chat-related                                                           | `chat-capability.ts`: the write outcome, the three tools, `inspectTarget`, using ledger's own types                                                                                |
+| File                  | Before                                                                         | After                                                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chat/types.ts`       | `ChatIntent` union, `ChatLedgerReceipt`, month/day summaries, `ChatLedgerPort` | all deleted; `ChatIntent` = `string`, items unchanged                                                                                                       |
+| `chat/intent.ts`      | `INTENTS` array, hand-written prompt section                                   | enum and intent lines derived from the registry at plugin assembly; the frame, `none` line, and folding rules stay                                          |
+| `chat/service.ts`     | `route()` if-chain, `ON_THE_WAY` map, port dependency                          | `route()` looks up `capabilities.get(intent)`; absent → none-agent (a stale/unregistered intent string degrades to `none`, never 404); `ON_THE_WAY` deleted |
+| `chat/agent.ts`       | three ledger tools, `inspectTargetOf`, format helpers                          | a generic none-agent: toolset = registry's concatenated tools over the base rules; ledger's tools/helpers move to `domains/ledger/chat-capability.ts`       |
+| `composition-root.ts` | hand-written `chatLedgerPort` adapter                                          | `capabilities: [ledgerChatCapability(ledgerDomain.service)]` — one line per domain                                                                          |
+| `domains/ledger/`     | nothing chat-related                                                           | `chat-capability.ts`: the write outcome, the three tools, `inspectTarget`, using ledger's own types                                                         |
 
 Assembly-time validation, fail-fast at boot: duplicate `intent` ids or an
-empty tools-plus-rules signature throw inside `chatPlugin` before the first
+empty toolset throw inside `chatPlugin` before the first
 message, not at the first user sentence.
 
 ## Where the contract type lives

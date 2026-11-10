@@ -66,8 +66,6 @@ export interface ChatTurnView {
   readonly session_id: string;
   readonly intent: ChatIntent;
   readonly created_at: string;
-  /** The card's recorded final state, display metadata only. */
-  readonly card_outcome?: string;
   readonly items: readonly ChatItem[];
 }
 
@@ -79,27 +77,18 @@ export interface ChatSessionView {
 }
 
 export interface ChatTurnPage {
-  /** Turns oldest → newest inside the fetched window. */
+  /** The session's newest turns, oldest → newest. */
   readonly turns: readonly ChatTurnView[];
-  /** Cursor for paging further back in time; absent at the beginning. */
-  readonly next_before?: string;
 }
 
 export interface ChatClient {
   /** One sentence in: intent routing; returns the turn's intent and items. */
   sendMessage(text: string): Promise<ChatTurnView>;
   listSessions(): Promise<readonly ChatSessionView[]>;
-  createSession(): Promise<ChatSessionView>;
   listMessages(
     sessionId: string,
-    options?: { limit?: number; before?: string },
+    options?: { limit?: number },
   ): Promise<ChatTurnPage>;
-  deleteSession(sessionId: string): Promise<{ status: "deleted" }>;
-  /** Report a card's final state (display metadata only). */
-  reportOutcome(
-    turnId: string,
-    outcome: string,
-  ): Promise<{ status: "recorded" }>;
 }
 
 export function createChatClient(baseUrl: string): ChatClient {
@@ -116,17 +105,10 @@ export function createChatClient(baseUrl: string): ChatClient {
       );
       return body.sessions;
     },
-    createSession: () =>
-      requestJson<ChatSessionView>(endpoint(baseUrl, "/api/chat/sessions"), {
-        method: "POST",
-      }),
     listMessages: (sessionId, options) => {
       const params = new URLSearchParams();
       if (options?.limit !== undefined) {
         params.set("limit", String(options.limit));
-      }
-      if (options?.before !== undefined) {
-        params.set("before", options.before);
       }
       const query = params.size > 0 ? `?${params.toString()}` : "";
       return requestJson<ChatTurnPage>(
@@ -136,25 +118,5 @@ export function createChatClient(baseUrl: string): ChatClient {
         ),
       );
     },
-    deleteSession: (sessionId) =>
-      requestJson<{ status: "deleted" }>(
-        endpoint(
-          baseUrl,
-          `/api/chat/sessions/${encodeURIComponent(sessionId)}`,
-        ),
-        { method: "DELETE" },
-      ),
-    reportOutcome: (turnId, outcome) =>
-      requestJson<{ status: "recorded" }>(
-        endpoint(
-          baseUrl,
-          `/api/chat/messages/${encodeURIComponent(turnId)}/outcome`,
-        ),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ outcome }),
-        },
-      ),
   };
 }

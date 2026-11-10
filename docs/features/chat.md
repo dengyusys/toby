@@ -65,7 +65,7 @@ error.
   system message and its internal user prompt are never items — the turn
   already shows the user's original words.
 - Order is production order: items are stored and returned exactly as produced;
-  nothing is reordered or merged. Intent and card outcome ride as turn metadata
+  nothing is reordered or merged. Intent rides as turn metadata
   beside the items; the excerpt is derived on read and never stored.
 - The turn stores the user's original sentence; the agent receives the
   classifier's self-contained sentence. The UI reads the former, the model the
@@ -167,17 +167,14 @@ read-only agent path, never an error.
   transaction, receipt. No confirm or cancel wire calls exist.
 - A card embeds the receipt snapshot at creation time; restored cards keep
   their recorded snapshot.
-- `card_outcome` is display metadata the client reports; it never changes
-  the transcript.
 
 ## Sessions and history
 
 - The session list is newest first; each entry carries an excerpt derived from
   its newest turn's user words (60 characters).
-- `GET /api/chat/sessions/:id/messages` returns one window: default 20 turns,
-  at most 100, oldest → newest inside the window. `before` is a turn id from
-  that session; `next_before` appears only when older turns remain, and is
-  absent at the beginning.
+- `GET /api/chat/sessions/:id/messages` returns the session's newest turns:
+  default 20, at most 100, oldest → newest inside the window. No cursor —
+  the window is the window.
 - A fresh install starts with no session; the first accepted send creates the
   conversation. Refresh restores the newest session. The UI exposes no session
   switching, creation, or deletion yet; the API does.
@@ -195,20 +192,16 @@ standard body.
 | ------------------------------------- | --------------------------------------------------------------------- |
 | `POST /api/chat/messages`             | Send one sentence; returns the settled turn (rate-limited 20/60 s/IP) |
 | `GET /api/chat/sessions`              | Sessions, newest first, with derived excerpts                         |
-| `POST /api/chat/sessions`             | Create an empty session                                               |
-| `GET /api/chat/sessions/:id/messages` | One page of turns (`limit` + `before`)                                |
-| `DELETE /api/chat/sessions/:id`       | Delete a session and its transcript                                   |
-| `POST /api/chat/messages/:id/outcome` | Record a card's final state (display metadata only)                   |
+| `GET /api/chat/sessions/:id/messages` | The session's newest turns (`limit`)                                  |
 
-| Failure                     | Answer                                      |
-| --------------------------- | ------------------------------------------- |
-| body not `{ text }`         | `400 BAD_REQUEST`                           |
-| empty or blank text         | `400 INVALID_TEXT`                          |
-| `limit` outside 1–100       | `400 INVALID_TEXT`                          |
-| rate limit exceeded         | `429 RATE_LIMITED`                          |
-| unknown session             | `404 SESSION_NOT_FOUND`                     |
-| unknown turn for an outcome | `404 TURN_NOT_FOUND`                        |
-| AI unavailable or failed    | a `notice` item; the request still succeeds |
+| Failure                  | Answer                                      |
+| ------------------------ | ------------------------------------------- |
+| body not `{ text }`      | `400 BAD_REQUEST`                           |
+| empty or blank text      | `400 INVALID_TEXT`                          |
+| `limit` outside 1–100    | `400 INVALID_TEXT`                          |
+| rate limit exceeded      | `429 RATE_LIMITED`                          |
+| unknown session          | `404 SESSION_NOT_FOUND`                     |
+| AI unavailable or failed | a `notice` item; the request still succeeds |
 
 ## Invariants
 
@@ -223,12 +216,12 @@ standard body.
 5. Writes are one validated repository transaction each; the chat domain writes
    only `chat.db`;
    cross-domain calls go through the registered capabilities.
-6. Intent, card outcome and excerpt are metadata or derived values, never items.
+6. Intent and excerpt are metadata or derived values, never items.
 7. Inspect links are deterministic from tool calls; the model never annotates
    them.
 8. A turn is created with the user's item in one transaction, and its reply
-   items are appended in one completion transaction; intent and outcome are
-   metadata updates; deletion is the only removal.
+   items are appended in one completion transaction; intent is a metadata
+   update.
 
 ## Out of scope (for now)
 
@@ -237,5 +230,6 @@ standard body.
   produces them.
 - **Live streaming and stop**: a send returns the whole turn; there is no chat
   SSE stream and no cancellation.
-- **Session switching UI**: the API supports it; the webs do not.
+- **Session switching UI**: there is a single ongoing conversation; the webs
+  never switch or manage sessions.
 - **Context compaction**: history is bounded by turns and time, not summarized.

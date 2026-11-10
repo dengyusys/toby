@@ -60,9 +60,9 @@ function validateCapabilities(
       throw new Error(`duplicate chat capability intent: ${capability.intent}`);
     }
     seen.add(capability.intent);
-    if (capability.tools.length + (capability.agentRules?.length ?? 0) === 0) {
+    if (capability.tools.length === 0) {
       throw new Error(
-        `chat capability "${capability.intent}" registers neither tools nor rules`,
+        `chat capability "${capability.intent}" registers no tools`,
       );
     }
   }

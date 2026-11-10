@@ -48,8 +48,6 @@ export interface ChatDomainCapability {
   handleWrite(sentence: string): Promise<ChatWriteOutcome>;
   /** Read-only tools for the none-agent; kind-gated by the shared factory. */
   readonly tools: readonly TobyTool[];
-  /** Rule snippets concatenated into the none-agent's base rules. */
-  readonly agentRules?: readonly string[];
   /** A toolCall → preview-panel target ("ledger:2026-11"); none = no chip. */
   inspectTarget(
     toolName: string,

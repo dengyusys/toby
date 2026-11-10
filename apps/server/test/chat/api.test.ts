@@ -5,8 +5,7 @@
  * and fake ledger extractor). Pins: the item-stream turn shapes for
  * every route (ledger receipt / follow-up / none-agent transcript /
  * on-the-way notices / unconfigured notices), user-message-first
- * persistence, paging, session lifecycle, rate limiting, and outcome
- * recording.
+ * persistence, paging, session listing, and rate limiting.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
@@ -593,11 +592,9 @@ describe("chat api: sessions and paging", () => {
     expect(sessionList[0].excerpt).toBe("第三句");
 
     const sessionId = sessionList[0].session_id;
-    const firstPage = await inject(
-      "GET",
-      `/api/chat/sessions/${sessionId}/messages?limit=2`,
-    );
-    const page = firstPage.json();
+    const page = (
+      await inject("GET", `/api/chat/sessions/${sessionId}/messages?limit=2`)
+    ).json();
     expect(
       page.turns.map((t: { items: unknown[] }) => t.items[0]),
     ).toHaveLength(2);
@@ -605,77 +602,26 @@ describe("chat api: sessions and paging", () => {
       "none",
       "none",
     ]);
-    expect(typeof page.next_before).toBe("string");
-
-    const secondPage = await inject(
-      "GET",
-      `/api/chat/sessions/${sessionId}/messages?limit=2&before=${page.next_before}`,
-    );
-    const older = secondPage.json();
-    expect(older.turns).toHaveLength(1);
-    expect(older.next_before).toBeUndefined();
-    // Oldest → newest inside each window.
-    expect(older.turns[0].items[0].content).toBe("第一句");
+    // Oldest → newest inside the window.
     expect(page.turns[0].items[0].content).toBe("第二句");
     expect(page.turns[1].items[0].content).toBe("第三句");
   });
 
-  it("unknown sessions and turns answer 404; deletion cascades", async () => {
+  it("unknown sessions answer 404; the retired endpoints are gone", async () => {
     await buildChatOnlyApp();
     const missing = await inject("GET", "/api/chat/sessions/nope/messages");
     expect(missing.statusCode).toBe(404);
     expect(missing.json().errorCode).toBe("SESSION_NOT_FOUND");
-    // A cursor does not turn a missing session into an empty page.
-    const missingWithCursor = await inject(
-      "GET",
-      "/api/chat/sessions/nope/messages?before=whatever",
-    );
-    expect(missingWithCursor.statusCode).toBe(404);
-    expect(missingWithCursor.json().errorCode).toBe("SESSION_NOT_FOUND");
 
-    const outcome = await inject("POST", "/api/chat/messages/nope/outcome", {
-      outcome: "viewed",
-    });
-    expect(outcome.statusCode).toBe(404);
-    expect(outcome.json().errorCode).toBe("TURN_NOT_FOUND");
-
-    const created = await inject("POST", "/api/chat/sessions");
-    expect(created.statusCode).toBe(200);
-    expect(created.json().excerpt).toBe("(新对话)");
-
-    const sent = await inject("POST", "/api/chat/messages", { text: "你好" });
-    const sessionId = sent.json().session_id;
-    const deleted = await inject("DELETE", `/api/chat/sessions/${sessionId}`);
-    expect(deleted.statusCode).toBe(200);
-    expect(deleted.json()).toEqual({ status: "deleted" });
-    const gone = await inject(
-      "GET",
-      `/api/chat/sessions/${sessionId}/messages`,
-    );
-    expect(gone.statusCode).toBe(404);
-    const repeat = await inject("DELETE", `/api/chat/sessions/${sessionId}`);
-    expect(repeat.statusCode).toBe(404);
-  });
-
-  it("records a card outcome as display metadata", async () => {
-    await buildChatOnlyApp();
-    const sent = await inject("POST", "/api/chat/messages", { text: "你好" });
-    const turnId = sent.json().turn_id;
-    const sessionId = sent.json().session_id;
-
-    const reported = await inject(
-      "POST",
-      `/api/chat/messages/${turnId}/outcome`,
-      { outcome: "viewed" },
-    );
-    expect(reported.statusCode).toBe(200);
-    expect(reported.json()).toEqual({ status: "recorded" });
-
-    const page = await inject(
-      "GET",
-      `/api/chat/sessions/${sessionId}/messages`,
-    );
-    expect(page.json().turns[0].card_outcome).toBe("viewed");
+    for (const [method, url] of [
+      ["POST", "/api/chat/sessions"],
+      ["DELETE", "/api/chat/sessions/some-id"],
+      ["POST", "/api/chat/messages/some-id/outcome"],
+    ] as const) {
+      const response = await inject(method, url);
+      expect(response.statusCode).toBe(404);
+      expect(response.json().errorCode).toBe("PAGE_NOT_FOUND");
+    }
   });
 
   it("the send endpoint validates the limit parameter", async () => {

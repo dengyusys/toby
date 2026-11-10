@@ -19,7 +19,6 @@ const CHAT_SCHEMA: Record<DbDialect, readonly string[]> = {
       id TEXT NOT NULL UNIQUE,
       session_id TEXT NOT NULL,
       intent TEXT NOT NULL,
-      card_outcome TEXT,
       created_at TEXT NOT NULL
     )`,
     `CREATE INDEX IF NOT EXISTS idx_chat_turns_session ON chat_turns (session_id, seq)`,
@@ -42,7 +41,6 @@ const CHAT_SCHEMA: Record<DbDialect, readonly string[]> = {
       id VARCHAR(36) NOT NULL UNIQUE,
       session_id VARCHAR(36) NOT NULL,
       intent VARCHAR(8) NOT NULL,
-      card_outcome VARCHAR(32),
       created_at VARCHAR(32) NOT NULL,
       KEY idx_chat_turns_session (session_id, seq)
     )`,

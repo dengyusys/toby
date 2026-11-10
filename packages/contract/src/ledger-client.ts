@@ -18,17 +18,6 @@ export interface LedgerEntry {
   note: string;
 }
 
-/** Input for the structured single-entry path; amount is pre-cents. */
-export interface LedgerEntryInput {
-  date: string;
-  type: LedgerEntryType;
-  category: string;
-  account: string;
-  /** Non-negative number with at most two decimals, as typed. */
-  amount: string | number;
-  note?: string;
-}
-
 /** The receipt of a direct write that has already landed. */
 export interface LedgerReceiptView {
   written: number;
@@ -43,14 +32,6 @@ export interface LedgerDeleteResult {
   status: "deleted";
   deleted_at: string;
 }
-
-/** The AI could not resolve the sentence: it asks the user one question. */
-export interface LedgerFollowUp {
-  question: string;
-}
-
-/** A landed receipt, or the AI asking for clarification. */
-export type LedgerWriteResult = LedgerReceiptView | LedgerFollowUp;
 
 export interface LedgerTransactionRow extends LedgerEntry {
   id: number;
@@ -72,10 +53,6 @@ export interface LedgerMonthReport {
 }
 
 export interface LedgerClient {
-  /** Lands the single structured entry at once. */
-  writeStructuredEntry(entry: LedgerEntryInput): Promise<LedgerReceiptView>;
-  /** One-sentence AI path: a landed receipt, or a clarifying question. */
-  writeFromText(text: string): Promise<LedgerWriteResult>;
   /** Delete one stored transaction by id; unknown ids 404. */
   deleteTransaction(id: number): Promise<LedgerDeleteResult>;
   /** Months that have records, descending. */
@@ -85,18 +62,6 @@ export interface LedgerClient {
 
 export function createLedgerClient(baseUrl: string): LedgerClient {
   return {
-    writeStructuredEntry: (entry) =>
-      requestJson<LedgerReceiptView>(endpoint(baseUrl, "/api/ledger/entries"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entry }),
-      }),
-    writeFromText: (text) =>
-      requestJson<LedgerWriteResult>(endpoint(baseUrl, "/api/ledger/entries"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      }),
     deleteTransaction: (id) =>
       requestJson<LedgerDeleteResult>(
         endpoint(baseUrl, `/api/ledger/transactions/${id}`),

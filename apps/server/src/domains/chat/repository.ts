@@ -23,7 +23,6 @@ import type {
 export interface StoredTurn {
   readonly id: string;
   readonly intent: ChatIntent;
-  readonly card_outcome?: string;
   readonly created_at: string;
   readonly items: readonly ChatItem[];
 }
@@ -31,7 +30,6 @@ export interface StoredTurn {
 export interface ChatRepository {
   /** The single ongoing conversation, created on first call. */
   ensureSession(): Promise<{ id: string; created_at: string }>;
-  createSession(): Promise<{ id: string; created_at: string }>;
   /** Persists the turn with its user message item — before any AI call. */
   appendUserTurn(
     sessionId: string,
@@ -41,22 +39,13 @@ export interface ChatRepository {
   setTurnIntent(turnId: string, intent: ChatIntent): Promise<void>;
   /** Appends the reply items in order, one transaction. */
   completeTurn(turnId: string, items: readonly ChatItem[]): Promise<void>;
-  /** Records a card's final state (display metadata only). */
-  setCardOutcome(turnId: string, outcome: string): Promise<void>;
-  getTurn(turnId: string): Promise<StoredTurn | undefined>;
-  /**
-   * One page of turns, oldest → newest inside the window: `before` is the
-   * seq cursor (a turn id) paging back in time; `next_before` is absent
-   * at the beginning.
-   */
+  /** The newest `limit` turns of one session, oldest → newest. */
   listTurns(
     sessionId: string,
-    options: { limit: number; before?: string },
+    options: { limit: number },
   ): Promise<ChatTurnPage>;
   /** Sessions newest first, excerpt derived from each one's latest turn. */
   listSessions(): Promise<readonly ChatSessionView[]>;
-  /** Deletes one session with all its turns and items, one transaction. */
-  deleteSession(id: string): Promise<boolean>;
 }
 
 interface TurnRow {
@@ -64,7 +53,6 @@ interface TurnRow {
   readonly id: string;
   readonly session_id: string;
   readonly intent: string;
-  readonly card_outcome: string | null;
   readonly created_at: string;
 }
 
@@ -118,7 +106,6 @@ export function createChatRepository(deps: {
       turn_id: row.id,
       session_id: row.session_id,
       intent: isIntent(row.intent) ? row.intent : "none",
-      ...(row.card_outcome !== null ? { card_outcome: row.card_outcome } : {}),
       created_at: row.created_at,
       items,
     };
@@ -133,11 +120,6 @@ export function createChatRepository(deps: {
       if (existing.length > 0) {
         return existing[0]!;
       }
-      return createSessionRow(handle, clock);
-    },
-
-    async createSession() {
-      const handle = await db.open();
       return createSessionRow(handle, clock);
     },
 
@@ -181,74 +163,20 @@ export function createChatRepository(deps: {
       });
     },
 
-    async setCardOutcome(turnId, outcome) {
-      const handle = await db.open();
-      await handle.run("UPDATE chat_turns SET card_outcome = ? WHERE id = ?", [
-        outcome,
-        turnId,
-      ]);
-    },
-
-    async getTurn(turnId) {
-      const handle = await db.open();
-      const rows = await handle.query<TurnRow>(
-        "SELECT seq, id, session_id, intent, card_outcome, created_at FROM chat_turns WHERE id = ?",
-        [turnId],
-      );
-      const row = rows[0];
-      if (!row) {
-        return undefined;
-      }
-      const items = (await itemsOfTurns(handle, [row.id])).get(row.id) ?? [];
-      return {
-        id: row.id,
-        intent: isIntent(row.intent) ? row.intent : "none",
-        ...(row.card_outcome !== null
-          ? { card_outcome: row.card_outcome }
-          : {}),
-        created_at: row.created_at,
-        items,
-      };
-    },
-
     async listTurns(sessionId, options) {
       const handle = await db.open();
-      // The cursor is a turn id; resolve it to its seq position first.
-      let beforeSeq: number | undefined;
-      if (options.before !== undefined) {
-        const cursor = await handle.query<{ seq: number }>(
-          "SELECT seq FROM chat_turns WHERE id = ? AND session_id = ?",
-          [options.before, sessionId],
-        );
-        beforeSeq = cursor[0]?.seq;
-      }
       const descending = await handle.query<TurnRow>(
-        `SELECT seq, id, session_id, intent, card_outcome, created_at FROM chat_turns
-         WHERE session_id = ? ${beforeSeq !== undefined ? "AND seq < ?" : ""}
-         ORDER BY seq DESC LIMIT ?`,
-        beforeSeq !== undefined
-          ? [sessionId, beforeSeq, options.limit]
-          : [sessionId, options.limit],
+        `SELECT seq, id, session_id, intent, created_at FROM chat_turns
+         WHERE session_id = ? ORDER BY seq DESC LIMIT ?`,
+        [sessionId, options.limit],
       );
       const ascending = [...descending].reverse();
       const byTurn = await itemsOfTurns(
         handle,
         ascending.map((row) => row.id),
       );
-      const olderThanWindow = await handle.query<{ count: number }>(
-        `SELECT COUNT(*) AS count FROM chat_turns WHERE session_id = ? ${beforeSeq !== undefined ? "AND seq < ?" : ""}`,
-        beforeSeq !== undefined ? [sessionId, beforeSeq] : [sessionId],
-      );
-      const remaining = olderThanWindow[0]?.count ?? 0;
       return {
         turns: ascending.map((row) => toView(row, byTurn.get(row.id) ?? [])),
-        // There is more history beyond this page exactly when older turns
-        // exist below the window's oldest row.
-        ...(remaining > ascending.length
-          ? {
-              next_before: ascending[0]?.id,
-            }
-          : {}),
       };
     },
 
@@ -281,26 +209,6 @@ export function createChatRepository(deps: {
         });
       }
       return views;
-    },
-
-    async deleteSession(id) {
-      const handle = await db.open();
-      return handle.transaction(async (tx) => {
-        const found = await tx.query<{ id: string }>(
-          "SELECT id FROM chat_sessions WHERE id = ?",
-          [id],
-        );
-        if (found.length === 0) {
-          return false;
-        }
-        await tx.run(
-          "DELETE FROM chat_items WHERE turn_id IN (SELECT id FROM chat_turns WHERE session_id = ?)",
-          [id],
-        );
-        await tx.run("DELETE FROM chat_turns WHERE session_id = ?", [id]);
-        await tx.run("DELETE FROM chat_sessions WHERE id = ?", [id]);
-        return true;
-      });
     },
   };
 }

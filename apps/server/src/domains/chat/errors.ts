@@ -5,7 +5,6 @@ import { DomainHttpError } from "../../infrastructure/http/http-error.ts";
 export type ChatErrorCode =
   | "INVALID_TEXT"
   | "SESSION_NOT_FOUND"
-  | "TURN_NOT_FOUND"
   | "AI_UNAVAILABLE"
   | "AI_REQUEST_FAILED"
   | "RATE_LIMITED";

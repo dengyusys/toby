@@ -60,8 +60,6 @@ export interface ChatTurnView {
   readonly session_id: string;
   readonly intent: ChatIntent;
   readonly created_at: string;
-  /** The card's recorded final state, display metadata only. */
-  readonly card_outcome?: string;
   readonly items: readonly ChatItem[];
 }
 
@@ -73,10 +71,8 @@ export interface ChatSessionView {
 }
 
 export interface ChatTurnPage {
-  /** Turns oldest → newest inside the fetched window. */
+  /** The session's newest turns, oldest → newest. */
   readonly turns: readonly ChatTurnView[];
-  /** Cursor for paging further back in time; absent at the beginning. */
-  readonly next_before?: string;
 }
 
 /** Intent classification output: an intent plus a self-contained sentence. */
