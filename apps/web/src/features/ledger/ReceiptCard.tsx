@@ -1,8 +1,7 @@
 /**
  * Receipt card (回执卡): a write that has already landed — the batch was
  * recorded the moment the sentence was sent. Shows the entries with the
- * multi-entry total. There is no revert window: recovery is writing again
- * or backup (direct writes).
+ * multi-entry total. Recovery is writing again or backup.
  */
 
 import type { LedgerReceiptView } from "@toby/contract";

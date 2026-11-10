@@ -49,8 +49,6 @@ function pendingToolCallIdsOf(turns: readonly ChatTurnView[]): Set<string> {
   return pending;
 }
 
-/** Receipt cards no longer drive any live state (no revert window). */
-
 export function ChatView() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");

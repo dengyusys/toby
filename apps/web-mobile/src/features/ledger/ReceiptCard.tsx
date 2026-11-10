@@ -1,8 +1,7 @@
 /**
  * Receipt card (回执卡, mobile): a write that has already landed — the
  * batch was recorded the moment the sentence was sent. Shows the entries
- * with the multi-entry total row. There is no revert window: recovery is
- * writing again or backup (direct writes). Nothing is shared with the PC
+ * with the multi-entry total row. Recovery is writing again or backup. Nothing is shared with the PC
  * app.
  */
 

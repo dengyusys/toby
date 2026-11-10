@@ -10,8 +10,9 @@
  * Kind semantics:
  * - "read-only":    no state change of any kind (queries, math, asking the
  *                   user a question).
- * - "write-intent": produces an effect, but only through a proposal — the
- *                   effect happens solely after user confirmation.
+ * - "write-intent": produces a real effect — a validated,
+ *                   transactional write (direct writes: no proposals, no
+ *                   confirmation gates; recovery is backup).
  * Prohibited capabilities (shell, file system, direct database access) are
  * not tools at all: they are absent by construction, not merely blocked.
  *

@@ -20,10 +20,9 @@ export type ChatIntent = string;
 /** A transcript message, exactly as pi-ai produced it. */
 export type ChatMessageItem = PiTranscriptMessage;
 
-/** A write card: the receipt snapshot at creation time (born confirmed). */
+/** A write card: the receipt snapshot at creation time. */
 export interface ProposalCardItem {
   readonly type: "proposal_card";
-  readonly proposal_id: string;
   /** The capability id whose write produced this card. */
   readonly domain: string;
   /**

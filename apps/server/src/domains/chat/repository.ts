@@ -20,13 +20,6 @@ import type {
   ChatTurnView,
 } from "./types.ts";
 
-export interface StoredTurn {
-  readonly id: string;
-  readonly intent: ChatIntent;
-  readonly created_at: string;
-  readonly items: readonly ChatItem[];
-}
-
 export interface ChatRepository {
   /** The single ongoing conversation, created on first call. */
   ensureSession(): Promise<{ id: string; created_at: string }>;

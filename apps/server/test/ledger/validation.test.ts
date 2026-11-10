@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  MAX_ENTRIES_PER_PROPOSAL,
+  MAX_ENTRIES_PER_WRITE,
   normalizeEntries,
   normalizeEntry,
   parseAmountToCents,
@@ -146,18 +146,15 @@ describe("normalizeEntry", () => {
 
 describe("normalizeEntries", () => {
   it("accepts 1..10 entries and preserves order", () => {
-    const entries = Array.from(
-      { length: MAX_ENTRIES_PER_PROPOSAL },
-      (_, i) => ({
-        date: "2026-10-20",
-        type: "expense",
-        category: `cat-${i}`,
-        account: "现金",
-        amount: i + 1,
-      }),
-    );
+    const entries = Array.from({ length: MAX_ENTRIES_PER_WRITE }, (_, i) => ({
+      date: "2026-10-20",
+      type: "expense",
+      category: `cat-${i}`,
+      account: "现金",
+      amount: i + 1,
+    }));
     const normalized = normalizeEntries(entries);
-    expect(normalized).toHaveLength(MAX_ENTRIES_PER_PROPOSAL);
+    expect(normalized).toHaveLength(MAX_ENTRIES_PER_WRITE);
     expect(normalized[0]!.category).toBe("cat-0");
     expect(normalized[9]!.amount).toBe(1000);
   });

@@ -1,7 +1,7 @@
 /**
  * The ledger wire shapes, defined once: the entry draft (the model-facing
  * tool contract and the server's shape gate can never drift) and the
- * proposal request envelope. Shape only — semantic checks live in
+ * write request envelope. Shape only — semantic checks live in
  * validation.ts.
  */
 
@@ -20,8 +20,8 @@ export const AMOUNT_PATTERN = "^[0-9]+(\\.[0-9]{1,2})?$";
  */
 export const DATE_PATTERN = "^(\\d{4})-(\\d{2})-(\\d{2})$";
 
-/** A proposal carries at most 10 entries (the AI path submits batches). */
-export const MAX_ENTRIES_PER_PROPOSAL = 10;
+/** One write carries at most 10 entries (the AI path submits batches). */
+export const MAX_ENTRIES_PER_WRITE = 10;
 
 export const LEDGER_ENTRY_DRAFT_SCHEMA = z
   .object({
@@ -61,7 +61,7 @@ export const LEDGER_ENTRIES_TOOL_SCHEMA = z
     entries: z
       .array(LEDGER_ENTRY_DRAFT_SCHEMA)
       .min(1)
-      .max(MAX_ENTRIES_PER_PROPOSAL),
+      .max(MAX_ENTRIES_PER_WRITE),
   })
   .strict();
 

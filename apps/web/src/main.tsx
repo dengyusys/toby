@@ -12,7 +12,7 @@ import { App } from "./App.tsx";
 import "./index.css";
 
 // Any 401 anywhere in the app routes to the login page (docs/features/auth.md);
-// proposal confirmations are never auto-retried.
+// write requests are never auto-retried.
 function redirectToLoginOn401(error: unknown): void {
   if (error instanceof ApiError && error.status === 401) {
     window.location.hash = "#/login";

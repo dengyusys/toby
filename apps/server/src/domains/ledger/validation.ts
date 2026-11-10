@@ -3,7 +3,7 @@
  * Everything that enters the ledger — the structured path today, the AI
  * extraction agent's tool calls — passes through here: untrusted input in,
  * a fully normalized LedgerEntry out, or a rejected request with zero
- * proposals and zero writes.
+ * writes.
  *
  * Two layers, deliberately separate (docs/decisions/ai-pi-runtime.md):
  * - shape: the shared Zod draft schema (same definition the
@@ -18,7 +18,7 @@ import {
   AMOUNT_PATTERN,
   DATE_PATTERN,
   LEDGER_ENTRY_DRAFT_SCHEMA,
-  MAX_ENTRIES_PER_PROPOSAL,
+  MAX_ENTRIES_PER_WRITE,
   type LedgerEntryDraft,
 } from "./schema.ts";
 import type { LedgerEntry } from "./types.ts";
@@ -26,7 +26,7 @@ import { LedgerInputError } from "./errors.ts";
 
 export { LedgerInputError } from "./errors.ts";
 
-export { MAX_ENTRIES_PER_PROPOSAL } from "./schema.ts";
+export { MAX_ENTRIES_PER_WRITE } from "./schema.ts";
 
 /**
  * One-sentence logging rarely names an account; an omitted or blank account
@@ -172,10 +172,8 @@ export function normalizeEntries(raw: unknown): LedgerEntry[] {
   if (!Array.isArray(raw)) {
     throw inputError("entries must be a JSON array");
   }
-  if (raw.length < 1 || raw.length > MAX_ENTRIES_PER_PROPOSAL) {
-    throw inputError(
-      `a proposal carries 1 to ${MAX_ENTRIES_PER_PROPOSAL} entries`,
-    );
+  if (raw.length < 1 || raw.length > MAX_ENTRIES_PER_WRITE) {
+    throw inputError(`one write carries 1 to ${MAX_ENTRIES_PER_WRITE} entries`);
   }
   return raw.map((entry) => normalizeEntry(entry));
 }
