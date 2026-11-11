@@ -21,7 +21,6 @@ const REPORT = {
       date: "2026-10-20",
       type: "expense",
       category: "餐饮",
-      account: "微信",
       amount: 2550,
       note: "午饭",
       created_at: "2026-10-20T08:00:00.000Z",
@@ -31,7 +30,7 @@ const REPORT = {
   expense_total: 2550,
   categories: [{ type: "expense", category: "餐饮", total: 2550 }],
 };
-const FOLLOW_UP = { question: "这笔用的哪个账户?" };
+const FOLLOW_UP = { question: "这笔是支出还是收入?" };
 
 // Fresh receipts get unique ids and a future revert window (the countdown
 // must not reach zero inside a test); revert echoes the id from the URL.
@@ -58,7 +57,6 @@ function receiptStub(
         date: "2026-10-20",
         type: "expense",
         category: "餐饮",
-        account: "微信",
         amount: 2550,
         note: "午饭",
       },

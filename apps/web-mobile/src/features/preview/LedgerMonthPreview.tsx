@@ -1,7 +1,7 @@
 /**
- * The ledger month preview (mobile copy): one month's report — totals,
- * category subtotals, and the transaction list — fed by the same month
- * endpoint the calendar page uses. Nothing is shared with the PC app.
+ * The ledger month preview panel: one month's report — totals, category
+ * subtotals, and the transaction list — fed by the same month endpoint
+ * the calendar page uses.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -15,16 +15,16 @@ export function LedgerMonthPreview({ month }: { month: string }) {
   });
 
   if (report.isPending) {
-    return <p className="px-4 py-4 text-sm text-muted-foreground">读取中…</p>;
+    return <p className="px-5 py-4 text-sm text-muted-foreground">读取中…</p>;
   }
   if (report.isError) {
     return (
-      <p className="px-4 py-4 text-sm text-destructive">读取失败,稍后再试</p>
+      <p className="px-5 py-4 text-sm text-destructive">读取失败,稍后再试</p>
     );
   }
   const data = report.data;
   return (
-    <div className="flex flex-col gap-4 px-4 pb-6">
+    <div className="flex flex-col gap-4 p-5">
       <div className="grid grid-cols-2 gap-2 text-sm">
         <div className="rounded-lg border p-3">
           <p className="text-xs text-muted-foreground">收入</p>
@@ -48,7 +48,7 @@ export function LedgerMonthPreview({ month }: { month: string }) {
             {data.categories.map((category) => (
               <li
                 key={`${category.type}-${category.category}`}
-                className="flex items-center justify-between py-2.5 text-sm"
+                className="flex items-center justify-between py-2 text-sm"
               >
                 <span>
                   {category.type === "income" ? "收" : "支"} ·{" "}
@@ -70,12 +70,12 @@ export function LedgerMonthPreview({ month }: { month: string }) {
           {data.transactions.map((row) => (
             <li
               key={row.id}
-              className="flex items-center justify-between gap-3 py-2.5 text-sm"
+              className="flex items-center justify-between gap-3 py-2 text-sm"
             >
               <div>
                 <p>{row.date}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {row.category} · {row.account}
+                <p className="text-xs text-muted-foreground">
+                  {row.category}
                   {row.note ? ` · ${row.note}` : ""}
                 </p>
               </div>

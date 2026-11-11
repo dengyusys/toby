@@ -32,7 +32,6 @@ const EDITABLE_FIELDS: readonly (keyof LedgerEntry)[] = [
   "date",
   "type",
   "category",
-  "account",
   "amount",
   "note",
 ];
@@ -41,7 +40,6 @@ const FIELD_LABELS: Record<keyof LedgerEntry, string> = {
   date: "日期",
   type: "类型",
   category: "分类",
-  account: "账户",
   amount: "金额",
   note: "备注",
 };
@@ -101,7 +99,7 @@ export function ReceiptCard({ receipt }: ReceiptCardProps) {
                 {entry.date} · {entry.type === "expense" ? "支出" : "收入"}
               </p>
               <p className="text-xs text-muted-foreground">
-                {entry.category} · {entry.account}
+                {entry.category}
                 {entry.note ? ` · ${entry.note}` : ""}
               </p>
             </div>

@@ -37,12 +37,6 @@ export { LedgerInputError } from "./errors.ts";
 
 export { MAX_ENTRIES_PER_WRITE } from "./schema.ts";
 
-/**
- * One-sentence logging rarely names an account; an omitted or blank account
- * settles on this placeholder instead of a rejection or a follow-up.
- */
-export const DEFAULT_LEDGER_ACCOUNT = "未关联";
-
 const AMOUNT_RE = new RegExp(AMOUNT_PATTERN);
 const DATE_RE = new RegExp(DATE_PATTERN);
 
@@ -172,18 +166,10 @@ export function normalizeEntry(raw: unknown): LedgerEntry {
     throw inputError("category must not be empty");
   }
   const note = (draft.note ?? "").trim();
-  let account = DEFAULT_LEDGER_ACCOUNT;
-  if (draft.account != null) {
-    const trimmedAccount = draft.account.trim();
-    if (trimmedAccount.length > 0) {
-      account = trimmedAccount;
-    }
-  }
   return {
     date: parseEntryDate(draft.date),
     type: draft.type,
     category,
-    account,
     amount: parseAmountToCents(draft.amount),
     note,
   };
@@ -205,8 +191,8 @@ export function normalizeEntries(raw: unknown): LedgerEntry[] {
  * normalizeEntry. Every present field gets the same semantics as a fresh
  * entry; absent fields stay absent so the repository updates only the
  * named columns. An update must change something: an empty patch is
- * rejected. `account` null/blank resets to the default, `note` "" clears
- * the note — both symmetric with what a fresh entry would store.
+ * rejected. `note` "" clears the note — symmetric with what a fresh
+ * entry would store.
  */
 export function normalizeEntryPatch(raw: unknown): LedgerEntryPatch {
   if (!isRecord(raw)) {
@@ -220,7 +206,6 @@ export function normalizeEntryPatch(raw: unknown): LedgerEntryPatch {
     date?: string;
     type?: LedgerEntryType;
     category?: string;
-    account?: string;
     amount?: number;
     note?: string;
   } = {};
@@ -241,10 +226,6 @@ export function normalizeEntryPatch(raw: unknown): LedgerEntryPatch {
       throw inputError("category must not be empty");
     }
     patch.category = category;
-  }
-  if (draft.account !== undefined) {
-    const trimmed = draft.account?.trim() ?? "";
-    patch.account = trimmed.length > 0 ? trimmed : DEFAULT_LEDGER_ACCOUNT;
   }
   if (draft.amount !== undefined) {
     patch.amount = parseAmountToCents(draft.amount);

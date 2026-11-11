@@ -1,7 +1,7 @@
 /**
  * Selected-day panel (replicated from the ai-steward design, plus toby
  * write affordances): the mono date heading with its weekday chip, the
- * day's transaction list (category, note · account, signed amount), and
+ * day's transaction list (category, signed amount), and
  * the expense/income footer totals. Each row carries an edit form (one
  * transactional PATCH — present fields change) and a delete button with
  * an inline two-step confirm — the two user-initiated direct writes —
@@ -26,7 +26,6 @@ interface EditDraft {
   date: string;
   type: string;
   category: string;
-  account: string;
   amount: string;
   note: string;
 }
@@ -36,7 +35,6 @@ function draftOf(row: LedgerTransactionRow): EditDraft {
     date: row.date,
     type: row.type,
     category: row.category,
-    account: row.account,
     amount: formatCents(row.amount),
     note: row.note,
   };
@@ -126,12 +124,10 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
       setEditError("金额需为非负数字,最多两位小数");
       return;
     }
-    const account = draft.account.trim();
     const patch: LedgerEntryPatch = {
       date: draft.date,
       type: draft.type === "income" ? "income" : "expense",
       category,
-      account: account === "" ? null : account,
       amount,
       note: draft.note.trim(),
     };
@@ -216,16 +212,6 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                       />
                     </label>
                     <label className={LABEL_CLASS}>
-                      账户
-                      <input
-                        value={draft.account}
-                        onChange={(event) =>
-                          update("account", event.target.value)
-                        }
-                        className={INPUT_CLASS}
-                      />
-                    </label>
-                    <label className={LABEL_CLASS}>
                       备注
                       <input
                         value={draft.note}
@@ -270,11 +256,6 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                     <div className="text-sm font-medium text-foreground">
                       {transaction.category}
                     </div>
-                    {transaction.account !== "未关联" && (
-                      <div className="mt-0.5 text-xs text-faint">
-                        {transaction.account}
-                      </div>
-                    )}
                   </div>
                   <div className="flex shrink-0 items-baseline gap-2.5">
                     <span

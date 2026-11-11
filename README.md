@@ -13,7 +13,7 @@ Say one sentence — your money, schedule, and notes fall into place. The AI tur
 
       ┌─ Toby · written ✓ ─────────────────────────────┐
       │ Expense · Dining · ¥30.00                      │
-      │ Date 2026-10-22 · Account not linked           │
+      │ Date 2026-10-22                                │
       └────────────────────────────────────────────────┘
 ```
 

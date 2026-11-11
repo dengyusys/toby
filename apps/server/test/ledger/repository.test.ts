@@ -45,7 +45,6 @@ function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
     date: "2026-10-20",
     type: "expense",
     category: "餐饮",
-    account: "微信",
     amount: 2500,
     note: "午饭",
     ...overrides,
@@ -73,7 +72,6 @@ describe("ledger repository", () => {
           date: "2026-10-01",
           type: "income",
           category: "工资",
-          account: "招行",
           amount: 500000,
         }),
       ]);
@@ -186,6 +184,38 @@ describe("ledger repository", () => {
       expect(updated!.after.date).toBe("2026-10-20");
       const [row] = await repository.listDayTransactions("2026-10-20");
       expect(row).toEqual(updated!.after);
+    } finally {
+      await db.close();
+    }
+  });
+
+  it("a patch of every field at once rewrites the whole row", async () => {
+    const { db, repository } = await openLedger();
+    try {
+      const ids = await repository.insertTransactions([entry()]);
+      const id = ids[0]!;
+      const updated = await repository.updateTransaction(id, {
+        date: "2026-10-21",
+        type: "income",
+        category: "退款",
+        amount: 1250,
+        note: "改完了",
+      });
+      expect(updated!.after).toMatchObject({
+        id,
+        date: "2026-10-21",
+        type: "income",
+        category: "退款",
+        amount: 1250,
+        note: "改完了",
+      });
+      // created_at never joins the SET clause: it survives the rewrite.
+      expect(updated!.after.created_at).toBe(updated!.before.created_at);
+      // The rewritten row moved to its new day.
+      expect(await repository.listDayTransactions("2026-10-20")).toEqual([]);
+      expect(await repository.listDayTransactions("2026-10-21")).toHaveLength(
+        1,
+      );
     } finally {
       await db.close();
     }

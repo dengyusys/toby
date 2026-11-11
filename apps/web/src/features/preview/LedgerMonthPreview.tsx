@@ -75,7 +75,7 @@ export function LedgerMonthPreview({ month }: { month: string }) {
               <div>
                 <p>{row.date}</p>
                 <p className="text-xs text-muted-foreground">
-                  {row.category} · {row.account}
+                  {row.category}
                   {row.note ? ` · ${row.note}` : ""}
                 </p>
               </div>

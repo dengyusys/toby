@@ -83,7 +83,6 @@ describe("normalizeEntry", () => {
     date: "2026-10-20",
     type: "expense",
     category: " 餐饮 ",
-    account: "微信",
     amount: "25.5",
     note: " 午饭 ",
   };
@@ -93,7 +92,6 @@ describe("normalizeEntry", () => {
       date: "2026-10-20",
       type: "expense",
       category: "餐饮",
-      account: "微信",
       amount: 2550,
       note: "午饭",
     });
@@ -103,24 +101,6 @@ describe("normalizeEntry", () => {
     const { note, ...withoutNote } = goodEntry;
     void note;
     expect(normalizeEntry(withoutNote).note).toBe("");
-  });
-
-  it("account is optional: missing or blank settles on the default", () => {
-    const { account, ...withoutAccount } = goodEntry;
-    void account;
-    expect(normalizeEntry(withoutAccount).account).toBe("未关联");
-    expect(normalizeEntry({ ...goodEntry, account: "   " }).account).toBe(
-      "未关联",
-    );
-    expect(normalizeEntry({ ...goodEntry, account: null }).account).toBe(
-      "未关联",
-    );
-    expect(() => normalizeEntry({ ...goodEntry, account: 5 })).toThrow(
-      /account/,
-    );
-    expect(() =>
-      normalizeEntry({ ...goodEntry, account: "x".repeat(25) }),
-    ).toThrow(/account/);
   });
 
   it("rejects missing or empty required fields, bad type, oversized text", () => {
@@ -151,7 +131,6 @@ describe("normalizeEntries", () => {
       date: "2026-10-20",
       type: "expense",
       category: `cat-${i}`,
-      account: "现金",
       amount: i + 1,
     }));
     const normalized = normalizeEntries(entries);
@@ -167,7 +146,6 @@ describe("normalizeEntries", () => {
       date: "2026-10-20",
       type: "expense",
       category: "c",
-      account: "现金",
       amount: 1,
     }));
     expect(() => normalizeEntries(eleven)).toThrow(/1 to 10/);
@@ -185,19 +163,10 @@ describe("normalizeEntryPatch", () => {
     );
   });
 
-  it("an empty note clears it; account null or blank resets to the default", () => {
+  it("an empty note clears it", () => {
     expect(normalizeEntryPatch({ note: "" })).toEqual({ note: "" });
     expect(normalizeEntryPatch({ note: " 要报销 " })).toEqual({
       note: "要报销",
-    });
-    expect(normalizeEntryPatch({ account: null })).toEqual({
-      account: "未关联",
-    });
-    expect(normalizeEntryPatch({ account: "   " })).toEqual({
-      account: "未关联",
-    });
-    expect(normalizeEntryPatch({ account: " 招行 " })).toEqual({
-      account: "招行",
     });
   });
 

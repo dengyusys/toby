@@ -14,7 +14,22 @@ import type {
 
 /** The full row projection every read in this file returns. */
 const TRANSACTION_COLUMNS_SQL =
-  "SELECT id, date, type, category, account, amount, note, created_at FROM transactions";
+  "SELECT id, date, type, category, amount, note, created_at FROM transactions";
+
+/**
+ * Patchable columns: domain field → column name, fixed by code (never
+ * input). Typing the map as Record over every patch field makes
+ * exhaustiveness a compile error: add a field to LedgerEntryPatch
+ * without a column here and tsc fails — a field can never be silently
+ * dropped from an UPDATE.
+ */
+const PATCH_COLUMNS: Record<keyof LedgerEntryPatch, string> = {
+  date: "date",
+  type: "type",
+  category: "category",
+  amount: "amount",
+  note: "note",
+};
 
 /** Exclusive month bounds: [first day, first day of next month). */
 export function monthBounds(month: string): { start: string; end: string } {
@@ -69,12 +84,11 @@ export function createLedgerRepository(deps: {
         const ids: number[] = [];
         for (const entry of entries) {
           const result = await tx.run(
-            "INSERT INTO transactions (date, type, category, account, amount, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO transactions (date, type, category, amount, note, created_at) VALUES (?, ?, ?, ?, ?, ?)",
             [
               entry.date,
               entry.type,
               entry.category,
-              entry.account,
               entry.amount,
               entry.note,
               createdAt,
@@ -98,7 +112,7 @@ export function createLedgerRepository(deps: {
       const handle = await db.open();
       const { start, end } = monthBounds(month);
       return handle.query<LedgerTransactionRow>(
-        "SELECT id, date, type, category, account, amount, note, created_at FROM transactions WHERE date >= ? AND date < ? ORDER BY date ASC, id ASC",
+        "SELECT id, date, type, category, amount, note, created_at FROM transactions WHERE date >= ? AND date < ? ORDER BY date ASC, id ASC",
         [start, end],
       );
     },
@@ -106,7 +120,7 @@ export function createLedgerRepository(deps: {
     async listDayTransactions(date) {
       const handle = await db.open();
       return handle.query<LedgerTransactionRow>(
-        "SELECT id, date, type, category, account, amount, note, created_at FROM transactions WHERE date = ? ORDER BY id ASC",
+        "SELECT id, date, type, category, amount, note, created_at FROM transactions WHERE date = ? ORDER BY id ASC",
         [date],
       );
     },
@@ -120,33 +134,23 @@ export function createLedgerRepository(deps: {
     },
 
     async updateTransaction(id, patch) {
-      // Column names come from this fixed map (never from input); values
-      // are parameterized. Only the patched columns join the SET clause.
+      // Column names come from the fixed PATCH_COLUMNS map (never from
+      // input); values are parameterized. Only the patched columns join
+      // the SET clause.
       const sets: string[] = [];
       const values: (string | number)[] = [];
-      if (patch.date !== undefined) {
-        sets.push("date = ?");
-        values.push(patch.date);
-      }
-      if (patch.type !== undefined) {
-        sets.push("type = ?");
-        values.push(patch.type);
-      }
-      if (patch.category !== undefined) {
-        sets.push("category = ?");
-        values.push(patch.category);
-      }
-      if (patch.account !== undefined) {
-        sets.push("account = ?");
-        values.push(patch.account);
-      }
-      if (patch.amount !== undefined) {
-        sets.push("amount = ?");
-        values.push(patch.amount);
-      }
-      if (patch.note !== undefined) {
-        sets.push("note = ?");
-        values.push(patch.note);
+      // Object.entries widens the keys to string; restore the patch-field
+      // union so PATCH_COLUMNS stays exhaustively typed.
+      const entries = Object.entries(patch) as [
+        keyof LedgerEntryPatch,
+        string | number | undefined,
+      ][];
+      for (const [field, value] of entries) {
+        // Defensive: a key explicitly set to undefined never joins the SET.
+        if (value !== undefined) {
+          sets.push(`${PATCH_COLUMNS[field]} = ?`);
+          values.push(value);
+        }
       }
       const handle = await db.open();
       return handle.transaction(async (tx) => {

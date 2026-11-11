@@ -9,11 +9,12 @@ import { endpoint, requestJson } from "./request-json.ts";
 
 export type LedgerEntryType = "income" | "expense";
 
+/** One normalized transaction, ready to store. */
 export interface LedgerEntry {
   date: string;
   type: LedgerEntryType;
   category: string;
-  account: string;
+  /** Integer cents, non-negative (0 is a valid amount). */
   amount: number;
   note: string;
 }
@@ -33,13 +34,11 @@ export interface LedgerDeleteResult {
   deleted_at: string;
 }
 
-/** A partial entry update: present fields change, absent fields stay.
- * `account: null` (or "") resets the account to the server's default. */
+/** A partial entry update: present fields change, absent fields stay. */
 export interface LedgerEntryPatch {
   date?: string;
   type?: LedgerEntryType;
   category?: string;
-  account?: string | null;
   /** On the wire a decimal string or number; cents on responses. */
   amount?: string | number;
   note?: string;

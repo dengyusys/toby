@@ -11,11 +11,11 @@ English | [简体中文](ledger.zh.md)
 - Deletion: a user-initiated delete of one stored transaction.
 - Editing: a partial, transactional update of one stored transaction — the structured PATCH path, or an AI correction ("把昨天午饭那笔改成 35") resolved deterministically from match criteria.
 - Amounts are stored as **integer cents** end to end — no floating-point drift.
-- **Does not own**: budgets and report charts, multi-account systems, multi-currency.
+- **Does not own**: budgets and report charts, account systems, multi-currency.
 
 ## Core concepts
 
-- A transaction = date + type (expense/income) + category + account + amount (cents) + note; the account is optional and defaults to “未关联”.
+- A transaction = date + type (expense/income) + category + amount (cents) + note.
 - Every entry in a sentence is extracted: one command carries 1–10 transactions, written atomically as one batch — one receipt card.
 - An edit = match criteria + a partial patch: present fields change, absent fields stay. The AI never supplies a row id — the server resolves the criteria against one day's rows (the named day, else today); exactly one candidate lands, zero or several answer a clarifying question.
 
@@ -42,6 +42,6 @@ nonsense (bad amount, impossible date, blank category) is answered by the domain
 - Uncertain fields return a follow-up question, never a guess; the user retries with more detail.
 - Write path: direct — the batch executes transactionally at once; the card is a receipt. No revert endpoint, no confirmation gate; recovery is writing again or backup.
 - One failed entry rolls back the batch.
-- Editing is the same one-transactional-write discipline: the patch is field-validated like a fresh entry (an empty note clears the note; account null/blank resets it to the default), the row is read and updated in one transaction, and the result carries the before/after pair from that transaction.
+- Editing is the same one-transactional-write discipline: the patch is field-validated like a fresh entry (an empty note clears the note), the row is read and updated in one transaction, and the result carries the before/after pair from that transaction.
 - AI corrections: the model submits match criteria plus patch — never a row id. The server resolves the candidates deterministically; exactly one lands, zero or several become one clarifying question (naming the day, listing up to five candidates). A correction never records a duplicate entry.
 - Deletion removes one row by id in a single transaction; ids must be positive integers (else `INVALID_ENTRY`), unknown ids answer 404 `TRANSACTION_NOT_FOUND` (a repeated delete takes this path).

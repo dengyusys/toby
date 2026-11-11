@@ -20,7 +20,6 @@ const REPORT = {
       date: "2026-10-20",
       type: "expense",
       category: "餐饮",
-      account: "微信",
       amount: 2550,
       note: "午饭",
       created_at: "2026-10-20T08:00:00.000Z",
@@ -30,7 +29,6 @@ const REPORT = {
       date: "2026-10-09",
       type: "income",
       category: "工资",
-      account: "招行",
       amount: 500000,
       note: "",
       created_at: "2026-10-09T08:00:00.000Z",
@@ -43,7 +41,7 @@ const REPORT = {
     { type: "income", category: "工资", total: 500000 },
   ],
 };
-const FOLLOW_UP = { question: "这笔用的哪个账户?" };
+const FOLLOW_UP = { question: "这笔是支出还是收入?" };
 
 // Fresh receipts get unique transaction ids per stub call.
 let receiptCounter = 0;
@@ -60,7 +58,6 @@ function receiptStub() {
         date: "2026-10-20",
         type: "expense",
         category: "餐饮",
-        account: "微信",
         amount: 2550,
         note: "午饭",
       },
@@ -68,7 +65,6 @@ function receiptStub() {
         date: "2026-10-20",
         type: "income",
         category: "退款",
-        account: "支付宝",
         amount: 1250,
         note: "",
       },

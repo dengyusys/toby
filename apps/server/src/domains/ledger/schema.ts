@@ -9,7 +9,6 @@ import { z } from "zod";
 
 /** Field bounds and patterns live here once; validation.ts imports them. */
 const MAX_CATEGORY_LENGTH = 24;
-const MAX_ACCOUNT_LENGTH = 24;
 const MAX_NOTE_LENGTH = 200;
 
 /** Non-negative decimal string with at most two decimals ("25", "25.5"). */
@@ -35,11 +34,6 @@ export const LEDGER_ENTRY_DRAFT_SCHEMA = z
       .min(1)
       .max(MAX_CATEGORY_LENGTH)
       .describe(`Category, at most ${MAX_CATEGORY_LENGTH} characters`),
-    // Null and omitted both settle on the default account in validation.ts.
-    account: z
-      .union([z.string().max(MAX_ACCOUNT_LENGTH), z.null()])
-      .optional()
-      .describe("Account; omit when the sentence does not name one"),
     amount: z
       .union([z.string().regex(new RegExp(AMOUNT_PATTERN)), z.number().min(0)])
       .describe("Non-negative amount with at most two decimals, as a string"),
@@ -90,12 +84,6 @@ export const LEDGER_ENTRY_PATCH_SCHEMA = z
       .max(MAX_CATEGORY_LENGTH)
       .optional()
       .describe(`New category, at most ${MAX_CATEGORY_LENGTH} characters`),
-    // Null, "", and omission are distinct here: omitted stays unchanged,
-    // null/"" resets the account to the default in validation.ts.
-    account: z
-      .union([z.string().max(MAX_ACCOUNT_LENGTH), z.null()])
-      .optional()
-      .describe("New account; null resets it to the default"),
     amount: z
       .union([z.string().regex(new RegExp(AMOUNT_PATTERN)), z.number().min(0)])
       .optional()

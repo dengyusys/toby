@@ -14,7 +14,6 @@ export interface LedgerEntry {
   readonly date: string;
   readonly type: LedgerEntryType;
   readonly category: string;
-  readonly account: string;
   /** Integer cents, non-negative (0 is a valid amount). */
   readonly amount: number;
   readonly note: string;
@@ -59,7 +58,6 @@ export interface LedgerEntryPatch {
   readonly date?: string;
   readonly type?: LedgerEntryType;
   readonly category?: string;
-  readonly account?: string;
   readonly amount?: number;
   readonly note?: string;
 }

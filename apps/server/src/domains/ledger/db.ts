@@ -20,7 +20,6 @@ const LEDGER_SCHEMA: Record<DbDialect, readonly string[]> = {
       date TEXT NOT NULL,
       type TEXT NOT NULL,
       category TEXT NOT NULL,
-      account TEXT NOT NULL,
       amount INTEGER NOT NULL,
       note TEXT NOT NULL,
       created_at TEXT NOT NULL
@@ -33,7 +32,6 @@ const LEDGER_SCHEMA: Record<DbDialect, readonly string[]> = {
       date CHAR(10) NOT NULL,
       type VARCHAR(7) NOT NULL,
       category VARCHAR(24) NOT NULL,
-      account VARCHAR(24) NOT NULL,
       amount BIGINT NOT NULL,
       note VARCHAR(200) NOT NULL,
       created_at VARCHAR(32) NOT NULL,

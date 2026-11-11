@@ -1,9 +1,8 @@
 /**
- * Receipt card (回执卡, mobile): a write that has already landed — the
- * batch was recorded the moment the sentence was sent. Shows the entries
- * with the multi-entry total row; an update receipt (AI correction)
- * renders as the before→after diff of what changed. Recovery is writing
- * again or backup. Nothing is shared with the PC app.
+ * Receipt card (回执卡): a write that has already landed — the batch was
+ * recorded the moment the sentence was sent. Shows the entries with the
+ * multi-entry total. An update receipt (AI correction) renders as the
+ * before→after diff of what changed. Recovery is writing again or backup.
  */
 
 import type {
@@ -33,7 +32,6 @@ const EDITABLE_FIELDS: readonly (keyof LedgerEntry)[] = [
   "date",
   "type",
   "category",
-  "account",
   "amount",
   "note",
 ];
@@ -42,7 +40,6 @@ const FIELD_LABELS: Record<keyof LedgerEntry, string> = {
   date: "日期",
   type: "类型",
   category: "分类",
-  account: "账户",
   amount: "金额",
   note: "备注",
 };
@@ -52,13 +49,13 @@ function UpdatedCard({ result }: { result: LedgerUpdateResult }) {
     (field) => result.before[field] !== result.after[field],
   );
   return (
-    <section className="rounded-xl border bg-card p-4 shadow-sm">
-      <h2 className="text-sm font-medium">已修改</h2>
-      <ul className="mt-2 divide-y">
+    <section className="rounded-xl border bg-card p-5 shadow-sm">
+      <h2 className="text-base font-medium">已修改</h2>
+      <ul className="mt-3 divide-y">
         {changed.map((field) => (
           <li
             key={field}
-            className="flex items-center justify-between gap-3 py-3"
+            className="flex items-center justify-between gap-3 py-2.5"
           >
             <p className="text-xs text-muted-foreground">
               {FIELD_LABELS[field]}
@@ -89,25 +86,25 @@ export function ReceiptCard({ receipt }: ReceiptCardProps) {
   );
 
   return (
-    <section className="rounded-xl border bg-card p-4 shadow-sm">
-      <h2 className="text-sm font-medium">已记入</h2>
-      <ul className="mt-2 divide-y">
+    <section className="rounded-xl border bg-card p-5 shadow-sm">
+      <h2 className="text-base font-medium">已记入</h2>
+      <ul className="mt-3 divide-y">
         {entries.map((entry, index) => (
           <li
             key={`${entry.date}-${index}`}
-            className="flex items-center justify-between gap-3 py-3"
+            className="flex items-center justify-between gap-3 py-2.5"
           >
             <div>
               <p className="text-sm">
                 {entry.date} · {entry.type === "expense" ? "支出" : "收入"}
               </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {entry.category} · {entry.account}
+              <p className="text-xs text-muted-foreground">
+                {entry.category}
                 {entry.note ? ` · ${entry.note}` : ""}
               </p>
             </div>
             <p
-              className={`text-base font-medium tabular-nums ${entry.type === "income" ? "text-primary" : ""}`}
+              className={`text-sm font-medium tabular-nums ${entry.type === "income" ? "text-primary" : ""}`}
             >
               {entry.type === "income" ? "+" : "-"}¥{formatCents(entry.amount)}
             </p>
