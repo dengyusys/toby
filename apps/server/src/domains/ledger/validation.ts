@@ -17,11 +17,20 @@
 import {
   AMOUNT_PATTERN,
   DATE_PATTERN,
+  LEDGER_EDIT_MATCH_SCHEMA,
   LEDGER_ENTRY_DRAFT_SCHEMA,
+  LEDGER_ENTRY_PATCH_SCHEMA,
   MAX_ENTRIES_PER_WRITE,
+  type LedgerEditMatchDraft,
   type LedgerEntryDraft,
+  type LedgerEntryPatchDraft,
 } from "./schema.ts";
-import type { LedgerEntry } from "./types.ts";
+import type {
+  LedgerEditMatch,
+  LedgerEntry,
+  LedgerEntryPatch,
+  LedgerEntryType,
+} from "./types.ts";
 import { LedgerInputError } from "./errors.ts";
 
 export { LedgerInputError } from "./errors.ts";
@@ -53,6 +62,19 @@ function requireDraftShape(raw: unknown, label: string): LedgerEntryDraft {
     const where = first?.path.length ? ` at "${first.path.join(".")}"` : "";
     throw inputError(
       `${label} violates the entry schema${where}: ${first?.message ?? "unknown mismatch"}`,
+    );
+  }
+  return parsed.data;
+}
+
+// Shape gate for patches: the shared patch schema, same reporting.
+function requirePatchShape(raw: unknown): LedgerEntryPatchDraft {
+  const parsed = LEDGER_ENTRY_PATCH_SCHEMA.safeParse(raw);
+  if (!parsed.success) {
+    const [first] = parsed.error.issues;
+    const where = first?.path.length ? ` at "${first.path.join(".")}"` : "";
+    throw inputError(
+      `patch violates the entry schema${where}: ${first?.message ?? "unknown mismatch"}`,
     );
   }
   return parsed.data;
@@ -176,4 +198,113 @@ export function normalizeEntries(raw: unknown): LedgerEntry[] {
     throw inputError(`one write carries 1 to ${MAX_ENTRIES_PER_WRITE} entries`);
   }
   return raw.map((entry) => normalizeEntry(entry));
+}
+
+/**
+ * Validate and normalize a partial entry update — the edit twin of
+ * normalizeEntry. Every present field gets the same semantics as a fresh
+ * entry; absent fields stay absent so the repository updates only the
+ * named columns. An update must change something: an empty patch is
+ * rejected. `account` null/blank resets to the default, `note` "" clears
+ * the note — both symmetric with what a fresh entry would store.
+ */
+export function normalizeEntryPatch(raw: unknown): LedgerEntryPatch {
+  if (!isRecord(raw)) {
+    throw inputError("patch must be a JSON object");
+  }
+  const draft = requirePatchShape(raw);
+  if (Object.keys(draft).length === 0) {
+    throw inputError("patch must carry at least one field");
+  }
+  const patch: {
+    date?: string;
+    type?: LedgerEntryType;
+    category?: string;
+    account?: string;
+    amount?: number;
+    note?: string;
+  } = {};
+  if (draft.date !== undefined) {
+    patch.date = parseEntryDate(draft.date);
+  }
+  if (draft.type !== undefined) {
+    // StringEnum's inferred Static is plain string; narrow at runtime.
+    if (draft.type !== "income" && draft.type !== "expense") {
+      throw inputError('type must be "income" or "expense"');
+    }
+    patch.type = draft.type;
+  }
+  if (draft.category !== undefined) {
+    // Whitespace-only passes the schema's minLength and is rejected here.
+    const category = draft.category.trim();
+    if (category.length < 1) {
+      throw inputError("category must not be empty");
+    }
+    patch.category = category;
+  }
+  if (draft.account !== undefined) {
+    const trimmed = draft.account?.trim() ?? "";
+    patch.account = trimmed.length > 0 ? trimmed : DEFAULT_LEDGER_ACCOUNT;
+  }
+  if (draft.amount !== undefined) {
+    patch.amount = parseAmountToCents(draft.amount);
+  }
+  if (draft.note !== undefined) {
+    patch.note = draft.note.trim();
+  }
+  return patch;
+}
+
+/**
+ * Validate and normalize an edit match — the locating half of a
+ * correction. Same semantics as the fields it mirrors; at least one
+ * criterion is required, because the server must have something to
+ * narrow a day's rows with.
+ */
+export function normalizeEditMatch(raw: unknown): LedgerEditMatch {
+  if (!isRecord(raw)) {
+    throw inputError("match must be a JSON object");
+  }
+  const parsed = LEDGER_EDIT_MATCH_SCHEMA.safeParse(raw);
+  if (!parsed.success) {
+    const [first] = parsed.error.issues;
+    const where = first?.path.length ? ` at "${first.path.join(".")}"` : "";
+    throw inputError(
+      `match violates the edit schema${where}: ${first?.message ?? "unknown mismatch"}`,
+    );
+  }
+  const draft: LedgerEditMatchDraft = parsed.data;
+  const match: {
+    date?: string;
+    type?: LedgerEntryType;
+    category?: string;
+    note_contains?: string;
+  } = {};
+  if (draft.date !== undefined) {
+    match.date = parseEntryDate(draft.date);
+  }
+  if (draft.type !== undefined) {
+    if (draft.type !== "income" && draft.type !== "expense") {
+      throw inputError('type must be "income" or "expense"');
+    }
+    match.type = draft.type;
+  }
+  if (draft.category !== undefined) {
+    const category = draft.category.trim();
+    if (category.length < 1) {
+      throw inputError("category must not be empty");
+    }
+    match.category = category;
+  }
+  if (draft.note_contains !== undefined) {
+    const keyword = draft.note_contains.trim();
+    if (keyword.length < 1) {
+      throw inputError("note_contains must not be empty");
+    }
+    match.note_contains = keyword;
+  }
+  if (Object.keys(match).length === 0) {
+    throw inputError("match must carry at least one criterion");
+  }
+  return match;
 }

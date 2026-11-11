@@ -27,7 +27,7 @@ One process: deterministic orchestration and execution on the sides, a tool-boun
 
 **Available today**
 
-- One-sentence bookkeeping: speak (or type) an expense or income; it lands at once as a receipt card
+- One-sentence bookkeeping: speak (or type) an expense or income; it lands at once as a receipt card — and edit or correct any entry later, in the list or by saying so
 - Login protection for deployments, PC (`/`) and mobile (`/m/`) web apps
 - Self-hosted and single-user: your data stays in local SQLite files on your machine
 

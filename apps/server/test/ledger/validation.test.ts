@@ -9,6 +9,7 @@ import {
   MAX_ENTRIES_PER_WRITE,
   normalizeEntries,
   normalizeEntry,
+  normalizeEntryPatch,
   parseAmountToCents,
   parseEntryDate,
 } from "../../src/domains/ledger/validation.ts";
@@ -170,5 +171,48 @@ describe("normalizeEntries", () => {
       amount: 1,
     }));
     expect(() => normalizeEntries(eleven)).toThrow(/1 to 10/);
+  });
+});
+
+describe("normalizeEntryPatch", () => {
+  it("normalizes present fields and leaves absent ones out entirely", () => {
+    expect(normalizeEntryPatch({ amount: "35", category: " 交通 " })).toEqual({
+      amount: 3500,
+      category: "交通",
+    });
+    expect(normalizeEntryPatch({ type: "income", date: "2026-10-21" })).toEqual(
+      { type: "income", date: "2026-10-21" },
+    );
+  });
+
+  it("an empty note clears it; account null or blank resets to the default", () => {
+    expect(normalizeEntryPatch({ note: "" })).toEqual({ note: "" });
+    expect(normalizeEntryPatch({ note: " 要报销 " })).toEqual({
+      note: "要报销",
+    });
+    expect(normalizeEntryPatch({ account: null })).toEqual({
+      account: "未关联",
+    });
+    expect(normalizeEntryPatch({ account: "   " })).toEqual({
+      account: "未关联",
+    });
+    expect(normalizeEntryPatch({ account: " 招行 " })).toEqual({
+      account: "招行",
+    });
+  });
+
+  it("an empty patch is rejected — an update must change something", () => {
+    expect(() => normalizeEntryPatch({})).toThrow(/at least one field/);
+  });
+
+  it("present fields get the same semantics as a fresh entry", () => {
+    expect(() => normalizeEntryPatch({ amount: "12.345" })).toThrow(/amount/);
+    expect(() => normalizeEntryPatch({ date: "2026-02-30" })).toThrow(/date/);
+    expect(() => normalizeEntryPatch({ category: "   " })).toThrow(/category/);
+    expect(() => normalizeEntryPatch({ type: "saving" })).toThrow(/type/);
+    expect(() => normalizeEntryPatch({ note: "x".repeat(201) })).toThrow(
+      /note/,
+    );
+    expect(() => normalizeEntryPatch("nope")).toThrow(/JSON object/);
   });
 });

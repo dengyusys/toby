@@ -6,7 +6,7 @@
 
 import type { FastifyPluginAsync } from "fastify";
 import { parseBody } from "../../infrastructure/http/body-schema.ts";
-import { ENTRY_BODY_SCHEMA } from "./schema.ts";
+import { ENTRY_BODY_SCHEMA, LEDGER_ENTRY_PATCH_SCHEMA } from "./schema.ts";
 import type { LedgerService } from "./service.ts";
 
 export interface LedgerRoutesOptions {
@@ -39,5 +39,12 @@ export const ledgerRoutes: FastifyPluginAsync<LedgerRoutesOptions> = async (
 
   app.delete<IdParams>("/api/ledger/transactions/:id", (request) =>
     service.deleteTransaction(request.params.id),
+  );
+
+  app.patch<IdParams>("/api/ledger/transactions/:id", (request) =>
+    service.updateTransaction(
+      request.params.id,
+      parseBody(LEDGER_ENTRY_PATCH_SCHEMA, request),
+    ),
   );
 };

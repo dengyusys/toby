@@ -156,6 +156,56 @@ describe("ledger repository", () => {
     }
   });
 
+  it("updates only the patched columns and returns a before/after snapshot", async () => {
+    const { db, repository } = await openLedger();
+    try {
+      const ids = await repository.insertTransactions([
+        entry({ note: "午饭", amount: 3000 }),
+      ]);
+      const id = ids[0]!;
+      const updated = await repository.updateTransaction(id, {
+        amount: 3500,
+        category: "交通",
+        note: "",
+      });
+      expect(updated).toBeDefined();
+      expect(updated!.before).toMatchObject({
+        id,
+        amount: 3000,
+        category: "餐饮",
+        note: "午饭",
+      });
+      expect(updated!.after).toMatchObject({
+        id,
+        amount: 3500,
+        category: "交通",
+        note: "",
+      });
+      // Untouched columns keep their values, created_at included.
+      expect(updated!.after.created_at).toBe(updated!.before.created_at);
+      expect(updated!.after.date).toBe("2026-10-20");
+      const [row] = await repository.listDayTransactions("2026-10-20");
+      expect(row).toEqual(updated!.after);
+    } finally {
+      await db.close();
+    }
+  });
+
+  it("updating an unknown id changes nothing and answers undefined", async () => {
+    const { db, repository } = await openLedger();
+    try {
+      await repository.insertTransactions([entry()]);
+      expect(
+        await repository.updateTransaction(999, { amount: 100 }),
+      ).toBeUndefined();
+      expect(await repository.listDayTransactions("2026-10-20")).toHaveLength(
+        1,
+      );
+    } finally {
+      await db.close();
+    }
+  });
+
   it("a closed database stays closed instead of reopening", async () => {
     const { db, repository } = await openLedger();
     await repository.listMonths();

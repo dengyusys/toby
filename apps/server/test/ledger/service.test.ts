@@ -18,6 +18,7 @@ import type {
 } from "../../src/domains/ledger/extraction.ts";
 import type {
   LedgerEntry,
+  LedgerEntryPatch,
   LedgerReceiptView,
   LedgerTransactionRow,
 } from "../../src/domains/ledger/types.ts";
@@ -30,6 +31,7 @@ type LedgerRepositoryLike = Pick<
   | "listMonths"
   | "listMonthTransactions"
   | "listDayTransactions"
+  | "updateTransaction"
 >;
 
 function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
@@ -48,13 +50,23 @@ interface RepositoryCall {
   entries: readonly LedgerEntry[];
 }
 
+interface UpdateCall {
+  id: number;
+  patch: LedgerEntryPatch;
+}
+
 function fakeRepository(
   options: {
     failWrites?: boolean;
     dayRows?: readonly LedgerTransactionRow[];
+    updateResult?: {
+      before: LedgerTransactionRow;
+      after: LedgerTransactionRow;
+    };
   } = {},
 ) {
   const calls: RepositoryCall[] = [];
+  const updates: UpdateCall[] = [];
   let nextId = 1;
   const repository: LedgerRepositoryLike = {
     async insertTransactions(entries) {
@@ -73,8 +85,12 @@ function fakeRepository(
     async listDayTransactions() {
       return options.dayRows ?? [];
     },
+    async updateTransaction(id, patch) {
+      updates.push({ id, patch });
+      return options.updateResult;
+    },
   };
-  return { repository, calls };
+  return { repository, calls, updates };
 }
 
 function makeService(
@@ -208,6 +224,66 @@ describe("ledger service direct writes", () => {
   });
 });
 
+describe("ledger service updates", () => {
+  const storedRow: LedgerTransactionRow = {
+    id: 7,
+    date: "2026-10-20",
+    type: "expense",
+    category: "餐饮",
+    account: "微信",
+    amount: 3000,
+    note: "午饭",
+    created_at: "2026-10-19T08:00:00.000Z",
+  };
+
+  it("validates the patch, updates once, and returns the before/after snapshot", async () => {
+    const after = { ...storedRow, amount: 3500 };
+    const { repository, updates } = fakeRepository({
+      updateResult: { before: storedRow, after },
+    });
+    const { service, nowMs } = makeService(repository);
+
+    const result = await service.updateTransaction("7", { amount: "35" });
+
+    expect(updates).toEqual([{ id: 7, patch: { amount: 3500 } }]);
+    expect(result).toEqual({
+      transaction_id: 7,
+      status: "updated",
+      before: storedRow,
+      after,
+      updated_at: new Date(nowMs()).toISOString(),
+    });
+  });
+
+  it("rejects bad ids, empty patches, and bad semantics before the repository is touched", async () => {
+    const { repository, updates } = fakeRepository();
+    const { service } = makeService(repository);
+
+    await expect(
+      service.updateTransaction("0", { amount: "35" }),
+    ).rejects.toMatchObject({ code: "INVALID_ENTRY", statusCode: 400 });
+    await expect(service.updateTransaction("7", {})).rejects.toMatchObject({
+      code: "INVALID_ENTRY",
+    });
+    await expect(
+      service.updateTransaction("7", { date: "2026-02-30" }),
+    ).rejects.toMatchObject({ code: "INVALID_ENTRY" });
+    expect(updates).toHaveLength(0);
+  });
+
+  it("an unknown id answers 404 TRANSACTION_NOT_FOUND", async () => {
+    const { repository } = fakeRepository();
+    const { service } = makeService(repository);
+
+    await expect(
+      service.updateTransaction("99", { note: "" }),
+    ).rejects.toMatchObject({
+      code: "TRANSACTION_NOT_FOUND",
+      statusCode: 404,
+    });
+  });
+});
+
 describe("ledger service one-sentence path", () => {
   function fakeExtractor(draft: () => LedgerDraft | Promise<LedgerDraft>) {
     const texts: string[] = [];
@@ -318,5 +394,123 @@ describe("ledger service one-sentence path", () => {
       code: "INVALID_ENTRY",
     });
     expect(texts).toHaveLength(0);
+  });
+
+  describe("one-sentence edits", () => {
+    /** Two 餐饮 rows on 2026-10-20 — the correction's hunting ground. */
+    const dayRows: LedgerTransactionRow[] = [
+      {
+        id: 11,
+        date: "2026-10-20",
+        type: "expense",
+        category: "餐饮",
+        account: "微信",
+        amount: 3000,
+        note: "午饭",
+        created_at: "2026-10-20T07:00:00.000Z",
+      },
+      {
+        id: 12,
+        date: "2026-10-20",
+        type: "expense",
+        category: "餐饮",
+        account: "现金",
+        amount: 4500,
+        note: "晚饭",
+        created_at: "2026-10-20T07:30:00.000Z",
+      },
+    ];
+
+    function makeEditHarness(
+      dayRows: readonly LedgerTransactionRow[],
+      updateResult: {
+        before: LedgerTransactionRow;
+        after: LedgerTransactionRow;
+      },
+      draft: () => LedgerDraft,
+    ) {
+      const repo = fakeRepository({ dayRows, updateResult });
+      const fake = fakeExtractor(draft);
+      const harness = makeService(repo.repository, fake.extractor);
+      return { ...harness, updates: repo.updates, calls: repo.calls };
+    }
+
+    it("a unique candidate lands as one update with before/after", async () => {
+      const before = dayRows[0]!;
+      const after = { ...before, amount: 3500 };
+      const { service, updates } = makeEditHarness(
+        dayRows,
+        { before, after },
+        () => ({
+          edit: {
+            match: { date: "2026-10-20", note_contains: "午饭" },
+            patch: { amount: 3500 },
+          },
+        }),
+      );
+      const result = await service.write({ text: "把午饭那笔改成35" });
+      expect(updates).toEqual([{ id: 11, patch: { amount: 3500 } }]);
+      expect(result).toEqual({
+        transaction_id: 11,
+        status: "updated",
+        before,
+        after,
+        updated_at: new Date("2026-10-20T08:00:00.000Z").toISOString(),
+      });
+    });
+
+    it("a match without a date resolves against today", async () => {
+      const before = dayRows[1]!;
+      const after = { ...before, category: "交通" };
+      const { service, updates } = makeEditHarness(
+        dayRows,
+        { before, after },
+        () => ({
+          edit: {
+            match: { note_contains: "晚饭" },
+            patch: { category: "交通" },
+          },
+        }),
+      );
+      const result = await service.write({ text: "晚饭那笔记成交通" });
+      expect(updates).toEqual([{ id: 12, patch: { category: "交通" } }]);
+      expect("status" in result && result.status).toBe("updated");
+    });
+
+    it("zero candidates is a question, never a write", async () => {
+      const { service, updates } = makeEditHarness(
+        dayRows,
+        { before: dayRows[0]!, after: dayRows[0]! },
+        () => ({
+          edit: {
+            match: { date: "2026-10-21", category: "餐饮" },
+            patch: { amount: 3500 },
+          },
+        }),
+      );
+      const result = await service.write({ text: "昨天午饭改成35" });
+      expect("question" in result && result.question).toContain("2026-10-21");
+      expect(updates).toHaveLength(0);
+    });
+
+    it("several candidates is a question listing them, never a write", async () => {
+      const { service, updates } = makeEditHarness(
+        dayRows,
+        { before: dayRows[0]!, after: dayRows[0]! },
+        () => ({
+          edit: {
+            match: { date: "2026-10-20", category: "餐饮" },
+            patch: { amount: 3500 },
+          },
+        }),
+      );
+      const result = await service.write({ text: "餐饮那笔改成35" });
+      const question = "question" in result ? result.question : "";
+      expect(question).toContain("找到 2 笔");
+      expect(question).toContain("午饭");
+      expect(question).toContain("晚饭");
+      expect(question).toContain("要改哪一笔");
+      expect(updates).toHaveLength(0);
+    });
   });
 });

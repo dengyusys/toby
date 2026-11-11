@@ -8,6 +8,7 @@
  */
 
 import type { Clock } from "../../infrastructure/clock.ts";
+import { localDate } from "../../infrastructure/local-date.ts";
 import { AiError } from "../../infrastructure/model/errors.ts";
 import type { LedgerRepository } from "./repository.ts";
 import type { EntryBody } from "./schema.ts";
@@ -17,15 +18,22 @@ import {
   type LedgerExtractor,
   type LedgerFollowUp,
 } from "./extraction.ts";
-import { normalizeEntry, parseEntryDate } from "./validation.ts";
+import {
+  normalizeEntry,
+  normalizeEntryPatch,
+  parseEntryDate,
+} from "./validation.ts";
 import type {
   LedgerCategorySummary,
   LedgerDayReport,
   LedgerDeleteResult,
+  LedgerEditMatch,
   LedgerEntry,
+  LedgerEntryPatch,
   LedgerMonthReport,
   LedgerReceiptView,
   LedgerTransactionRow,
+  LedgerUpdateResult,
 } from "./types.ts";
 
 const MONTH_PATTERN = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
@@ -85,8 +93,9 @@ export function buildDayReport(
   return { date, transactions: rows, ...summarize(rows) };
 }
 
-/** A landed receipt, or the AI asking the user one clarifying question. */
-export type LedgerWriteResult = LedgerReceiptView | LedgerFollowUp;
+/** A landed receipt, a landed edit, or the AI asking one clarifying question. */
+export type LedgerWriteResult =
+  LedgerReceiptView | LedgerUpdateResult | LedgerFollowUp;
 
 /** One message for every 501 AI_UNAVAILABLE path. */
 const AI_UNCONFIGURED_MESSAGE =
@@ -107,6 +116,15 @@ export interface LedgerService {
   /** `body` has already passed the route's shape schema (schema.ts). */
   write(body: EntryBody): Promise<LedgerWriteResult>;
   deleteTransaction(rawId: string): Promise<LedgerDeleteResult>;
+  /**
+   * Update one stored transaction. `rawPatch` has passed the route's
+   * shape schema; its semantics are validated here, then the update is
+   * one repository transaction whose before/after pair is returned.
+   */
+  updateTransaction(
+    rawId: string,
+    rawPatch: unknown,
+  ): Promise<LedgerUpdateResult>;
   months(): Promise<{ months: readonly string[] }>;
   monthReport(month: string | undefined): Promise<LedgerMonthReport>;
   /** One local day's report; the date is validated as a real calendar date. */
@@ -134,7 +152,94 @@ export function createLedgerService(deps: {
     };
   }
 
-  // The one-sentence branch: extract → (question | entries) → receipt.
+  // The shared update path: one repository transaction, before/after out.
+  async function applyUpdate(
+    id: number,
+    patch: LedgerEntryPatch,
+  ): Promise<LedgerUpdateResult> {
+    const updated = await repository.updateTransaction(id, patch);
+    if (!updated) {
+      throw new LedgerRequestError(
+        "TRANSACTION_NOT_FOUND",
+        404,
+        "transaction does not exist (it may already be deleted)",
+      );
+    }
+    return {
+      transaction_id: id,
+      status: "updated" as const,
+      ...updated,
+      updated_at: new Date(clock()).toISOString(),
+    };
+  }
+
+  // Deterministic edit resolution: the match's criteria narrow one day's
+  // rows (the day named, else today); the AI never supplies a row id.
+  async function resolveEditCandidates(
+    match: LedgerEditMatch,
+    now: Date,
+  ): Promise<{ date: string; candidates: readonly LedgerTransactionRow[] }> {
+    const date = match.date ?? localDate(now);
+    const rows = await repository.listDayTransactions(date);
+    const candidates = rows.filter(
+      (row) =>
+        (match.type === undefined || row.type === match.type) &&
+        (match.category === undefined || row.category === match.category) &&
+        (match.note_contains === undefined ||
+          row.note.includes(match.note_contains)),
+    );
+    return { date, candidates };
+  }
+
+  /** One candidate line for the ambiguity question, id-free. */
+  function describeCandidate(row: LedgerTransactionRow): string {
+    const direction = row.type === "income" ? "收" : "支";
+    const note = row.note ? `(${row.note})` : "";
+    return `${direction} ¥${(row.amount / 100).toFixed(2)} ${row.category}${note}`;
+  }
+
+  /** The criteria as one noun phrase for the question copy. */
+  function describeMatch(match: LedgerEditMatch, date: string): string {
+    const parts: string[] = [];
+    if (match.category !== undefined) {
+      parts.push(match.category);
+    }
+    if (match.note_contains !== undefined) {
+      parts.push(`备注含「${match.note_contains}」`);
+    }
+    if (match.type !== undefined) {
+      parts.push(match.type === "income" ? "收入" : "支出");
+    }
+    return parts.length > 0 ? `${date} 的${parts.join(", ")}` : date;
+  }
+
+  // The one-sentence edit branch: resolve → (question | update). Zero or
+  // several candidates are a question, never a guess — the reply names the
+  // day and the criteria so the next sentence can pin the entry down.
+  async function writeEdit(
+    edit: { match: LedgerEditMatch; patch: LedgerEntryPatch },
+    now: Date,
+  ): Promise<LedgerUpdateResult | LedgerFollowUp> {
+    const { date, candidates } = await resolveEditCandidates(edit.match, now);
+    const described = describeMatch(edit.match, date);
+    if (candidates.length === 0) {
+      return {
+        question: `没有找到${described}的记录,要改的是哪天哪笔?`,
+      };
+    }
+    if (candidates.length > 1) {
+      const lines = candidates
+        .slice(0, 5)
+        .map((row) => describeCandidate(row))
+        .join(";");
+      return {
+        question: `找到 ${candidates.length} 笔${described}的记录:${lines}。要改哪一笔?`,
+      };
+    }
+    return applyUpdate(candidates[0]!.id, edit.patch);
+  }
+
+  // The one-sentence branch: extract → (question | entries | edit) → receipt.
   async function writeFromText(rawText: string): Promise<LedgerWriteResult> {
     const text = rawText.trim();
     if (!text) {
@@ -162,6 +267,9 @@ export function createLedgerService(deps: {
     }
     if ("question" in draft) {
       return draft;
+    }
+    if ("edit" in draft) {
+      return writeEdit(draft.edit, new Date(clock()));
     }
     return writeBatch(draft.entries);
   }
@@ -196,6 +304,20 @@ export function createLedgerService(deps: {
         status: "deleted",
         deleted_at: new Date(clock()).toISOString(),
       };
+    },
+
+    async updateTransaction(rawId, rawPatch) {
+      const id = Number.parseInt(rawId, 10);
+      if (!Number.isInteger(id) || id < 1) {
+        throw new LedgerRequestError(
+          "INVALID_ENTRY",
+          400,
+          "transaction id must be a positive integer",
+        );
+      }
+      // Throws LedgerInputError (INVALID_ENTRY) on a bad or empty patch.
+      const patch = normalizeEntryPatch(rawPatch);
+      return applyUpdate(id, patch);
     },
 
     async months() {

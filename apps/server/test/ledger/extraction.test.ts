@@ -13,7 +13,10 @@ import {
   createLedgerExtractor,
   type LedgerDraft,
 } from "../../src/domains/ledger/extraction.ts";
-import { LEDGER_ENTRIES_TOOL_SCHEMA } from "../../src/domains/ledger/schema.ts";
+import {
+  LEDGER_EDIT_TOOL_SCHEMA,
+  LEDGER_ENTRIES_TOOL_SCHEMA,
+} from "../../src/domains/ledger/schema.ts";
 import { buildSystemPrompt } from "../../src/infrastructure/model/prompt.ts";
 import type {
   TobyAgent,
@@ -31,6 +34,7 @@ import { caughtAiError } from "../helpers.ts";
  */
 const TOOL_ARGUMENT_SCHEMAS: Record<string, z.ZodType> = {
   submit_entries: LEDGER_ENTRIES_TOOL_SCHEMA,
+  submit_edit: LEDGER_EDIT_TOOL_SCHEMA,
   ask_user: z.object({ question: z.string().min(1) }).strict(),
 };
 
@@ -170,6 +174,7 @@ describe("createLedgerExtractor", () => {
       specs[0]!.tools.map((entry) => [entry.tool.name, entry.kind] as const),
     );
     expect(kinds.get("submit_entries")).toBe("write-intent");
+    expect(kinds.get("submit_edit")).toBe("write-intent");
     expect(kinds.get("ask_user")).toBe("read-only");
     expect(specs[0]!.policy.maxTurns).toBe(3);
   });
@@ -316,6 +321,50 @@ describe("createLedgerExtractor", () => {
     ]);
     const error = await caughtAiError(extractor.extract("乱七八糟", NOW));
     expect(error.code).toBe("max-turns-exceeded");
+  });
+
+  it("captures a submitted edit through the same validation gate", async () => {
+    const { extractor } = makeExtractor([
+      {
+        tool: "submit_edit",
+        args: {
+          match: { date: "2026-10-19", category: " 餐饮 " },
+          patch: { amount: "35" },
+        },
+      },
+    ]);
+    const draft = await extractor.extract("昨天午饭那笔改成35", NOW);
+    expect(draft).toEqual({
+      edit: {
+        match: { date: "2026-10-19", category: "餐饮" },
+        patch: { amount: 3500 },
+      },
+    });
+  });
+
+  it("bounces a criterion-less edit back and accepts the corrected one", async () => {
+    const { extractor } = makeExtractor([
+      {
+        tool: "submit_edit",
+        // Shape-valid but empty match: nothing to narrow a day's rows
+        // with, so execute throws and the loop continues to the correction.
+        args: { match: {}, patch: { amount: "35" } },
+      },
+      {
+        tool: "submit_edit",
+        args: {
+          match: { date: "2026-10-20", note_contains: "午饭" },
+          patch: { amount: "35" },
+        },
+      },
+    ]);
+    const draft = await extractor.extract("那笔改成35", NOW);
+    expect(draft).toEqual({
+      edit: {
+        match: { date: "2026-10-20", note_contains: "午饭" },
+        patch: { amount: 3500 },
+      },
+    });
   });
 
   it("reports unparseable-output when the model ends without either tool", async () => {

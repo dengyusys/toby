@@ -13,6 +13,7 @@ import type {
   LedgerDayReport,
   LedgerMonthReport,
   LedgerReceiptView,
+  LedgerUpdateResult,
 } from "../../src/domains/ledger/types.ts";
 
 const receipt: LedgerReceiptView = {
@@ -59,6 +60,9 @@ function fakeService(
     deleteTransaction: async () => {
       throw new Error("unused");
     },
+    updateTransaction: async () => {
+      throw new Error("unused");
+    },
     months: async () => ({ months: ["2026-11", "2026-10"] }),
     monthReport: overrides.monthReport ?? (async () => month),
     dayReport: overrides.dayReport ?? (async () => day),
@@ -66,6 +70,43 @@ function fakeService(
 }
 
 describe("ledger chat capability", () => {
+  it("maps a landed edit to a receipt outcome with its own copy", async () => {
+    const updated: LedgerUpdateResult = {
+      transaction_id: 7,
+      status: "updated",
+      before: {
+        id: 7,
+        date: "2026-11-05",
+        type: "expense",
+        category: "餐饮",
+        account: "微信",
+        amount: 12000,
+        note: "午饭",
+        created_at: "2026-11-05T08:00:00.000Z",
+      },
+      after: {
+        id: 7,
+        date: "2026-11-05",
+        type: "expense",
+        category: "交通",
+        account: "微信",
+        amount: 12000,
+        note: "午饭",
+        created_at: "2026-11-05T08:00:00.000Z",
+      },
+      updated_at: "2026-11-05T08:10:00.000Z",
+    };
+    const capability = createLedgerChatCapability(
+      fakeService({ write: async () => updated }),
+    );
+    const outcome = await capability.handleWrite("不对,是打车");
+    expect(outcome).toMatchObject({
+      kind: "receipt",
+      confirmText: "已修改 1 笔。",
+      receipt: { status: "updated" },
+    });
+  });
+
   it("maps a landed write to a receipt outcome carrying its own copy", async () => {
     const capability = createLedgerChatCapability(fakeService());
     const outcome = await capability.handleWrite("午饭 30 微信");

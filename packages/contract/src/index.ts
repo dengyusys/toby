@@ -11,10 +11,12 @@ export type {
   LedgerClient,
   LedgerDeleteResult,
   LedgerEntry,
+  LedgerEntryPatch,
   LedgerEntryType,
   LedgerMonthReport,
   LedgerReceiptView,
   LedgerTransactionRow,
+  LedgerUpdateResult,
 } from "./ledger-client.ts";
 export { createAuthClient } from "./auth-client.ts";
 export type {

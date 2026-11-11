@@ -39,14 +39,60 @@ export interface LedgerReceiptView {
 }
 
 /**
- * Result of a user-initiated delete — the domain's sole write outside the
- * AI card path (the explicit UI confirmation stands in for the
- * user-confirmation stage).
+ * Result of a user-initiated delete — one of the two user-initiated
+ * writes outside the AI card path (the explicit UI click stands in for the
+ * card path), alongside the edit below.
  */
 export interface LedgerDeleteResult {
   readonly transaction_id: number;
   readonly status: "deleted";
   readonly deleted_at: string;
+}
+
+/**
+ * A partial entry update: present fields change, absent fields stay as
+ * they are. Validation guarantees at least one field is present. This is
+ * the storable form — the wire shape lives in schema.ts, the AI tool
+ * reuses the same schema.
+ */
+export interface LedgerEntryPatch {
+  readonly date?: string;
+  readonly type?: LedgerEntryType;
+  readonly category?: string;
+  readonly account?: string;
+  readonly amount?: number;
+  readonly note?: string;
+}
+
+/**
+ * Deterministic criteria that locate one stored transaction — never a
+ * row id: the server resolves these against a day's rows itself. At
+ * least one criterion is always present (validation enforces it).
+ */
+export interface LedgerEditMatch {
+  readonly date?: string;
+  readonly type?: LedgerEntryType;
+  readonly category?: string;
+  readonly note_contains?: string;
+}
+
+/** The edit twin of a write: locate one row, change its patched fields. */
+export interface LedgerEditInstruction {
+  readonly match: LedgerEditMatch;
+  readonly patch: LedgerEntryPatch;
+}
+
+/**
+ * Result of one transactional update — a structured PATCH or an AI
+ * correction. `before` is read inside the same transaction as the UPDATE,
+ * so the pair is one consistent snapshot of what changed.
+ */
+export interface LedgerUpdateResult {
+  readonly transaction_id: number;
+  readonly status: "updated";
+  readonly before: LedgerTransactionRow;
+  readonly after: LedgerTransactionRow;
+  readonly updated_at: string;
 }
 
 /** Category subtotal inside a month report. */

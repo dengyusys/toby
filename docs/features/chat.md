@@ -123,7 +123,9 @@ read-only agent path, never an error.
 
 - The classifier sees the last three settled exchanges, so a fragment ("今天呀")
   or a correction ("不对,是打车") is folded into a self-contained sentence
-  before routing.
+  before routing. A folded correction routed to ledger settles as an edit
+  when it names a stored entry — never a duplicate recording
+  (docs/features/ledger.md).
 - A failed classification or route settles the turn as `none` with a "say that
   again" notice. A failed domain write is a notice, not an exception.
 - Structured AI output rides schema-validated channels (Zod tool arguments, or
@@ -164,7 +166,8 @@ read-only agent path, never an error.
   registry keyed by the card's `domain`; an unknown id renders a neutral
   shell.
 - Additive and destructive writes take the same path: validation, one
-  transaction, receipt. No confirm or cancel wire calls exist.
+  transaction, receipt. No confirm or cancel wire calls exist. Edits ride
+  the same path too — a correction lands as a before/after receipt card.
 - A card embeds the receipt snapshot at creation time; restored cards keep
   their recorded snapshot.
 

@@ -6,7 +6,15 @@
 
 import type { Clock } from "../../infrastructure/clock.ts";
 import type { LedgerDb } from "./db.ts";
-import type { LedgerEntry, LedgerTransactionRow } from "./types.ts";
+import type {
+  LedgerEntry,
+  LedgerEntryPatch,
+  LedgerTransactionRow,
+} from "./types.ts";
+
+/** The full row projection every read in this file returns. */
+const TRANSACTION_COLUMNS_SQL =
+  "SELECT id, date, type, category, account, amount, note, created_at FROM transactions";
 
 /** Exclusive month bounds: [first day, first day of next month). */
 export function monthBounds(month: string): { start: string; end: string } {
@@ -31,6 +39,17 @@ export interface LedgerRepository {
   listDayTransactions(date: string): Promise<readonly LedgerTransactionRow[]>;
   /** Delete one row by id; true when the row existed. */
   deleteTransaction(id: number): Promise<boolean>;
+  /**
+   * Update one row's patched columns in a single transaction. The row is
+   * read inside that same transaction, so the returned before/after pair
+   * is one consistent snapshot; undefined when no row carries the id.
+   */
+  updateTransaction(
+    id: number,
+    patch: LedgerEntryPatch,
+  ): Promise<
+    { before: LedgerTransactionRow; after: LedgerTransactionRow } | undefined
+  >;
 }
 
 export function createLedgerRepository(deps: {
@@ -98,6 +117,56 @@ export function createLedgerRepository(deps: {
         id,
       ]);
       return result.changes > 0;
+    },
+
+    async updateTransaction(id, patch) {
+      // Column names come from this fixed map (never from input); values
+      // are parameterized. Only the patched columns join the SET clause.
+      const sets: string[] = [];
+      const values: (string | number)[] = [];
+      if (patch.date !== undefined) {
+        sets.push("date = ?");
+        values.push(patch.date);
+      }
+      if (patch.type !== undefined) {
+        sets.push("type = ?");
+        values.push(patch.type);
+      }
+      if (patch.category !== undefined) {
+        sets.push("category = ?");
+        values.push(patch.category);
+      }
+      if (patch.account !== undefined) {
+        sets.push("account = ?");
+        values.push(patch.account);
+      }
+      if (patch.amount !== undefined) {
+        sets.push("amount = ?");
+        values.push(patch.amount);
+      }
+      if (patch.note !== undefined) {
+        sets.push("note = ?");
+        values.push(patch.note);
+      }
+      const handle = await db.open();
+      return handle.transaction(async (tx) => {
+        const [before] = await tx.query<LedgerTransactionRow>(
+          `${TRANSACTION_COLUMNS_SQL} WHERE id = ?`,
+          [id],
+        );
+        if (!before) {
+          return undefined;
+        }
+        await tx.run(
+          `UPDATE transactions SET ${sets.join(", ")} WHERE id = ?`,
+          [...values, id],
+        );
+        const [after] = await tx.query<LedgerTransactionRow>(
+          `${TRANSACTION_COLUMNS_SQL} WHERE id = ?`,
+          [id],
+        );
+        return after ? { before, after } : undefined;
+      });
     },
   };
 }

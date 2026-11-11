@@ -60,7 +60,7 @@ afterEach(async () => {
 });
 
 function inject(
-  method: "GET" | "POST" | "DELETE",
+  method: "GET" | "POST" | "DELETE" | "PATCH",
   url: string,
   payload?: Record<string, unknown>,
 ) {
@@ -363,5 +363,102 @@ describe("ledger api: deletion", () => {
       expect(response.statusCode).toBe(400);
       expect(response.json().errorCode).toBe("INVALID_ENTRY");
     }
+  });
+});
+
+describe("ledger api: update", () => {
+  /** Land one entry and return the written transaction id. */
+  async function recordEntryAndGetId(): Promise<number> {
+    const created = (
+      await inject("POST", "/api/ledger/entries", structuredEntry())
+    ).json();
+    expect(created.written).toBe(1);
+    return created.transaction_ids[0];
+  }
+
+  it("patches present fields, keeps the rest, and the month follows at once", async () => {
+    const id = await recordEntryAndGetId();
+
+    const updated = await inject("PATCH", `/api/ledger/transactions/${id}`, {
+      amount: "35",
+      category: "交通",
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toEqual({
+      transaction_id: id,
+      status: "updated",
+      before: {
+        id,
+        date: "2026-10-20",
+        type: "expense",
+        category: "餐饮",
+        account: "微信",
+        amount: 2550,
+        note: "午饭",
+        created_at: new Date(BASE_MS).toISOString(),
+      },
+      after: {
+        id,
+        date: "2026-10-20",
+        type: "expense",
+        category: "交通",
+        account: "微信",
+        amount: 3500,
+        note: "午饭",
+        created_at: new Date(BASE_MS).toISOString(),
+      },
+      updated_at: new Date(BASE_MS).toISOString(),
+    });
+
+    const report = await inject(
+      "GET",
+      "/api/ledger/transactions?month=2026-10",
+    );
+    expect(report.json().transactions[0]).toMatchObject({
+      amount: 3500,
+      category: "交通",
+    });
+    expect(report.json().expense_total).toBe(3500);
+  });
+
+  it("an empty or malformed patch body answers BAD_REQUEST from the route schema", async () => {
+    const id = await recordEntryAndGetId();
+
+    // `{}` passes the shape schema (all fields optional); the empty patch
+    // is semantics and answers INVALID_ENTRY from the domain.
+    const empty = await inject("PATCH", `/api/ledger/transactions/${id}`, {});
+    expect(empty.statusCode).toBe(400);
+    expect(empty.json().errorCode).toBe("INVALID_ENTRY");
+
+    // A field of the wrong type violates the shape and answers BAD_REQUEST.
+    const malformed = await inject("PATCH", `/api/ledger/transactions/${id}`, {
+      amount: true,
+    });
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.json().errorCode).toBe("BAD_REQUEST");
+  });
+
+  it("unknown ids answer 404; malformed ids and nonsense values answer 400", async () => {
+    await recordEntryAndGetId();
+
+    const missing = await inject("PATCH", "/api/ledger/transactions/999", {
+      amount: "35",
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().errorCode).toBe("TRANSACTION_NOT_FOUND");
+
+    for (const id of ["0", "-1", "abc"]) {
+      const response = await inject("PATCH", `/api/ledger/transactions/${id}`, {
+        amount: "35",
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().errorCode).toBe("INVALID_ENTRY");
+    }
+
+    const nonsense = await inject("PATCH", "/api/ledger/transactions/1", {
+      date: "2026-02-30",
+    });
+    expect(nonsense.statusCode).toBe(400);
+    expect(nonsense.json().errorCode).toBe("INVALID_ENTRY");
   });
 });

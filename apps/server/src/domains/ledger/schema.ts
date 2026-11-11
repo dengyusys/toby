@@ -68,6 +68,95 @@ export const LEDGER_ENTRIES_TOOL_SCHEMA = z
 export type LedgerEntriesToolArgs = z.infer<typeof LEDGER_ENTRIES_TOOL_SCHEMA>;
 
 /**
+ * A partial entry update — the PATCH body and the edit tool's patch
+ * payload share this one definition, so the two paths can never drift.
+ * Every field is optional; "at least one field" and all semantic checks
+ * live in validation.ts, exactly like the draft's.
+ */
+export const LEDGER_ENTRY_PATCH_SCHEMA = z
+  .object({
+    date: z
+      .string()
+      .regex(new RegExp(DATE_PATTERN))
+      .optional()
+      .describe('New entry date, "YYYY-MM-DD"'),
+    type: z
+      .enum(["expense", "income"])
+      .optional()
+      .describe("New direction: expense or income"),
+    category: z
+      .string()
+      .min(1)
+      .max(MAX_CATEGORY_LENGTH)
+      .optional()
+      .describe(`New category, at most ${MAX_CATEGORY_LENGTH} characters`),
+    // Null, "", and omission are distinct here: omitted stays unchanged,
+    // null/"" resets the account to the default in validation.ts.
+    account: z
+      .union([z.string().max(MAX_ACCOUNT_LENGTH), z.null()])
+      .optional()
+      .describe("New account; null resets it to the default"),
+    amount: z
+      .union([z.string().regex(new RegExp(AMOUNT_PATTERN)), z.number().min(0)])
+      .optional()
+      .describe(
+        "New non-negative amount with at most two decimals, as a string",
+      ),
+    note: z
+      .string()
+      .max(MAX_NOTE_LENGTH)
+      .optional()
+      .describe("New free-text note; an empty string clears it"),
+  })
+  .strict();
+
+export type LedgerEntryPatchDraft = z.infer<typeof LEDGER_ENTRY_PATCH_SCHEMA>;
+
+/**
+ * The edit tool's match: how to locate the one stored transaction the
+ * sentence is correcting — deterministic criteria the server resolves,
+ * never a row id. At least one criterion is enforced in validation.ts;
+ * an omitted date resolves to today in the service.
+ */
+export const LEDGER_EDIT_MATCH_SCHEMA = z
+  .object({
+    date: z
+      .string()
+      .regex(new RegExp(DATE_PATTERN))
+      .optional()
+      .describe('The recorded entry date, "YYYY-MM-DD"; omit to search today'),
+    type: z
+      .enum(["expense", "income"])
+      .optional()
+      .describe("Direction to narrow the candidates by"),
+    category: z
+      .string()
+      .min(1)
+      .max(MAX_CATEGORY_LENGTH)
+      .optional()
+      .describe("Exact category to narrow the candidates by"),
+    note_contains: z
+      .string()
+      .min(1)
+      .max(MAX_NOTE_LENGTH)
+      .optional()
+      .describe("Note substring to narrow the candidates by"),
+  })
+  .strict();
+
+export type LedgerEditMatchDraft = z.infer<typeof LEDGER_EDIT_MATCH_SCHEMA>;
+
+/** Tool payload for submit_edit: locate one row, patch its fields. */
+export const LEDGER_EDIT_TOOL_SCHEMA = z
+  .object({
+    match: LEDGER_EDIT_MATCH_SCHEMA,
+    patch: LEDGER_ENTRY_PATCH_SCHEMA,
+  })
+  .strict();
+
+export type LedgerEditToolArgs = z.infer<typeof LEDGER_EDIT_TOOL_SCHEMA>;
+
+/**
  * POST /api/ledger/entries body: one of the two intake paths. Only the
  * envelope is checked at the route — `validation.ts` checks an entry against
  * the same schema the tool hands the model.

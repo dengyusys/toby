@@ -9,7 +9,7 @@
  */
 
 import type { ReactNode } from "react";
-import type { LedgerReceiptView } from "@toby/contract";
+import type { LedgerReceiptView, LedgerUpdateResult } from "@toby/contract";
 import { ReceiptCard } from "@/features/ledger/ReceiptCard.tsx";
 
 export interface CardRendererProps {
@@ -19,7 +19,9 @@ export interface CardRendererProps {
 export type CardRenderer = (props: CardRendererProps) => ReactNode;
 
 function ledgerCard({ receipt }: CardRendererProps): ReactNode {
-  return <ReceiptCard receipt={receipt as LedgerReceiptView} />;
+  return (
+    <ReceiptCard receipt={receipt as LedgerReceiptView | LedgerUpdateResult} />
+  );
 }
 
 const renderers = new Map<string, CardRenderer>([["ledger", ledgerCard]]);

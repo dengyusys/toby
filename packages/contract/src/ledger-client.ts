@@ -33,6 +33,31 @@ export interface LedgerDeleteResult {
   deleted_at: string;
 }
 
+/** A partial entry update: present fields change, absent fields stay.
+ * `account: null` (or "") resets the account to the server's default. */
+export interface LedgerEntryPatch {
+  date?: string;
+  type?: LedgerEntryType;
+  category?: string;
+  account?: string | null;
+  /** On the wire a decimal string or number; cents on responses. */
+  amount?: string | number;
+  note?: string;
+}
+
+/**
+ * Result of one transactional update — a structured PATCH or an AI
+ * correction landed through the chat card path. `before`/`after` come
+ * from the same transaction, one consistent snapshot of the change.
+ */
+export interface LedgerUpdateResult {
+  transaction_id: number;
+  status: "updated";
+  before: LedgerTransactionRow;
+  after: LedgerTransactionRow;
+  updated_at: string;
+}
+
 export interface LedgerTransactionRow extends LedgerEntry {
   id: number;
   created_at: string;
@@ -55,6 +80,11 @@ export interface LedgerMonthReport {
 export interface LedgerClient {
   /** Delete one stored transaction by id; unknown ids 404. */
   deleteTransaction(id: number): Promise<LedgerDeleteResult>;
+  /** Update one stored transaction's patched fields; unknown ids 404. */
+  updateTransaction(
+    id: number,
+    patch: LedgerEntryPatch,
+  ): Promise<LedgerUpdateResult>;
   /** Months that have records, descending. */
   listMonths(): Promise<string[]>;
   monthReport(month: string): Promise<LedgerMonthReport>;
@@ -66,6 +96,15 @@ export function createLedgerClient(baseUrl: string): LedgerClient {
       requestJson<LedgerDeleteResult>(
         endpoint(baseUrl, `/api/ledger/transactions/${id}`),
         { method: "DELETE" },
+      ),
+    updateTransaction: (id, patch) =>
+      requestJson<LedgerUpdateResult>(
+        endpoint(baseUrl, `/api/ledger/transactions/${id}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        },
       ),
     listMonths: async () => {
       const body = await requestJson<{ months: string[] }>(
