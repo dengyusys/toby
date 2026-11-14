@@ -240,13 +240,13 @@ it("toggles off-record and reflects the returned state", async () => {
   renderPage();
 
   const toggle = await screen.findByRole("button", {
-    name: /不记忆 已关闭/,
+    name: /关闭记忆/,
   });
   expect(toggle).toHaveAttribute("aria-pressed", "false");
   await user.click(toggle);
 
   const enabled = await screen.findByRole("button", {
-    name: /本通对话不记忆 已开启/,
+    name: /开启记忆/,
   });
   expect(enabled).toHaveAttribute("aria-pressed", "true");
   expect(requestBody("/api/memory/off-record")).toEqual({ on: true });

@@ -479,6 +479,7 @@ export function MemoryPage() {
             <button
               type="button"
               aria-pressed={offRecord === true}
+              title="关闭后需手动重新开启；重启服务也会恢复记忆"
               disabled={offRecord === undefined || offRecordMutation.isPending}
               onClick={() => {
                 if (offRecord !== undefined)
@@ -494,18 +495,16 @@ export function MemoryPage() {
                 aria-hidden="true"
                 className={`size-1.5 rounded-full ${offRecord === true ? "bg-destructive" : "bg-faint"}`}
               />
-              {offRecord === true ? "本通对话不记忆" : "不记忆"}
-              <span className="text-[11px] opacity-75">
-                {offRecordMutation.isPending
-                  ? "设置中…"
-                  : offRecord === undefined
-                    ? offRecordQuery.isError
+              {offRecord === true ? "开启记忆" : "关闭记忆"}
+              {(offRecordMutation.isPending || offRecord === undefined) && (
+                <span className="text-[11px] opacity-75">
+                  {offRecordMutation.isPending
+                    ? "设置中…"
+                    : offRecordQuery.isError
                       ? "未读取"
-                      : "读取中…"
-                    : offRecord
-                      ? "已开启"
-                      : "已关闭"}
-              </span>
+                      : "读取中…"}
+                </span>
+              )}
             </button>
           </div>
         </header>
