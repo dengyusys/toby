@@ -12,6 +12,7 @@
 import cookie from "@fastify/cookie";
 import fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import pino from "pino";
+import type { Models } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { authPlugin } from "./domains/auth/plugin.ts";
 import { chatPlugin } from "./domains/chat/plugin.ts";
@@ -26,6 +27,7 @@ import { tracesPlugin } from "./domains/traces/plugin.ts";
 import type { TobyConfig } from "./infrastructure/config/config.ts";
 import { createTobyAgentFactory } from "./infrastructure/model/agent.ts";
 import { createPiAiClient } from "./infrastructure/model/client.ts";
+import type { SettingsCredentialStore } from "./infrastructure/model/credential-store.ts";
 import type { AiRuntimeConfig } from "./infrastructure/model/types.ts";
 import { createTraceBus } from "./infrastructure/trace/bus.ts";
 import type { Clock } from "./infrastructure/clock.ts";
@@ -68,6 +70,14 @@ export function productionDomains(options: {
   config: TobyConfig;
   /** Injectable clock; tests typically pass a mutable closure. */
   clock?: Clock;
+  /**
+   * Builds the pi-ai catalog the whole app serves, with the settings
+   * domain's credential store attached — the same seam the settings
+   * domain takes, so a test can mount a faux-provider collection and
+   * observe what the runtime transports actually send. The default
+   * attaches the store to the full builtin catalog.
+   */
+  createModels?: (deps: { credentialStore: SettingsCredentialStore }) => Models;
 }): DomainMount[] {
   const { config, clock } = options;
   const auth = authPlugin({ config, clock });
@@ -76,15 +86,18 @@ export function productionDomains(options: {
   // stored — console semantics, live observation only.
   const traceBus = clock ? createTraceBus({ clock }) : createTraceBus();
   // The settings domain: runtime-editable AI settings and provider
-  // credentials (data/settings.db). Its createModels factory attaches the
+  // credentials (data/settings.db). The catalog factory attaches the
   // credential store to the pi-ai catalog, so ONE Models instance serves
   // the settings page's catalog and auth statuses AND carries the stored
   // credentials into every AI request.
+  const createCatalogModels =
+    options.createModels ??
+    (({ credentialStore }: { credentialStore: SettingsCredentialStore }) =>
+      builtinModels({ credentials: credentialStore }));
   const settingsDomain = createSettingsDomain({
     config,
     clock,
-    createModels: ({ credentialStore }) =>
-      builtinModels({ credentials: credentialStore }),
+    createModels: createCatalogModels,
   });
   // Effective AI config per request: the settings database wins over the
   // environment fallback; no model anywhere → undefined → the AI paths
@@ -102,10 +115,15 @@ export function productionDomains(options: {
   };
   // Both AI transports now always exist; with nothing configured they
   // throw AiError("unconfigured") at run time instead of staying unwired.
+  // Both receive the SAME store-attached Models instance: a credential
+  // saved on the settings page must reach every runtime provider call,
+  // not just the settings page's own statuses.
   const agentFactory = createTobyAgentFactory(resolveAiRuntimeConfig, {
+    models: settingsDomain.models,
     reporter: traceBus,
   });
   const aiClient = createPiAiClient(resolveAiRuntimeConfig, {
+    models: settingsDomain.models,
     reporter: traceBus,
   });
   // The ledger and memory domains are built here so the composition root
