@@ -12,7 +12,7 @@ Files involved — all in `deploy/` in this repo:
 | File                  | Role                                                                            |
 | --------------------- | ------------------------------------------------------------------------------- |
 | `compose.server.yaml` | Server-side compose: local image (no `build:`), loopback port, health probe `/` |
-| `env.example`         | Environment template — copy to `.env`, fill password hash + provider keys       |
+| `env.example`         | Environment template — copy to `.env`, fill the login password hash             |
 | `toby.tar.gz`         | The image tarball (gitignored, regenerated per release via `docker save`)       |
 
 ## 0 — Prerequisites
@@ -71,7 +71,8 @@ cd /opt/toby
 cp /opt/toby-init/compose.server.yaml docker-compose.yaml
 cp /opt/toby-init/env.example .env
 chmod 600 .env
-vi .env        # TOBY_AUTH_PASSWORD_HASH + provider keys
+vi .env        # TOBY_AUTH_PASSWORD_HASH — the AI model and provider keys
+               #   are configured on the settings page after first login
 ```
 
 ## 5 — Run and verify

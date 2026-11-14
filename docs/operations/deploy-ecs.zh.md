@@ -11,7 +11,7 @@
 | 文件                  | 作用                                                             |
 | --------------------- | ---------------------------------------------------------------- |
 | `compose.server.yaml` | 服务器端 compose:本地镜像(无 `build:`)、回环端口、健康检查探 `/` |
-| `env.example`         | 环境变量模板 —— 复制为 `.env`,填密码哈希与 AI 密钥               |
+| `env.example`         | 环境变量模板 —— 复制为 `.env`,填登录密码哈希                     |
 | `toby.tar.gz`         | 镜像包(gitignore 已忽略,每次发布用 `docker save` 重新生成)       |
 
 ## 0 — 前置条件
@@ -69,7 +69,8 @@ cd /opt/toby
 cp /opt/toby-init/compose.server.yaml docker-compose.yaml
 cp /opt/toby-init/env.example .env
 chmod 600 .env
-vi .env        # 填 TOBY_AUTH_PASSWORD_HASH 和 AI 密钥
+vi .env        # 填 TOBY_AUTH_PASSWORD_HASH
+               # (AI 模型与密钥不在这里配——首次登录后在设置页配置)
 ```
 
 ## 5 — 启动与验证
