@@ -14,6 +14,7 @@ import type { Errors } from "./save-errors.ts";
 import { ProviderField } from "./ProviderField.tsx";
 import { ModelField } from "./ModelField.tsx";
 import { ApiKeyField } from "./ApiKeyField.tsx";
+import { describeTestResult } from "./test-result.ts";
 
 export function SettingsForm({
   initial,
@@ -42,6 +43,10 @@ export function SettingsForm({
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testStatus, setTestStatus] = useState("");
+  const [testErrors, setTestErrors] = useState<Errors>({});
+  const busy = saving || testing;
   const entry = catalog?.providers.find((item) => item.id === provider);
   const credential = effective.providers.find((item) => item.id === provider);
   const providers = [
@@ -62,11 +67,11 @@ export function SettingsForm({
   function edit() {
     setErrors({});
     setSaved(false);
+    setTestStatus("");
+    setTestErrors({});
   }
 
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (saving || !dirty) return;
+  function buildUpdate(): { body: AiSettingsUpdate; errors: Errors } {
     const nextErrors: Errors = {};
     if (
       modelChanged &&
@@ -78,13 +83,40 @@ export function SettingsForm({
       nextErrors.model = "请选择模型。";
     if ((apiKey || clearKey) && !provider)
       nextErrors.credentials = "请先选择供应商。";
-    setErrors(nextErrors);
-    setSaved(false);
-    if (Object.keys(nextErrors).length) return;
     const body: AiSettingsUpdate = {};
     if (modelChanged) body.model = resetModel ? null : model;
     if (apiKey) body.credentials = [{ provider, apiKey }];
     else if (clearKey) body.credentials = [{ provider, clear: true }];
+    return { body, errors: nextErrors };
+  }
+
+  async function test() {
+    if (busy || !catalogReady) return;
+    const { body, errors: nextErrors } = buildUpdate();
+    setTestErrors(nextErrors);
+    setTestStatus("");
+    if (Object.keys(nextErrors).length) return;
+    setTesting(true);
+    try {
+      const result = await settingsClient.testAiSettings(body);
+      setTestStatus(describeTestResult(result));
+    } catch (error) {
+      setTestErrors(describeSaveError(error));
+    } finally {
+      for (const item of body.credentials ?? []) delete item.apiKey;
+      setTesting(false);
+    }
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || !dirty) return;
+    const { body, errors: nextErrors } = buildUpdate();
+    setErrors(nextErrors);
+    setSaved(false);
+    setTestStatus("");
+    setTestErrors({});
+    if (Object.keys(nextErrors).length) return;
     setSaving(true);
     setApiKey("");
     try {
@@ -109,12 +141,12 @@ export function SettingsForm({
       noValidate
       className="rounded-xl border bg-card shadow-sm"
     >
-      <fieldset disabled={saving} className="min-w-0 space-y-6 p-5 sm:p-7">
+      <fieldset disabled={busy} className="min-w-0 space-y-6 p-5 sm:p-7">
         <legend className="sr-only">模型与密钥</legend>
         <ProviderField
           provider={provider}
           providers={providers}
-          saving={saving}
+          saving={busy}
           onChange={(value) => {
             edit();
             setProvider(value);
@@ -132,13 +164,13 @@ export function SettingsForm({
           selectedModel={selectedModel}
           resetModel={resetModel}
           modelChanged={modelChanged}
-          saving={saving}
+          saving={busy}
           catalogReady={catalogReady}
           catalogPending={catalogPending}
           catalogFailed={catalogFailed}
           catalogFetching={catalogFetching}
           retryCatalog={retryCatalog}
-          error={errors.model}
+          error={errors.model ?? testErrors.model}
           onReset={() => {
             edit();
             setResetModel(!resetModel);
@@ -155,7 +187,7 @@ export function SettingsForm({
           credential={credential}
           apiKey={apiKey}
           clearKey={clearKey}
-          error={errors.credentials}
+          error={errors.credentials ?? testErrors.credentials}
           onClear={() => {
             edit();
             setClearKey(!clearKey);
@@ -178,10 +210,24 @@ export function SettingsForm({
                 ? "更改尚未保存"
                 : ""}
           <FieldError id="form-error" message={errors.form} />
+          <FieldError id="test-error" message={testErrors.form} />
+          {(testing || testStatus) && (
+            <p className="mt-1">{testing ? "正在测试…" : testStatus}</p>
+          )}
         </div>
-        <Button type="submit" disabled={saving || !dirty}>
-          {saving ? "保存中…" : "保存"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || !catalogReady}
+            onClick={() => void test()}
+          >
+            测试
+          </Button>
+          <Button type="submit" disabled={busy || !dirty}>
+            {saving ? "保存中…" : "保存"}
+          </Button>
+        </div>
       </div>
     </form>
   );

@@ -1,7 +1,8 @@
 /**
  * Settings routes: a thin HTTP shell, one service call per handler. The
- * PUT envelope is checked here against schema.ts and answers the domain's
- * own SETTINGS_BODY_INVALID (clients match codes, never framework ones).
+ * PUT envelope — and the POST /test body, which accepts the exact same
+ * shape — is checked here against schema.ts and answers the domain's own
+ * SETTINGS_BODY_INVALID (clients match codes, never framework ones).
  * Every route follows the session guard.
  */
 
@@ -41,6 +42,12 @@ export const settingsRoutes: FastifyPluginAsync<SettingsRoutesOptions> = async (
 
   app.put("/api/settings/ai", (request) =>
     service.updateAiSettings(parseAiSettingsBody(request.body)),
+  );
+
+  // The outcome is data (a 200 stage), never an HTTP error; the body is
+  // validated exactly like PUT, so shape problems answer the same 400s.
+  app.post("/api/settings/ai/test", (request) =>
+    service.testConfiguration(parseAiSettingsBody(request.body)),
   );
 
   app.get("/api/settings/ai/catalog", () => service.getCatalog());

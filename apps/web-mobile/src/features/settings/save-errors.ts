@@ -2,7 +2,10 @@ export type SettingsErrors = Partial<
   Record<"model" | "credentials" | "form", string>
 >;
 
-export function describeSaveError(error: unknown): SettingsErrors {
+export function describeSaveError(
+  error: unknown,
+  fallback = "保存失败，请稍后重试。",
+): SettingsErrors {
   const code =
     error && typeof error === "object" && "code" in error ? error.code : null;
   switch (code) {
@@ -15,6 +18,6 @@ export function describeSaveError(error: unknown): SettingsErrors {
     case "SETTINGS_BODY_INVALID":
       return { form: "设置内容无效，请检查后重试。" };
     default:
-      return { form: "保存失败，请稍后重试。" };
+      return { form: fallback };
   }
 }

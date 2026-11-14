@@ -1,8 +1,9 @@
 /**
  * The settings service over an in-memory fake repository: effective value
  * resolution (database → environment, per field), key masking, validation
- * rejections with zero writes, and provider statuses via a fake auth
- * probe. No AI, no real keys — fake strings only.
+ * rejections with zero writes, provider statuses via a fake auth probe,
+ * and the POST /test path over a fake AI probe (no real AI, no real keys
+ * — fake strings only).
  */
 
 import { describe, expect, it } from "vitest";
@@ -12,7 +13,13 @@ import {
   type SettingsService,
 } from "../../src/domains/settings/service.ts";
 import type { SettingsChanges } from "../../src/domains/settings/repository.ts";
-import type { AiCatalogProvider } from "../../src/domains/settings/types.ts";
+import type {
+  AiCatalogProvider,
+  AiCredentialChange,
+  AiSettingsUpdate,
+  AiTestProbe,
+  AiTestProbeOutcome,
+} from "../../src/domains/settings/types.ts";
 
 /** In-memory SettingsRepository that records whether any write happened. */
 function fakeRepository() {
@@ -54,12 +61,41 @@ function fakeRepository() {
 
 type Repository = ReturnType<typeof fakeRepository>;
 
+/** A recording probe fake: records every call, answers a fixed outcome. */
+function fakeProbe(outcome?: AiTestProbeOutcome) {
+  const calls: {
+    model: string;
+    timeoutMs: number;
+    credentials: readonly AiCredentialChange[];
+  }[] = [];
+  const probe: AiTestProbe = {
+    async probe(input) {
+      calls.push({
+        model: input.model,
+        timeoutMs: input.timeoutMs,
+        credentials: input.credentials.map((change) => ({ ...change })),
+      });
+      return (
+        outcome ?? {
+          stage: "ok",
+          model: input.model,
+          latencyMs: 12,
+          reply: "OK",
+          message: null,
+        }
+      );
+    },
+  };
+  return { probe, calls };
+}
+
 function buildService(options: {
   repository: Repository;
   envAi?: { model?: string; timeoutMs: number };
   knownProviders?: ReadonlySet<string>;
   authProbe?: (providerId: string) => Promise<boolean>;
   catalogView?: readonly AiCatalogProvider[];
+  testProbe?: AiTestProbe;
 }): SettingsService {
   return createSettingsService({
     repository: options.repository,
@@ -71,6 +107,7 @@ function buildService(options: {
       { id: "deepseek", models: ["deepseek-chat"] },
       { id: "zai", models: ["glm-4.7", "glm-5"] },
     ],
+    testProbe: options.testProbe ?? fakeProbe().probe,
   });
 }
 
@@ -331,5 +368,210 @@ describe("settings service: catalog", () => {
     ];
     const service = buildService({ repository, catalogView });
     expect(service.getCatalog()).toEqual({ providers: catalogView });
+  });
+});
+
+describe("settings service: test configuration", () => {
+  const envAi = { model: "zai/glm-4.7", timeoutMs: 60_000 };
+
+  it("validates exactly like PUT before the probe runs, with zero writes", async () => {
+    const repository = fakeRepository();
+    const fake = fakeProbe();
+    const service = buildService({ repository, envAi, testProbe: fake.probe });
+    for (const [body, code] of [
+      [{ model: "nope" }, "SETTINGS_INVALID_MODEL"],
+      [{ model: "ZAI/glm-4.7" }, "SETTINGS_INVALID_MODEL"],
+      [
+        { credentials: [{ provider: "unknown", apiKey: "fake-key" }] },
+        "SETTINGS_UNKNOWN_PROVIDER",
+      ],
+      [
+        { credentials: [{ provider: "zai", apiKey: "" }] },
+        "SETTINGS_INVALID_CREDENTIAL",
+      ],
+      [
+        { credentials: [{ provider: "zai", apiKey: "   " }] },
+        "SETTINGS_INVALID_CREDENTIAL",
+      ],
+      [
+        { credentials: [{ provider: "zai", apiKey: "fake-key", clear: true }] },
+        "SETTINGS_INVALID_CREDENTIAL",
+      ],
+      [{ credentials: [{ provider: "zai" }] }, "SETTINGS_INVALID_CREDENTIAL"],
+    ] as [AiSettingsUpdate, string][]) {
+      const code_ = await caughtCode(service.testConfiguration(body));
+      expect(code_, JSON.stringify(body)).toBe(code);
+    }
+    // The probe never ran and nothing was written anywhere.
+    expect(fake.calls).toHaveLength(0);
+    expect(repository.writes()).toBe(0);
+  });
+
+  it("an omitted model probes today's effective model: db wins over env", async () => {
+    const repository = fakeRepository();
+    await repository.apply({
+      setSettings: [{ key: "ai.model", value: "deepseek/deepseek-chat" }],
+    });
+    const fake = fakeProbe();
+    const service = buildService({ repository, envAi, testProbe: fake.probe });
+    await service.testConfiguration({});
+    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls[0]?.model).toBe("deepseek/deepseek-chat");
+    expect(fake.calls[0]?.timeoutMs).toBe(60_000);
+
+    // No db row: the environment model.
+    const envFake = fakeProbe();
+    await buildService({
+      repository: fakeRepository(),
+      envAi,
+      testProbe: envFake.probe,
+    }).testConfiguration({});
+    expect(envFake.calls[0]?.model).toBe("zai/glm-4.7");
+  });
+
+  it("model: null probes the env fallback as if the stored row were absent", async () => {
+    const repository = fakeRepository();
+    await repository.apply({
+      setSettings: [{ key: "ai.model", value: "deepseek/deepseek-chat" }],
+    });
+    const writesAfterSetup = repository.writes();
+    const fake = fakeProbe();
+    const service = buildService({ repository, envAi, testProbe: fake.probe });
+    await service.testConfiguration({ model: null });
+    // The db row is ignored for the probe: PUT's null deletes it, so the
+    // environment fallback answers.
+    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls[0]?.model).toBe("zai/glm-4.7");
+
+    // No env fallback either: the honest unconfigured answer, and the row
+    // still exists (nothing was persisted).
+    expect(repository.settings.get("ai.model")).toBe("deepseek/deepseek-chat");
+    const noEnvFake = fakeProbe();
+    const noEnv = buildService({ repository, testProbe: noEnvFake.probe });
+    expect(await noEnv.testConfiguration({ model: null })).toEqual({
+      stage: "unconfigured",
+      model: null,
+      latencyMs: null,
+      reply: null,
+      message: null,
+    });
+    expect(noEnvFake.calls).toHaveLength(0);
+    expect(fake.calls).toHaveLength(1);
+    // Only the setup write: the test itself never persisted anything.
+    expect(repository.writes()).toBe(writesAfterSetup);
+  });
+
+  it("no model anywhere → unconfigured, without touching the probe", async () => {
+    const repository = fakeRepository();
+    const fake = fakeProbe();
+    const service = buildService({ repository, testProbe: fake.probe });
+    expect(await service.testConfiguration({})).toEqual({
+      stage: "unconfigured",
+      model: null,
+      latencyMs: null,
+      reply: null,
+      message: null,
+    });
+    expect(fake.calls).toHaveLength(0);
+    expect(repository.writes()).toBe(0);
+  });
+
+  it("the probe timeout is the effective one: env value, else the built-in default", async () => {
+    const repository = fakeRepository();
+    const envFake = fakeProbe();
+    await buildService({
+      repository,
+      envAi,
+      testProbe: envFake.probe,
+    }).testConfiguration({});
+    expect(envFake.calls[0]?.timeoutMs).toBe(60_000);
+    // With no env fallback, a db row supplies the model and the timeout
+    // falls back to the built-in default.
+    await repository.apply({
+      setSettings: [{ key: "ai.model", value: "deepseek/deepseek-chat" }],
+    });
+    const plainFake = fakeProbe();
+    await buildService({
+      repository,
+      testProbe: plainFake.probe,
+    }).testConfiguration({});
+    expect(plainFake.calls[0]?.model).toBe("deepseek/deepseek-chat");
+    expect(plainFake.calls[0]?.timeoutMs).toBe(30_000);
+  });
+
+  it("an unsaved apiKey reaches the probe as an overlay; clear skips the stored row", async () => {
+    const repository = fakeRepository();
+    repository.credentials.set(
+      "deepseek",
+      JSON.stringify({ type: "api_key", key: "fake-stored-key" }),
+    );
+    const fake = fakeProbe();
+    const service = buildService({ repository, envAi, testProbe: fake.probe });
+    await service.testConfiguration({
+      model: "deepseek/deepseek-chat",
+      credentials: [
+        { provider: "zai", apiKey: "sk-unsaved-fake-key" },
+        { provider: "deepseek", clear: true },
+      ],
+    });
+    expect(fake.calls[0]?.credentials).toEqual([
+      { provider: "zai", apiKey: "sk-unsaved-fake-key" },
+      { provider: "deepseek", clear: true },
+    ]);
+    // Nothing persisted: the stored row survives and no write happened.
+    expect(repository.credentials.get("deepseek")).toBe(
+      JSON.stringify({ type: "api_key", key: "fake-stored-key" }),
+    );
+    expect(repository.writes()).toBe(0);
+  });
+
+  it("probe outcomes pass through as the result, verbatim", async () => {
+    const repository = fakeRepository();
+    const outcomes: AiTestProbeOutcome[] = [
+      {
+        stage: "ok",
+        model: "zai/glm-4.7",
+        latencyMs: 123,
+        reply: "OK",
+        message: null,
+      },
+      {
+        stage: "auth",
+        model: "zai/glm-4.7",
+        latencyMs: 45,
+        reply: null,
+        message: 'AI provider "zai" is not configured',
+      },
+      {
+        stage: "timeout",
+        model: "zai/glm-4.7",
+        latencyMs: 60_000,
+        reply: null,
+        message: "AI request timed out",
+      },
+      {
+        stage: "request-failed",
+        model: "zai/glm-4.7",
+        latencyMs: 20,
+        reply: null,
+        message: "boom",
+      },
+      {
+        stage: "invalid-model",
+        model: "zai/gone",
+        latencyMs: null,
+        reply: null,
+        message: "not a known pair",
+      },
+    ];
+    for (const outcome of outcomes) {
+      const service = buildService({
+        repository,
+        envAi,
+        testProbe: fakeProbe(outcome).probe,
+      });
+      expect(await service.testConfiguration({})).toEqual(outcome);
+    }
+    expect(repository.writes()).toBe(0);
   });
 });

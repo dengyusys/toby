@@ -73,6 +73,41 @@ describe("createSettingsClient", () => {
     expect(url).toBe("/api/settings/ai/catalog");
   });
 
+  it("testAiSettings POSTs the body as JSON and decodes the probe result", async () => {
+    const result = {
+      stage: "ok",
+      model: "zai/glm-4.7",
+      latencyMs: 942,
+      reply: "OK",
+      message: null,
+    };
+    const fetchMock = stubFetch(200, JSON.stringify(result));
+    const client = createSettingsClient("");
+    const body = { model: "zai/glm-4.7" };
+    expect(await client.testAiSettings(body)).toEqual(result);
+    const [url, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit | undefined,
+    ];
+    expect(url).toBe("/api/settings/ai/test");
+    expect(init?.method).toBe("POST");
+    expect(init?.headers).toEqual({ "Content-Type": "application/json" });
+    expect(init?.body).toBe(JSON.stringify(body));
+  });
+
+  it("a failed probe stage still answers 200 with data", async () => {
+    const result = {
+      stage: "auth",
+      model: "deepseek/deepseek-flash",
+      latencyMs: 311,
+      reply: null,
+      message: "invalid api key",
+    };
+    stubFetch(200, JSON.stringify(result));
+    const client = createSettingsClient("");
+    expect(await client.testAiSettings({})).toEqual(result);
+  });
+
   it("a domain failure surfaces the server's errorCode, not a generic one", async () => {
     stubFetch(
       400,

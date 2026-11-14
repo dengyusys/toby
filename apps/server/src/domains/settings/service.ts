@@ -1,8 +1,10 @@
 /**
  * The settings service: effective AI settings resolution (database row →
  * environment, per field), provider statuses with masked keys only, the
- * catalog passthrough, and the one transactional write behind PUT. Key
- * material never leaves this service unmasked. The request timeout is not
+ * catalog passthrough, the one transactional write behind PUT, and the
+ * effective-after-save probe behind POST /test (the probe transport lives
+ * in infrastructure and is injected here as a port). Key material never
+ * leaves this service unmasked. The request timeout is not
  * settings-configurable — it stays an ops concern (TOBY_AI_TIMEOUT_MS).
  */
 
@@ -16,10 +18,13 @@ import type { SettingsRepository } from "./repository.ts";
 import {
   AI_MODEL_KEY,
   type AiCatalog,
+  type AiCredentialChange,
   type AiModelField,
   type AiRuntimeValues,
   type AiSettingsUpdate,
   type AiSettingsView,
+  type AiTestProbe,
+  type AiTestResult,
   type ProviderStatus,
 } from "./types.ts";
 
@@ -47,6 +52,12 @@ export interface SettingsServiceDeps {
   authProbe: (providerId: string) => Promise<boolean>;
   /** The model catalog grouped by provider, already sorted. */
   catalogView: readonly { id: string; models: readonly string[] }[];
+  /**
+   * The probe behind POST /test: one minimal real completion against the
+   * effective-after-save configuration, nothing persisted. The plugin
+   * wires the infrastructure probe over the shared Models; tests fake it.
+   */
+  testProbe: AiTestProbe;
 }
 
 export interface SettingsService {
@@ -64,6 +75,15 @@ export interface SettingsService {
   getCatalog(): AiCatalog;
   /** Validate, then land the whole change in one transactional write. */
   updateAiSettings(body: AiSettingsUpdate): Promise<AiSettingsView>;
+  /**
+   * POST /test: probe what WOULD be effective after saving this body —
+   * nothing persisted. The outcome is data (a 200 stage), never an HTTP
+   * error; only request-shape/value problems answer 400, with the exact
+   * codes the PUT path answers. Omitted model → today's effective model;
+   * null → as if the stored row were absent (env → none); a string →
+   * that spec.
+   */
+  testConfiguration(body: AiSettingsUpdate): Promise<AiTestResult>;
   /** A display mask: ≤ 8 chars hide entirely, longer keep first 3 / last 4. */
   mask(key: string): string;
 }
@@ -71,7 +91,14 @@ export interface SettingsService {
 export function createSettingsService(
   deps: SettingsServiceDeps,
 ): SettingsService {
-  const { repository, envAi, knownProviders, authProbe, catalogView } = deps;
+  const {
+    repository,
+    envAi,
+    knownProviders,
+    authProbe,
+    catalogView,
+    testProbe,
+  } = deps;
 
   const mask = (key: string): string =>
     key.length <= 8 ? MASKED_SHORT_KEY : `${key.slice(0, 3)}…${key.slice(-4)}`;
@@ -107,6 +134,66 @@ export function createSettingsService(
       return { value: envAi.model, source: "env" };
     }
     return { value: null, source: null };
+  }
+
+  /** Same spec validation PUT answers: a bad pair is a 400, verbatim copy. */
+  function validatedModelSpec(raw: string): string {
+    try {
+      return validateModelSpec(raw);
+    } catch {
+      throw new SettingsRequestError(
+        "SETTINGS_INVALID_MODEL",
+        'model must be a "provider/model" pair (e.g. "zai/glm-4.7")',
+      );
+    }
+  }
+
+  /**
+   * The exact credential-entry validation PUT has always answered, shared
+   * by the write path and the test path (same codes, same messages).
+   * Returns the changes normalized: either a key to store or a clear.
+   */
+  function validateCredentialChanges(
+    changes: readonly AiCredentialChange[],
+  ): (
+    | { readonly provider: string; readonly apiKey: string }
+    | { readonly provider: string; readonly clear: true }
+  )[] {
+    const validated: (
+      | { readonly provider: string; readonly apiKey: string }
+      | { readonly provider: string; readonly clear: true }
+    )[] = [];
+    for (const change of changes) {
+      if (!knownProviders.has(change.provider)) {
+        throw new SettingsRequestError(
+          "SETTINGS_UNKNOWN_PROVIDER",
+          `unknown provider: ${change.provider}`,
+        );
+      }
+      if (change.clear === true) {
+        if (change.apiKey !== undefined) {
+          throw new SettingsRequestError(
+            "SETTINGS_INVALID_CREDENTIAL",
+            "a credential entry cannot set and clear at once",
+          );
+        }
+        validated.push({ provider: change.provider, clear: true });
+      } else if (change.apiKey !== undefined) {
+        if (change.apiKey.trim() === "") {
+          throw new SettingsRequestError(
+            "SETTINGS_INVALID_CREDENTIAL",
+            "apiKey must be a non-empty string",
+          );
+        }
+        validated.push({ provider: change.provider, apiKey: change.apiKey });
+      } else {
+        throw new SettingsRequestError(
+          "SETTINGS_INVALID_CREDENTIAL",
+          "a credential entry must carry apiKey or clear",
+        );
+      }
+    }
+    return validated;
   }
 
   async function resolveRuntimeConfig(): Promise<AiRuntimeValues> {
@@ -173,41 +260,17 @@ export function createSettingsService(
         if (body.model === null) {
           deleteSettings.push(AI_MODEL_KEY);
         } else {
-          let model: string;
-          try {
-            model = validateModelSpec(body.model);
-          } catch {
-            throw new SettingsRequestError(
-              "SETTINGS_INVALID_MODEL",
-              'model must be a "provider/model" pair (e.g. "zai/glm-4.7")',
-            );
-          }
-          setSettings.push({ key: AI_MODEL_KEY, value: model });
+          setSettings.push({
+            key: AI_MODEL_KEY,
+            value: validatedModelSpec(body.model),
+          });
         }
       }
 
-      for (const change of body.credentials ?? []) {
-        if (!knownProviders.has(change.provider)) {
-          throw new SettingsRequestError(
-            "SETTINGS_UNKNOWN_PROVIDER",
-            `unknown provider: ${change.provider}`,
-          );
-        }
-        if (change.clear === true) {
-          if (change.apiKey !== undefined) {
-            throw new SettingsRequestError(
-              "SETTINGS_INVALID_CREDENTIAL",
-              "a credential entry cannot set and clear at once",
-            );
-          }
+      for (const change of validateCredentialChanges(body.credentials ?? [])) {
+        if ("clear" in change) {
           deleteCredentials.push(change.provider);
-        } else if (change.apiKey !== undefined) {
-          if (change.apiKey.trim() === "") {
-            throw new SettingsRequestError(
-              "SETTINGS_INVALID_CREDENTIAL",
-              "apiKey must be a non-empty string",
-            );
-          }
+        } else {
           // Stored verbatim as pi-ai's api-key credential; the adapter
           // (infrastructure/model/credential-store.ts) gives it its typing.
           setCredentials.push({
@@ -217,11 +280,6 @@ export function createSettingsService(
               key: change.apiKey,
             }),
           });
-        } else {
-          throw new SettingsRequestError(
-            "SETTINGS_INVALID_CREDENTIAL",
-            "a credential entry must carry apiKey or clear",
-          );
         }
       }
 
@@ -233,6 +291,45 @@ export function createSettingsService(
         deleteCredentials,
       });
       return getAiSettings();
+    },
+
+    async testConfiguration(body) {
+      // The model overlay, resolved exactly as PUT would make effective:
+      // omitted → today's effective model; null → PUT would delete the
+      // stored row, so the test predicts what the environment fallback
+      // would serve afterwards (none when env is empty too); a string →
+      // that spec.
+      let model: string | null;
+      if (body.model === undefined) {
+        model = (await resolveModel()).value;
+      } else if (body.model === null) {
+        model = envAi?.model ?? null;
+      } else {
+        model = validatedModelSpec(body.model);
+      }
+
+      // The credential overlay — the exact PUT validation, nothing persisted.
+      const overlay = validateCredentialChanges(body.credentials ?? []);
+
+      // No model anywhere → the probe would have nothing to run.
+      if (model === null) {
+        return {
+          stage: "unconfigured",
+          model: null,
+          latencyMs: null,
+          reply: null,
+          message: null,
+        };
+      }
+
+      // One real probe against the overlay configuration; its structured
+      // outcome IS the answer (the probe stage unions align with the wire
+      // shape by construction).
+      return testProbe.probe({
+        model,
+        timeoutMs: envAi?.timeoutMs ?? DEFAULT_AI_TIMEOUT_MS,
+        credentials: overlay,
+      });
     },
 
     mask,

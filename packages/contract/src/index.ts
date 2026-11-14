@@ -32,6 +32,8 @@ export type {
   AiSettingsSource,
   AiSettingsUpdate,
   AiSettingsView,
+  AiTestResult,
+  AiTestStage,
   ProviderStatus,
   SettingsClient,
   SettingsErrorCode,

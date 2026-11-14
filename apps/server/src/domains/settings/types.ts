@@ -67,6 +67,53 @@ export interface AiSettingsUpdate {
   readonly credentials?: readonly AiCredentialChange[];
 }
 
+/**
+ * Stages the probe itself answers; the service owns "unconfigured" (the
+ * no-model case never reaches the probe). Mirrored by infrastructure's
+ * AiProbeStage in test-probe.ts — change both sides together.
+ */
+export type AiTestProbeStage =
+  "ok" | "invalid-model" | "auth" | "timeout" | "request-failed";
+
+/** The probe port's structured outcome — plain data, never an exception. */
+export interface AiTestProbeOutcome {
+  readonly stage: AiTestProbeStage;
+  readonly model: string | null;
+  readonly latencyMs: number | null;
+  readonly reply: string | null;
+  readonly message: string | null;
+}
+
+/**
+ * The probe port behind POST /api/settings/ai/test: one minimal real
+ * completion against the effective-after-save configuration, with the
+ * body's credentials applied in memory only. Satisfied by
+ * infrastructure/model/test-probe.ts; tests inject fakes. Declared here so
+ * the domain never imports infrastructure types.
+ */
+export interface AiTestProbe {
+  probe(input: {
+    readonly model: string;
+    readonly timeoutMs: number;
+    readonly credentials: readonly AiCredentialChange[];
+  }): Promise<AiTestProbeOutcome>;
+}
+
+/** POST /api/settings/ai/test — the closed stage union. */
+export type AiTestStage = "unconfigured" | AiTestProbeStage;
+
+/**
+ * POST /api/settings/ai/test result. The test outcome is data, not an
+ * HTTP error — only request-shape problems answer 400.
+ */
+export interface AiTestResult {
+  readonly stage: AiTestStage;
+  readonly model: string | null;
+  readonly latencyMs: number | null;
+  readonly reply: string | null;
+  readonly message: string | null;
+}
+
 /** DB keys under which the AI settings rows live. */
 export const AI_MODEL_KEY = "ai.model";
 // The request timeout is no longer settings-configurable (an ops concern

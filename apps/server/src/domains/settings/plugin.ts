@@ -17,8 +17,9 @@ import { createSettingsCredentialStore } from "../../infrastructure/model/creden
 import { createSettingsDb } from "./db.ts";
 import { createSettingsRepository } from "./repository.ts";
 import { settingsRoutes } from "./routes.ts";
+import { createAiTestProbe } from "../../infrastructure/model/test-probe.ts";
 import { createSettingsService, type SettingsService } from "./service.ts";
-import type { AiCatalogProvider } from "./types.ts";
+import type { AiCatalogProvider, AiTestProbe } from "./types.ts";
 
 export interface SettingsPluginOptions {
   config: TobyConfig;
@@ -32,6 +33,12 @@ export interface SettingsPluginOptions {
   createModels?: (deps: { credentialStore: SettingsCredentialStore }) => Models;
   /** Test seam: a configured check in place of pi-ai's checkAuth probe. */
   authProbe?: (providerId: string) => Promise<boolean>;
+  /**
+   * Test seam: the probe behind POST /test, in place of the real one-off
+   * completion. Defaults to the infrastructure probe built over the shared
+   * Models and this domain's credential store.
+   */
+  testProbe?: AiTestProbe;
 }
 
 /** The assembled settings domain: mount step, service handle, catalog. */
@@ -84,12 +91,19 @@ export function createSettingsDomain(
       }
     });
 
+  // The probe behind POST /test shares this domain's Models (the same
+  // catalog every AI request sees) and its credential store; the overlay
+  // for a body's unsaved keys lives only inside the probe. Tests fake it.
+  const testProbe =
+    options.testProbe ?? createAiTestProbe({ models, credentialStore });
+
   const service = createSettingsService({
     repository,
     clock,
     knownProviders,
     authProbe,
     catalogView,
+    testProbe,
     ...(options.config.ai
       ? {
           envAi: {

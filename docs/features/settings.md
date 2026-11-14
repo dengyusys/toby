@@ -38,6 +38,10 @@ pages (PC and mobile), effective on the very next AI request.
 - **One transactional write**: the whole PUT — settings upserts/deletes
   and credential upserts/deletes together — lands in a single
   transaction or not at all.
+- **Test, don't guess**: `POST /test` probes the would-be configuration
+  with one real minimal model call — the body's credentials apply
+  in-memory only (an unsaved key is testable), nothing is written, and
+  the outcome is data on a 200, never an HTTP error.
 
 ## Interface
 
@@ -51,11 +55,12 @@ use the server's one error body with these codes:
 | `SETTINGS_INVALID_CREDENTIAL` | 400    | empty key, or set-and-clear in one entry      |
 | `SETTINGS_BODY_INVALID`       | 400    | body shape rejected (unknown fields included) |
 
-| Method and path                | Purpose                                                                                                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/settings/ai`         | Effective view: `model` (`{value, source}`), `providers` (configured ones only: `{id, source: "stored"\|"env", maskedKey}`)                                                         |
-| `PUT /api/settings/ai`         | Body `{model?: string\|null, credentials?: [{provider, apiKey?, clear?}]}`; omitted = unchanged, `null`/`clear` removes (env fallback returns); answers with the new effective view |
-| `GET /api/settings/ai/catalog` | pi-ai's builtin catalog grouped by provider: `{providers: [{id, models: […]]}]`                                                                                                     |
+| Method and path                | Purpose                                                                                                                                                                                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/settings/ai`         | Effective view: `model` (`{value, source}`), `providers` (configured ones only: `{id, source: "stored"\|"env", maskedKey}`)                                                                                                                             |
+| `PUT /api/settings/ai`         | Body `{model?: string\|null, credentials?: [{provider, apiKey?, clear?}]}`; omitted = unchanged, `null`/`clear` removes (env fallback returns); answers with the new effective view                                                                     |
+| `GET /api/settings/ai/catalog` | pi-ai's builtin catalog grouped by provider: `{providers: [{id, models: […]]}]`                                                                                                                                                                         |
+| `POST /api/settings/ai/test`   | One-prompt probe of what WOULD be effective after saving the same-shaped body; persists nothing. Always 200 with `{stage, model, latencyMs, reply, message}` — `stage`: `ok` / `unconfigured` / `invalid-model` / `auth` / `timeout` / `request-failed` |
 
 ## Key rules
 

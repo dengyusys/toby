@@ -5,6 +5,7 @@ import type {
   AiCatalog,
   AiSettingsUpdate,
   AiSettingsView,
+  AiTestResult,
 } from "@toby/contract";
 import { Button } from "@/components/ui/button.tsx";
 import { settingsClient } from "@/lib/api.ts";
@@ -14,6 +15,7 @@ import { ApiKeyField } from "./ApiKeyField.tsx";
 import { FieldError } from "./FieldError.tsx";
 import { describeSaveError } from "./save-errors.ts";
 import type { SettingsErrors } from "./save-errors.ts";
+import { describeTestResult } from "./test-results.ts";
 
 interface SettingsFormProps {
   initial: AiSettingsView;
@@ -44,6 +46,9 @@ export function SettingsForm({
   const [errors, setErrors] = useState<SettingsErrors>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<AiTestResult | null>(null);
+  const busy = saving || testing;
   const entry = catalog?.providers.find((item) => item.id === provider);
   const credential = effective.providers.find((item) => item.id === provider);
   const providers = [
@@ -74,11 +79,10 @@ export function SettingsForm({
   function edit() {
     setErrors({});
     setSaved(false);
+    setTestResult(null);
   }
 
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (saving || !dirty) return;
+  function prepareBody(): AiSettingsUpdate | null {
     const nextErrors: SettingsErrors = {};
     if (
       modelChanged &&
@@ -92,11 +96,35 @@ export function SettingsForm({
       nextErrors.credentials = "请先选择供应商。";
     setErrors(nextErrors);
     setSaved(false);
-    if (Object.keys(nextErrors).length) return;
+    setTestResult(null);
+    if (Object.keys(nextErrors).length) return null;
     const body: AiSettingsUpdate = {};
     if (modelChanged) body.model = reset ? null : model;
     if (apiKey) body.credentials = [{ provider, apiKey }];
     else if (clear) body.credentials = [{ provider, clear: true }];
+    return body;
+  }
+
+  async function test() {
+    if (busy || !catalog) return;
+    const body = prepareBody();
+    if (!body) return;
+    setTesting(true);
+    try {
+      setTestResult(await settingsClient.testAiSettings(body));
+    } catch (error) {
+      setErrors(describeSaveError(error, "测试失败，请稍后重试。"));
+    } finally {
+      for (const item of body.credentials ?? []) delete item.apiKey;
+      setTesting(false);
+    }
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || !dirty) return;
+    const body = prepareBody();
+    if (!body) return;
     setSaving(true);
     setApiKey("");
     try {
@@ -121,7 +149,7 @@ export function SettingsForm({
       onSubmit={(event) => void save(event)}
       className="rounded-2xl border bg-card"
     >
-      <fieldset disabled={saving} className="min-w-0 space-y-5 p-4">
+      <fieldset disabled={busy} className="min-w-0 space-y-5 p-4">
         <legend className="sr-only">模型与密钥</legend>
         <ProviderField
           value={provider}
@@ -187,13 +215,36 @@ export function SettingsForm({
                 : ""}
           <FieldError id="settings-form-error" message={errors.form} />
         </div>
+        <p
+          role="status"
+          aria-live="polite"
+          className={`mb-3 break-words text-sm leading-6 ${testResult && testResult.stage !== "ok" ? "text-destructive" : "text-muted-foreground"}`}
+        >
+          {testing
+            ? "正在测试…"
+            : testResult
+              ? describeTestResult(testResult)
+              : ""}
+        </p>
         <Button
           type="submit"
-          disabled={saving || !dirty}
+          disabled={busy || !dirty}
           className="h-12 w-full rounded-xl text-base"
         >
           {saving ? "保存中…" : "保存"}
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy || !catalog}
+          onClick={() => void test()}
+          className="mt-3 h-12 w-full rounded-xl text-base"
+        >
+          {testing ? "测试中…" : "测试"}
+        </Button>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          测试当前填写的配置，不会保存更改。
+        </p>
       </div>
     </form>
   );

@@ -48,11 +48,43 @@ export interface AiSettingsUpdate {
   credentials?: { provider: string; apiKey?: string; clear?: boolean }[];
 }
 
+/**
+ * POST /api/settings/ai/test outcome: the closed stage union. The test is
+ * data, not an error — a failing probe answers 200 with a failed stage;
+ * only request-shape problems answer 4xx.
+ */
+export type AiTestStage =
+  | "ok"
+  | "unconfigured"
+  | "invalid-model"
+  | "auth"
+  | "timeout"
+  | "request-failed";
+
+/** POST /api/settings/ai/test result. */
+export interface AiTestResult {
+  stage: AiTestStage;
+  /** The effective "provider/model" spec the probe ran against, if any. */
+  model: string | null;
+  /** Round-trip milliseconds; null when the probe never reached a provider. */
+  latencyMs: number | null;
+  /** The model's reply, server-trimmed; present only on ok. */
+  reply: string | null;
+  /** Failure detail (e.g. the provider's message); null on ok. */
+  message: string | null;
+}
+
 export interface SettingsClient {
   getAiSettings(): Promise<AiSettingsView>;
   /** One transactional write; the answer is the new effective view. */
   saveAiSettings(body: AiSettingsUpdate): Promise<AiSettingsView>;
   getCatalog(): Promise<AiCatalog>;
+  /**
+   * Runs a one-prompt probe against what WOULD be effective after saving
+   * this body — nothing is persisted. The outcome arrives as a 200
+   * AiTestResult; shape errors throw the same codes as saveAiSettings.
+   */
+  testAiSettings(body: AiSettingsUpdate): Promise<AiTestResult>;
 }
 
 export function createSettingsClient(baseUrl: string): SettingsClient {
@@ -67,5 +99,11 @@ export function createSettingsClient(baseUrl: string): SettingsClient {
       }),
     getCatalog: () =>
       requestJson<AiCatalog>(endpoint(baseUrl, "/api/settings/ai/catalog")),
+    testAiSettings: (body) =>
+      requestJson<AiTestResult>(endpoint(baseUrl, "/api/settings/ai/test"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
   };
 }
