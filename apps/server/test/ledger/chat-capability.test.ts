@@ -72,7 +72,7 @@ describe("ledger chat capability", () => {
   it("maps a landed edit to a receipt outcome with its own copy", async () => {
     const updated: LedgerUpdateResult = {
       transaction_id: 7,
-      status: "updated",
+      action: "updated",
       before: {
         id: 7,
         date: "2026-11-05",
@@ -100,7 +100,7 @@ describe("ledger chat capability", () => {
     expect(outcome).toMatchObject({
       kind: "receipt",
       confirmText: "已修改 1 笔。",
-      receipt: { status: "updated" },
+      receipt: { action: "updated" },
     });
   });
 

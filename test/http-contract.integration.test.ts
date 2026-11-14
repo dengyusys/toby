@@ -235,7 +235,7 @@ describe("http contract (ledger flow)", () => {
     expect(deleted.status).toBe(200);
     expect(await deleted.json()).toMatchObject({
       transaction_id: transactionId,
-      status: "deleted",
+      action: "deleted",
     });
 
     const afterDelete = await fetch(

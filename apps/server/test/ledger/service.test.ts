@@ -243,7 +243,7 @@ describe("ledger service updates", () => {
     expect(updates).toEqual([{ id: 7, patch: { amount: 3500 } }]);
     expect(result).toEqual({
       transaction_id: 7,
-      status: "updated",
+      action: "updated",
       before: storedRow,
       after,
       updated_at: new Date(nowMs()).toISOString(),
@@ -487,7 +487,7 @@ describe("ledger service one-sentence path", () => {
       expect(updates).toEqual([{ id: 11, patch: { amount: 3500 } }]);
       expect(result).toEqual({
         transaction_id: 11,
-        status: "updated",
+        action: "updated",
         before,
         after,
         updated_at: new Date("2026-10-20T08:00:00.000Z").toISOString(),
@@ -525,7 +525,7 @@ describe("ledger service one-sentence path", () => {
       // The landed update, with the run's silent-learning receipt after it.
       expect(result).toEqual({
         transaction_id: 11,
-        status: "updated",
+        action: "updated",
         before,
         after,
         updated_at: new Date("2026-10-20T08:00:00.000Z").toISOString(),
@@ -548,7 +548,7 @@ describe("ledger service one-sentence path", () => {
       );
       const result = await service.write({ text: "晚饭那笔记成交通" });
       expect(updates).toEqual([{ id: 12, patch: { category: "交通" } }]);
-      expect("status" in result && result.status).toBe("updated");
+      expect("action" in result && result.action).toBe("updated");
     });
 
     it("zero candidates is a question, never a write", async () => {

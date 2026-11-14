@@ -158,7 +158,7 @@ export function createLedgerChatCapability(
       if ("question" in result) {
         return { kind: "question", text: result.question };
       }
-      if ("status" in result) {
+      if ("action" in result) {
         const outcome: ChatWriteOutcome = {
           kind: "receipt",
           confirmText: "已修改 1 笔。",

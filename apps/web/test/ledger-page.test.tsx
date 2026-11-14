@@ -94,7 +94,7 @@ function routeFetch({
         : init?.method === "DELETE"
           ? {
               transaction_id: Number(url.match(/transactions\/(\d+)/)?.[1]),
-              status: "deleted",
+              action: "deleted",
               deleted_at: new Date().toISOString(),
             }
           : url.startsWith("/api/ledger/transactions")

@@ -35,7 +35,7 @@ export interface LedgerReceiptView {
 /** Result of a user-initiated delete (the sole non-card write). */
 export interface LedgerDeleteResult {
   transaction_id: number;
-  status: "deleted";
+  action: "deleted";
   deleted_at: string;
 }
 
@@ -56,7 +56,7 @@ export interface LedgerEntryPatch {
  */
 export interface LedgerUpdateResult {
   transaction_id: number;
-  status: "updated";
+  action: "updated";
   before: LedgerTransactionRow;
   after: LedgerTransactionRow;
   updated_at: string;

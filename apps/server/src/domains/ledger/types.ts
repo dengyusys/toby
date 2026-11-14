@@ -47,7 +47,7 @@ export interface LedgerReceiptView {
  */
 export interface LedgerDeleteResult {
   readonly transaction_id: number;
-  readonly status: "deleted";
+  readonly action: "deleted";
   readonly deleted_at: string;
 }
 
@@ -92,7 +92,7 @@ export interface LedgerEditInstruction {
  */
 export interface LedgerUpdateResult {
   readonly transaction_id: number;
-  readonly status: "updated";
+  readonly action: "updated";
   readonly before: LedgerTransactionRow;
   readonly after: LedgerTransactionRow;
   readonly updated_at: string;

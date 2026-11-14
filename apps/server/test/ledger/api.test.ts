@@ -320,7 +320,7 @@ describe("ledger api: deletion", () => {
     expect(deleted.statusCode).toBe(200);
     expect(deleted.json()).toEqual({
       transaction_id: id,
-      status: "deleted",
+      action: "deleted",
       deleted_at: new Date(BASE_MS).toISOString(),
     });
 
@@ -382,7 +382,7 @@ describe("ledger api: update", () => {
     expect(updated.statusCode).toBe(200);
     expect(updated.json()).toEqual({
       transaction_id: id,
-      status: "updated",
+      action: "updated",
       before: {
         id,
         date: "2026-10-20",

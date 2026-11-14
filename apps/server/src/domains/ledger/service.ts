@@ -167,7 +167,7 @@ export function createLedgerService(deps: {
     }
     return {
       transaction_id: id,
-      status: "updated" as const,
+      action: "updated" as const,
       ...updated,
       updated_at: new Date(clock()).toISOString(),
     };
@@ -314,7 +314,7 @@ export function createLedgerService(deps: {
       }
       return {
         transaction_id: id,
-        status: "deleted",
+        action: "deleted",
         deleted_at: new Date(clock()).toISOString(),
       };
     },

@@ -95,8 +95,20 @@ function UpdatedCard({ result }: { result: LedgerUpdateResult }) {
   );
 }
 
+/**
+ * Narrow on the action verb, not on key presence: history from the
+ * proposal era carries status: "committed" receipts with entries — those
+ * render as plain recorded cards instead of crashing the tree as update
+ * results.
+ */
+function isUpdateResult(
+  receipt: ReceiptCardProps["receipt"],
+): receipt is LedgerUpdateResult {
+  return "action" in receipt && receipt.action === "updated";
+}
+
 export function ReceiptCard({ receipt }: ReceiptCardProps) {
-  if ("status" in receipt) {
+  if (isUpdateResult(receipt)) {
     return <UpdatedCard result={receipt} />;
   }
   const entries = receipt.entries;
