@@ -73,7 +73,7 @@ export function MemoryReceiptLines({
           {ACTION_HEADINGS[item.action]}
         </h2>
         <span className="rounded-sm bg-accent-soft px-1.5 py-0.5 text-[11px] leading-4 text-muted-foreground">
-          {item.type}
+          {item.section}
         </span>
       </div>
       <ReceiptDiff receipt={item} />

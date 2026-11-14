@@ -1,8 +1,8 @@
 /**
  * The memory chat capability: the explicit-sentence write path (the
- * memory agent), the three conversational memory tools for the none
- * agent, the in-run receipt cards (silent learning), and the inspect-link
- * mapping (docs/decisions/personal-agent-memory.md,
+ * memory agent), the two conversational memory tools (remember / forget)
+ * for the none agent, the in-run receipt cards (silent learning), and the
+ * inspect-link mapping (docs/decisions/personal-agent-memory.md,
  * docs/decisions/chat-domain-capabilities.md). Built from the memory
  * service plus the shared tool instance set — the same objects the ledger
  * extractor and the memory agent close over, so the off-record gate and
@@ -37,7 +37,7 @@ function receiptConfirmText(receipt: MemoryReceipt): string {
 export function createMemoryChatCapability(deps: {
   service: MemoryService;
   /**
-   * The full shared tool set; the capability exposes exactly the three
+   * The full shared tool set; the capability exposes exactly the two
    * conversational tools — off_record stays on the memory agent only (the
    * none agent never needs it).
    */
@@ -62,7 +62,7 @@ export function createMemoryChatCapability(deps: {
       const { outcome } = await agent.run(sentence);
       return outcome;
     },
-    tools: [tools.recall, tools.remember, tools.forget],
+    tools: [tools.remember, tools.forget],
     /**
      * Memory has no preview panel: the webs' target vocabulary only knows
      * "ledger:YYYY-MM" (preview-context's parser), so nothing here maps —

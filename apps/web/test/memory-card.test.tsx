@@ -30,7 +30,7 @@ it("renders an in-run receipt with its before to after diff", () => {
     <Card
       receipt={{
         action: "updated",
-        type: "约定",
+        section: "约定",
         before: "- 咖啡记「饮品」",
         after: "- 咖啡记「饮品」，不加糖",
         created_at: CREATED_AT,
@@ -53,14 +53,14 @@ it("renders every routed receipt and the verbatim listed block", () => {
         receipts: [
           {
             action: "updated",
-            type: "关于我",
+            section: "关于我",
             before: "- 不吃香菜",
             after: "- 不吃葱",
             created_at: CREATED_AT,
           },
           {
             action: "forgot",
-            type: "人物",
+            section: "人物",
             before: "- 小王:房东",
             created_at: CREATED_AT,
           },
@@ -92,7 +92,7 @@ it("renders memory sidecar lines beneath a ledger receipt", () => {
         memory_receipts: [
           {
             action: "updated",
-            type: "约定",
+            section: "约定",
             before: "- 咖啡记「饮品」",
             after: "- 咖啡记「饮品」，不加糖",
             created_at: CREATED_AT,

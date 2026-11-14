@@ -1,8 +1,9 @@
 /**
- * The memory service semantics: keyword search with recall's substring
- * rule, replace-vs-duplicate, receipts, expiry, the layered prompt
- * section, and the session-scoped off-record gate — against the real
- * storage stack in a fresh temporary directory per case.
+ * The memory service semantics: keyword search with the substring rule,
+ * replace-vs-duplicate, receipts, expiry, the whole-book prompt section,
+ * and the session-scoped off-record gate — against the real storage stack
+ * in a fresh temporary directory per case. Also the human maintenance
+ * resetMemory, including the corrupt-file recovery path.
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -21,6 +22,7 @@ import type {
 
 const dataRoot = mkdtempSync(path.join(tmpdir(), "toby-memory-service-"));
 const BASE_MS = Date.parse("2026-11-14T08:00:00.000Z");
+const BASE_ISO = new Date(BASE_MS).toISOString();
 
 let nowMs = BASE_MS;
 let caseCounter = 0;
@@ -49,95 +51,22 @@ function seed(file: string, entries: readonly MemoryEntry[]): void {
   writeFileSync(file, serializeMemoryMarkdown({ entries }), "utf8");
 }
 
-describe("memory service: list / recall / export", () => {
-  it("lists entries 约定 → 关于我 → 人物 with expiry resolved", async () => {
+describe("memory service: export", () => {
+  it("readFile returns the raw file, or the empty book when missing", async () => {
     const { service, file } = buildService();
-    seed(file, [
-      { type: "人物", name: "小王", text: "房东" },
-      { type: "约定", text: "过期约定", until: "2026-11-13" },
-      { type: "约定", text: "咖啡记「饮品」" },
-      { type: "关于我", text: "不吃香菜" },
-      { type: "人物", name: "妈妈", text: "退休教师", until: "2026-11-15" },
-    ]);
-    const { entries } = await service.list();
-    expect(entries).toEqual([
-      { type: "约定", text: "过期约定", until: "2026-11-13", expired: true },
-      { type: "约定", text: "咖啡记「饮品」", expired: false },
-      { type: "关于我", text: "不吃香菜", expired: false },
-      { type: "人物", name: "小王", text: "房东", expired: false },
-      {
-        type: "人物",
-        name: "妈妈",
-        text: "退休教师",
-        until: "2026-11-15",
-        expired: false,
-      },
-    ]);
-  });
-
-  it("expiry is date-level: until today is not expired, until yesterday is", async () => {
-    const { service, file } = buildService();
-    seed(file, [
-      { type: "约定", text: "今天到期", until: "2026-11-14" },
-      { type: "约定", text: "昨天到期", until: "2026-11-13" },
-    ]);
-    const { entries } = await service.list();
-    expect(entries.map((entry) => entry.expired)).toEqual([false, true]);
-  });
-
-  it("recall matches names and texts, case-insensitively, non-expired only", async () => {
-    const { service, file } = buildService();
-    seed(file, [
-      { type: "人物", name: "Tim", text: "钢琴老师" },
-      { type: "关于我", text: "Coffee 只喝美式" },
-      { type: "约定", text: "咖啡记「饮品」", until: "2026-11-13" },
-    ]);
-    expect((await service.recall("tim")).map((entry) => entry.name)).toEqual([
-      "Tim",
-    ]);
-    expect((await service.recall("COFFEE")).map((entry) => entry.text)).toEqual(
-      ["Coffee 只喝美式"],
+    expect(await service.readFile()).toBe(
+      serializeMemoryMarkdown({ entries: [] }),
     );
-    // Expired entries never come back, whatever the keyword.
-    expect(await service.recall("咖啡记")).toEqual([]);
-    // An empty keyword flips through the whole book: every non-expired
-    // entry, in section order (约定 → 关于我 → 人物) — the 你记得我什么 case.
-    expect((await service.recall("")).map((entry) => entry.text)).toEqual([
-      "Coffee 只喝美式",
-      "钢琴老师",
-    ]);
-    expect(await service.recall("   ")).toEqual(await service.recall(""));
-    // Section headings and 至 markers never match.
-    expect(await service.recall("关于我")).toEqual([]);
-    expect(await service.recall("2026-11-13")).toEqual([]);
-  });
-
-  it("an empty keyword lists every non-expired entry across types", async () => {
-    const { service, file } = buildService();
-    seed(file, [
-      { type: "约定", text: "咖啡记「饮品」" },
-      { type: "关于我", text: "不吃香菜" },
-      { type: "人物", name: "小王", text: "房东" },
-      { type: "约定", text: "过期约定", until: "2026-11-13" },
-    ]);
-    const all = await service.recall("");
-    expect(all).toEqual([
-      { type: "约定", text: "咖啡记「饮品」", expired: false },
-      { type: "关于我", text: "不吃香菜", expired: false },
-      { type: "人物", name: "小王", text: "房东", expired: false },
-    ]);
+    seed(file, [{ section: "约定", text: "咖啡记「饮品」" }]);
+    expect(await service.readFile()).toBe("## 约定\n\n- 咖啡记「饮品」\n");
     void file;
   });
 
-  it("exportMarkdown returns the raw file, or the empty skeleton when missing", async () => {
+  it("readFile still answers the raw bytes of a corrupt file", async () => {
     const { service, file } = buildService();
-    expect(await service.exportMarkdown()).toBe(
-      serializeMemoryMarkdown({ entries: [] }),
-    );
-    seed(file, [{ type: "约定", text: "咖啡记「饮品」" }]);
-    expect(await service.exportMarkdown()).toBe(
-      "## 约定\n\n- 咖啡记「饮品」\n\n## 关于我\n\n\n## 人物\n\n",
-    );
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, "这不是记忆文件\n", "utf8");
+    expect(await service.readFile()).toBe("这不是记忆文件\n");
   });
 });
 
@@ -145,7 +74,7 @@ describe("memory service: remember", () => {
   it("appends and answers a receipt quoting the landed line", async () => {
     const { service, file } = buildService();
     const result = await service.remember({
-      type: "约定",
+      section: "约定",
       text: "咖啡记「饮品」",
     });
     if (result.kind !== "receipt") {
@@ -153,14 +82,11 @@ describe("memory service: remember", () => {
     }
     expect(result.receipt).toEqual({
       action: "remembered",
-      type: "约定",
+      section: "约定",
       after: "- 咖啡记「饮品」",
-      created_at: new Date(BASE_MS).toISOString(),
+      created_at: BASE_ISO,
     });
-    expect((await service.list()).entries).toEqual([
-      { type: "约定", text: "咖啡记「饮品」", expired: false },
-    ]);
-    expect(await service.exportMarkdown()).toContain("- 咖啡记「饮品」");
+    expect(await service.readFile()).toBe("## 约定\n\n- 咖啡记「饮品」\n");
     void file;
   });
 
@@ -168,21 +94,21 @@ describe("memory service: remember", () => {
     const { service, file } = buildService();
     // Whitespace settles; the receipt quotes the stored line.
     const result = await service.remember({
-      type: "人物",
-      name: "  小王 ",
-      text: " 房东 ",
+      section: " 人物 ",
+      text: " 小王: 房东 ",
     });
     if (result.kind !== "receipt") {
       throw new Error(`expected a receipt, got ${result.kind}`);
     }
+    expect(result.receipt.section).toBe("人物");
     expect(result.receipt.after).toBe("- 小王: 房东");
     for (const bad of [
-      { type: "约定" as const, text: "   " },
-      { type: "约定" as const, text: "两\n行" },
-      { type: "人物" as const, text: "没有名字" },
-      { type: "人物" as const, name: "小王", text: "" },
-      { type: "约定" as const, text: "x", until: "2026-02-30" },
-      { type: "约定" as const, text: "自带 (至 2026-11-30)" },
+      { section: "约定", text: "   " },
+      { section: "约定", text: "两\n行" },
+      { section: "", text: "x" },
+      { section: "x".repeat(25), text: "x" },
+      { section: "约定", text: "x", until: "2026-02-30" },
+      { section: "约定", text: "自带 (至 2026-11-30)" },
     ]) {
       await expect(service.remember(bad)).rejects.toMatchObject({
         code: "INVALID_ENTRY",
@@ -190,34 +116,35 @@ describe("memory service: remember", () => {
       });
     }
     // Rejected writes changed nothing.
-    expect((await service.list()).entries).toEqual([
-      { type: "人物", name: "小王", text: "房东", expired: false },
-    ]);
+    expect(await service.buildMemorySection()).toBe("## 人物\n- 小王: 房东");
     void file;
   });
 
-  it("answers already-remembered for an identical line, without writing", async () => {
-    const { service } = buildService();
-    await service.remember({ type: "约定", text: "咖啡记「饮品」" });
+  it("answers already-remembered for an identical line anywhere in the book", async () => {
+    const { service, file } = buildService();
+    await service.remember({ section: "约定", text: "咖啡记「饮品」" });
+    // Same text, a different section: still the same rendered line, so
+    // the whole-book duplicate check answers already-remembered.
     const result = await service.remember({
-      type: "约定",
+      section: "工作",
       text: "咖啡记「饮品」",
     });
     expect(result).toEqual({
       kind: "already-remembered",
       line: "- 咖啡记「饮品」",
     });
-    expect((await service.list()).entries).toHaveLength(1);
+    expect(await service.readFile()).toBe("## 约定\n\n- 咖啡记「饮品」\n");
+    void file;
   });
 
-  it("with replaceKeyword: one hit replaces, never coexists", async () => {
+  it("with replaceKeyword: one hit anywhere replaces, never coexists", async () => {
     const { service, file } = buildService();
     seed(file, [
-      { type: "约定", text: "咖啡记「拿铁」" },
-      { type: "关于我", text: "不吃香菜" },
+      { section: "约定", text: "咖啡记「拿铁」" },
+      { section: "关于我", text: "不吃香菜" },
     ]);
     const result = await service.remember({
-      type: "约定",
+      section: "工作",
       text: "咖啡记「饮品」",
       replaceKeyword: "咖啡",
     });
@@ -225,22 +152,22 @@ describe("memory service: remember", () => {
       throw new Error(`expected a receipt, got ${result.kind}`);
     }
     expect(result.receipt.action).toBe("updated");
+    expect(result.receipt.section).toBe("工作");
     expect(result.receipt.before).toBe("- 咖啡记「拿铁」");
     expect(result.receipt.after).toBe("- 咖啡记「饮品」");
-    expect((await service.list()).entries).toEqual([
-      { type: "约定", text: "咖啡记「饮品」", expired: false },
-      { type: "关于我", text: "不吃香菜", expired: false },
-    ]);
+    expect(await service.readFile()).toBe(
+      "## 工作\n\n- 咖啡记「饮品」\n\n## 关于我\n\n- 不吃香菜\n",
+    );
   });
 
   it("with replaceKeyword: several hits refuse with rendered candidates", async () => {
     const { service, file } = buildService();
     seed(file, [
-      { type: "约定", text: "咖啡记「饮品」" },
-      { type: "关于我", text: "咖啡只喝美式" },
+      { section: "约定", text: "咖啡记「饮品」" },
+      { section: "关于我", text: "咖啡只喝美式" },
     ]);
     const result = await service.remember({
-      type: "约定",
+      section: "约定",
       text: "新约定",
       replaceKeyword: "咖啡",
     });
@@ -248,13 +175,16 @@ describe("memory service: remember", () => {
       kind: "ambiguous",
       candidates: ["- 咖啡记「饮品」", "- 咖啡只喝美式"],
     });
-    expect((await service.list()).entries).toHaveLength(2);
+    // The refusal changed nothing.
+    expect(await service.readFile()).toBe(
+      "## 约定\n\n- 咖啡记「饮品」\n\n## 关于我\n\n- 咖啡只喝美式\n",
+    );
   });
 
   it("with replaceKeyword: zero hits appends as new", async () => {
     const { service } = buildService();
     const result = await service.remember({
-      type: "约定",
+      section: "约定",
       text: "咖啡记「饮品」",
       replaceKeyword: "不存在的词",
     });
@@ -262,17 +192,17 @@ describe("memory service: remember", () => {
       throw new Error(`expected a receipt, got ${result.kind}`);
     }
     expect(result.receipt.action).toBe("remembered");
-    expect((await service.list()).entries).toHaveLength(1);
+    expect(await service.readFile()).toBe("## 约定\n\n- 咖啡记「饮品」\n");
   });
 
   it("replaceKeyword only ever hits non-expired entries", async () => {
     const { service, file } = buildService();
     seed(file, [
-      { type: "约定", text: "咖啡记「饮品」", until: "2026-11-13" },
-      { type: "关于我", text: "咖啡只喝美式" },
+      { section: "约定", text: "咖啡记「饮品」", until: "2026-11-13" },
+      { section: "关于我", text: "咖啡只喝美式" },
     ]);
     const result = await service.remember({
-      type: "关于我",
+      section: "关于我",
       text: "咖啡都喝美式",
       replaceKeyword: "咖啡",
     });
@@ -281,10 +211,9 @@ describe("memory service: remember", () => {
     }
     // The expired 约定 was invisible to the search; the 关于我 line moved.
     expect(result.receipt.before).toBe("- 咖啡只喝美式");
-    expect((await service.list()).entries[0]).toMatchObject({
-      text: "咖啡记「饮品」",
-      expired: true,
-    });
+    expect(await service.readFile()).toBe(
+      "## 约定\n\n- 咖啡记「饮品」 (至 2026-11-13)\n\n## 关于我\n\n- 咖啡都喝美式\n",
+    );
   });
 });
 
@@ -292,26 +221,63 @@ describe("memory service: forget", () => {
   it("deletes the one hit and answers a receipt with before only", async () => {
     const { service, file } = buildService();
     seed(file, [
-      { type: "约定", text: "咖啡记「饮品」" },
-      { type: "关于我", text: "不吃香菜" },
+      { section: "约定", text: "咖啡记「饮品」" },
+      { section: "关于我", text: "不吃香菜" },
     ]);
     const result = await service.forget("饮品");
     if (result.kind !== "receipt") {
       throw new Error(`expected a receipt, got ${result.kind}`);
     }
     expect(result.receipt.action).toBe("forgot");
+    expect(result.receipt.section).toBe("约定");
     expect(result.receipt.before).toBe("- 咖啡记「饮品」");
     expect(result.receipt.after).toBeUndefined();
-    expect((await service.list()).entries).toEqual([
-      { type: "关于我", text: "不吃香菜", expired: false },
+    expect(await service.readFile()).toBe("## 关于我\n\n- 不吃香菜\n");
+  });
+
+  it("keyword matching is a substring over all non-expired texts, any section", async () => {
+    const { service, file } = buildService();
+    seed(file, [
+      { section: "人物", text: "小王: 房东" },
+      { section: "关于我", text: "Coffee 只喝美式" },
+      { section: "约定", text: "咖啡记「饮品」", until: "2026-11-13" },
     ]);
+    // The colon style keeps the name inside the text, so names match too.
+    const hit = await service.forget("小王");
+    expect(hit).toEqual({
+      kind: "receipt",
+      receipt: {
+        action: "forgot",
+        section: "人物",
+        before: "- 小王: 房东",
+        created_at: BASE_ISO,
+      },
+    });
+    // Case-insensitive, across sections.
+    const second = await service.forget("coffee");
+    expect(second).toEqual({
+      kind: "receipt",
+      receipt: expect.objectContaining({
+        action: "forgot",
+        section: "关于我",
+        before: "- Coffee 只喝美式",
+      }),
+    });
+    // Expired entries never match, whatever the keyword.
+    expect(await service.forget("咖啡记")).toEqual({ kind: "nothing-matched" });
+    // Headings and 至 markers never match.
+    expect(await service.forget("约定")).toEqual({ kind: "nothing-matched" });
+    expect(await service.forget("2026-11-13")).toEqual({
+      kind: "nothing-matched",
+    });
+    void file;
   });
 
   it("several hits are ambiguous; zero hits answer nothing-matched", async () => {
     const { service, file } = buildService();
     seed(file, [
-      { type: "约定", text: "咖啡记「饮品」" },
-      { type: "关于我", text: "咖啡只喝美式" },
+      { section: "约定", text: "咖啡记「饮品」" },
+      { section: "关于我", text: "咖啡只喝美式" },
     ]);
     expect(await service.forget("咖啡")).toEqual({
       kind: "ambiguous",
@@ -320,192 +286,111 @@ describe("memory service: forget", () => {
     expect(await service.forget("不存在的词")).toEqual({
       kind: "nothing-matched",
     });
-    expect((await service.list()).entries).toHaveLength(2);
+    // The ambiguous refusal and the miss changed nothing.
+    expect(await service.readFile()).toBe(
+      "## 约定\n\n- 咖啡记「饮品」\n\n## 关于我\n\n- 咖啡只喝美式\n",
+    );
   });
 
   it("expired entries are not forgettable by keyword", async () => {
     const { service, file } = buildService();
     seed(file, [
-      { type: "约定", text: "出差餐饮记「差旅」", until: "2026-11-13" },
+      { section: "约定", text: "出差餐饮记「差旅」", until: "2026-11-13" },
     ]);
     expect(await service.forget("差旅")).toEqual({ kind: "nothing-matched" });
-    expect((await service.list()).entries).toHaveLength(1);
+    expect(await service.readFile()).toBe(
+      "## 约定\n\n- 出差餐饮记「差旅」 (至 2026-11-13)\n",
+    );
   });
 });
 
-describe("memory service: replaceExact", () => {
-  it("replaces by exact full line and answers before/after", async () => {
+describe("memory service: resetMemory", () => {
+  it("empties a populated book: export and the prompt section go empty", async () => {
     const { service, file } = buildService();
-    seed(file, [{ type: "人物", name: "小王", text: "同事" }]);
-    const result = await service.replaceExact(
-      { type: "人物", name: "小王", text: "同事" },
-      { type: "人物", name: "小王", text: "房东" },
-    );
-    if (result.kind !== "receipt") {
-      throw new Error(`expected a receipt, got ${result.kind}`);
-    }
-    expect(result.receipt.action).toBe("updated");
-    expect(result.receipt.before).toBe("- 小王: 同事");
-    expect(result.receipt.after).toBe("- 小王: 房东");
-    expect((await service.list()).entries).toEqual([
-      { type: "人物", name: "小王", text: "房东", expired: false },
-    ]);
-  });
-
-  it("deletes with next = null", async () => {
-    const { service, file } = buildService();
-    seed(file, [{ type: "约定", text: "咖啡记「饮品」" }]);
-    const result = await service.replaceExact(
-      { type: "约定", text: "咖啡记「饮品」" },
-      null,
-    );
-    if (result.kind !== "receipt") {
-      throw new Error(`expected a receipt, got ${result.kind}`);
-    }
-    expect(result.receipt.action).toBe("forgot");
-    expect((await service.list()).entries).toEqual([]);
-  });
-
-  it("zero matches throw ENTRY_NOT_FOUND; a duplicated line throws AMBIGUOUS_ENTRY", async () => {
-    const { service, file } = buildService();
-    seed(file, [{ type: "约定", text: "咖啡记「饮品」" }]);
-    await expect(
-      service.replaceExact({ type: "约定", text: "不存在的" }, null),
-    ).rejects.toMatchObject({ code: "ENTRY_NOT_FOUND", statusCode: 404 });
-
     seed(file, [
-      { type: "约定", text: "重复的一行" },
-      { type: "约定", text: "重复的一行" },
+      { section: "约定", text: "咖啡记「饮品」" },
+      { section: "人物", text: "小王: 房东" },
     ]);
-    await expect(
-      service.replaceExact({ type: "约定", text: "重复的一行" }, null),
-    ).rejects.toMatchObject({ code: "AMBIGUOUS_ENTRY", statusCode: 409 });
-    expect((await service.list()).entries).toHaveLength(2);
+    expect(await service.resetMemory()).toEqual({ reset_at: BASE_ISO });
+    // The file is the empty book, and it parses as the empty book.
+    expect(await service.readFile()).toBe("");
+    expect(await service.buildMemorySection()).toBe("");
+    void file;
   });
 
-  it("works on expired entries too — the page's veto does not expire", async () => {
+  it("discards a corrupt file — the documented recovery path — and the book is writable again", async () => {
     const { service, file } = buildService();
-    seed(file, [{ type: "约定", text: "过期约定", until: "2026-11-13" }]);
-    const result = await service.replaceExact(
-      { type: "约定", text: "过期约定", until: "2026-11-13" },
-      { type: "约定", text: "续期约定", until: "2027-11-13" },
-    );
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, "这不是记忆文件\n", "utf8");
+    // The raw bytes are still readable (export reads raw), but every
+    // parsed view refuses.
+    expect(await service.readFile()).toBe("这不是记忆文件\n");
+    await expect(service.buildMemorySection()).rejects.toMatchObject({
+      code: "MEMORY_FILE_INVALID",
+    });
+
+    expect(await service.resetMemory()).toEqual({ reset_at: BASE_ISO });
+    // Explicit discard, not repair-in-place: the file is now the empty
+    // book, which parses.
+    expect(await service.readFile()).toBe("");
+    expect(await service.buildMemorySection()).toBe("");
+
+    // And the book takes writes again.
+    const result = await service.remember({
+      section: "约定",
+      text: "重新开始",
+    });
     if (result.kind !== "receipt") {
       throw new Error(`expected a receipt, got ${result.kind}`);
     }
-    expect(result.receipt.action).toBe("updated");
-    expect((await service.list()).entries[0]).toMatchObject({
-      text: "续期约定",
-      expired: false,
-    });
+    expect(await service.readFile()).toBe("## 约定\n\n- 重新开始\n");
+  });
+
+  it("resetMemory is not gated by off-record", async () => {
+    const { service, file } = buildService();
+    seed(file, [{ section: "约定", text: "咖啡记「饮品」" }]);
+    service.setOffRecord(true);
+    expect(service.isOffRecord("s1")).toBe(true);
+    expect(await service.resetMemory()).toEqual({ reset_at: BASE_ISO });
+    expect(await service.readFile()).toBe("");
+    void file;
   });
 });
 
 describe("memory service: buildMemorySection", () => {
-  it("builds the layered section with all pieces", async () => {
+  it("builds the whole book: every non-expired entry of every section, file order", async () => {
     const { service, file } = buildService();
     seed(file, [
-      { type: "约定", text: "咖啡记「饮品」" },
-      { type: "约定", text: "出差餐饮记「差旅」", until: "2026-11-13" },
-      { type: "关于我", text: "不吃香菜" },
-      { type: "关于我", text: "在减脂" },
-      { type: "人物", name: "小王", text: "房东" },
-      { type: "人物", name: "妈妈", text: "退休教师" },
+      { section: "约定", text: "咖啡记「饮品」" },
+      { section: "约定", text: "出差餐饮记「差旅」", until: "2026-11-13" },
+      { section: "关于我", text: "不吃香菜" },
+      { section: "关于我", text: "在减脂" },
+      { section: "转账", text: "给小王的转账走「人情往来」" },
+      { section: "人物", text: "小王: 房东" },
+      { section: "人物", text: "妈妈: 退休教师" },
     ]);
-    expect(
-      await service.buildMemorySection({
-        conventions: true,
-        peopleIndex: true,
-        aboutIndex: true,
-        sentence: "帮小王交房租",
-      }),
-    ).toBe(["## 约定\n- 咖啡记「饮品」", "## 人物\n- 小王: 房东"].join("\n\n"));
-    // The same request without a sentence is the tool-carrying agent's
-    // view: full index, no hits block (no sentence to hit against).
-    expect(
-      await service.buildMemorySection({
-        conventions: true,
-        peopleIndex: true,
-        aboutIndex: true,
-      }),
-    ).toBe(
+    expect(await service.buildMemorySection()).toBe(
       [
         "## 约定\n- 咖啡记「饮品」",
-        "## 记忆索引 — 详情用 recall 工具查询\n人物: 小王、妈妈\n关于我: 不吃香菜；在减脂",
+        "## 关于我\n- 不吃香菜\n- 在减脂",
+        "## 转账\n- 给小王的转账走「人情往来」",
+        "## 人物\n- 小王: 房东\n- 妈妈: 退休教师",
       ].join("\n\n"),
     );
-  });
-
-  it("omits empty pieces and still emits the index heading when both indexes are requested", async () => {
-    const { service, file } = buildService();
-    seed(file, [{ type: "约定", text: "咖啡记「饮品」" }]);
-    expect(
-      await service.buildMemorySection({
-        conventions: true,
-        peopleIndex: true,
-        aboutIndex: true,
-      }),
-    ).toBe("## 约定\n- 咖啡记「饮品」\n\n## 记忆索引 — 详情用 recall 工具查询");
-    // One index requested with an empty list: no block at all.
-    expect(
-      await service.buildMemorySection({
-        conventions: false,
-        peopleIndex: true,
-        aboutIndex: false,
-      }),
-    ).toBe("");
-    // Everything requested empty → empty string.
-    expect(
-      await service.buildMemorySection({
-        conventions: false,
-        peopleIndex: false,
-        aboutIndex: false,
-      }),
-    ).toBe("");
     void file;
   });
 
-  it("sentence hits list full 人物 lines without the index line; expired entries appear nowhere", async () => {
+  it("expired entries appear nowhere; an empty book builds the empty string", async () => {
     const { service, file } = buildService();
+    expect(await service.buildMemorySection()).toBe("");
     seed(file, [
-      { type: "人物", name: "小王", text: "房东", until: "2026-11-13" },
-      { type: "人物", name: "小王", text: "球友" },
-      { type: "约定", text: "过期约定", until: "2026-11-13" },
+      { section: "约定", text: "过期约定", until: "2026-11-13" },
+      { section: "关于我", text: "不吃香菜" },
     ]);
-    // False hits (小王 inside 小王子) are accepted — the model's job.
-    // The sentence mechanism rides with peopleIndex, and a sentence means
-    // no index line: the read-time agent carries the tools itself, so the
-    // heading that names one would go stale.
-    expect(
-      await service.buildMemorySection({
-        conventions: false,
-        peopleIndex: true,
-        aboutIndex: false,
-        sentence: "小王子的花",
-      }),
-    ).toBe("## 人物\n- 小王: 球友");
-    // The expired 约定 never enters the section; without it nothing is left.
-    expect(
-      await service.buildMemorySection({
-        conventions: true,
-        peopleIndex: false,
-        aboutIndex: false,
-      }),
-    ).toBe("");
-    void file;
-  });
-
-  it("sentence matching is case-insensitive over names", async () => {
-    const { service, file } = buildService();
-    seed(file, [{ type: "人物", name: "Tim", text: "钢琴老师" }]);
-    expect(
-      await service.buildMemorySection({
-        conventions: false,
-        peopleIndex: true,
-        aboutIndex: false,
-        sentence: "问 tim 下节课",
-      }),
-    ).toBe("## 人物\n- Tim: 钢琴老师");
+    expect(await service.buildMemorySection()).toBe("## 关于我\n- 不吃香菜");
+    // A section whose every entry expired contributes no heading at all.
+    seed(file, [{ section: "约定", text: "过期约定", until: "2026-11-13" }]);
+    expect(await service.buildMemorySection()).toBe("");
     void file;
   });
 });

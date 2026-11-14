@@ -54,7 +54,7 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
           ? {
               memory: async () => {
                 try {
-                  return await deps.memory!.sectionForChat();
+                  return await deps.memory!.sectionFor();
                 } catch {
                   return "（记忆文件当前无法读取）";
                 }

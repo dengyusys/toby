@@ -12,8 +12,8 @@
  * - Tool names appear only in the generated <tools> section. Hand-written
  *   text describes behaviour, never procedures, so a renamed tool cannot
  *   leave a stale name behind in prose (a violation fails assembly). The
- *   one exemption is the <memory> section's index heading, which names the
- *   recall tool by design (docs/decisions/personal-agent-memory.md).
+ *   rule has no exceptions — the resolved <memory> text is checked the
+ *   same way as every other section.
  * - <context> is rendered last: it is the only section that changes per
  *   run, so the static prefix ahead of it stays byte-identical for
  *   provider prompt caching. <memory> resolves per run too; its provider
@@ -76,16 +76,21 @@ function uniqueLines(lines: readonly string[], label: string): string[] {
  * lives in the tool definition and the generated <tools> section, and a
  * second mention would go stale on the next rename. Tool guidelines are
  * checked too — rendered under their tool, they can say "this tool".
- * The `<memory>` section is deliberately exempt: its index heading names
- * the recall tool by design
- * (docs/decisions/personal-agent-memory.md, "How it is read").
+ * The resolved <memory> text is checked like every other section: no
+ * exemptions (docs/decisions/personal-agent-memory.md — the index heading
+ * that once named the recall tool no longer exists).
  */
-function assertNoToolNames(spec: TobyPromptSpec, preamble: string): void {
+function assertNoToolNames(
+  spec: TobyPromptSpec,
+  preamble: string,
+  memory?: string,
+): void {
   const prose = [
     preamble,
     ...(spec.rules ?? []),
     ...(spec.context ?? []),
     ...spec.tools.flatMap((entry) => entry.promptGuidelines),
+    memory?.trim() ?? "",
   ].join("\n");
   for (const entry of spec.tools) {
     const name = entry.tool.name;
@@ -105,7 +110,7 @@ export function buildSystemPrompt(
   if (preamble.length === 0) {
     throw new Error("preamble must not be empty");
   }
-  assertNoToolNames(spec, preamble);
+  assertNoToolNames(spec, preamble, memory);
 
   const tools: string[] = [];
   for (const entry of spec.tools) {
@@ -136,9 +141,8 @@ export function buildSystemPrompt(
   // The resolved `<memory>` section (docs/decisions/personal-agent-memory.md):
   // multi-line by nature (it quotes whole entry lines), omitted when empty,
   // and rendered after <rules> so <context> stays last — the per-run prefix
-  // ahead of it remains byte-identical for provider prompt caching. Unlike
-  // every other section it is exempt from the tool-name check above: the
-  // index heading deliberately names the recall tool.
+  // ahead of it remains byte-identical for provider prompt caching. It is
+  // checked by the same no-tool-names rule as every other section.
   const memoryText = memory?.trim() ?? "";
   if (memoryText.length > 0) {
     parts.push(["<memory>", memoryText, "</memory>"].join("\n"));

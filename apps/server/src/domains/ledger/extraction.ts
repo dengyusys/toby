@@ -58,12 +58,13 @@ export type LedgerDraft =
 
 /**
  * The memory wiring port (docs/decisions/personal-agent-memory.md): the
- * sentence-scoped `<memory>` section plus the shared conversational
- * memory tools. A wiring port, not a domain import — the composition root
- * binds the memory service to it.
+ * whole-book `<memory>` section plus the shared conversational memory
+ * tools. A wiring port, not a domain import — the composition root binds
+ * the memory service to it.
  */
 export interface LedgerMemoryPort {
-  sectionFor(sentence: string): Promise<string>;
+  /** The whole book, resolved fresh per run. */
+  sectionFor(): Promise<string>;
   readonly tools: readonly TobyTool[];
 }
 
@@ -201,7 +202,7 @@ export function createLedgerExtractor(deps: {
         },
       });
 
-      // The sentence-scoped `<memory>` section, resolved per run
+      // The whole-book `<memory>` section, resolved per run
       // (docs/decisions/personal-agent-memory.md); a corrupt memory file
       // degrades to one honest line instead of failing the extraction.
       const memorySection =
@@ -210,7 +211,7 @@ export function createLedgerExtractor(deps: {
           : async (): Promise<string> => {
               const port = memory;
               try {
-                return await port.sectionFor(text);
+                return await port.sectionFor();
               } catch {
                 return "（记忆文件当前无法读取）";
               }

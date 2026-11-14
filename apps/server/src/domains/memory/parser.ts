@@ -4,22 +4,20 @@
  * of MEMORY.md either parses or rejects the file; serialize ∘ parse is
  * stable, so hand edits and domain writes share one file forever.
  *
- * Format: exactly three `##` headings in fixed order (`## 约定`,
- * `## 关于我`, `## 人物`); blank lines allowed anywhere; every other
- * non-empty line must be an entry line `- text`, or `- name: text` under
- * 人物, with one optional trailing expiry marker ` (至 YYYY-MM-DD)`.
- * Dates are checked against the real calendar by hand — no Date parsing.
+ * Format: open topic sections — any `## <name>` heading (the name is
+ * non-empty, trimmed, at most 24 characters, and unique in the file; a
+ * duplicate heading is invalid — merge instead), followed by entry lines
+ * `- text`, each with one optional trailing expiry marker
+ * ` (至 YYYY-MM-DD)` and nothing else. Blank lines are allowed anywhere;
+ * an empty file is the empty book. Dates are checked against the real
+ * calendar by hand — no Date parsing.
  */
 
 import { MemoryFileInvalidError } from "./errors.ts";
-import type { MemoryEntry, MemoryType, ParsedMemory } from "./types.ts";
+import type { MemoryEntry, ParsedMemory } from "./types.ts";
 
-/** The fixed section order: also the file layout and the list order. */
-export const MEMORY_SECTION_ORDER: readonly MemoryType[] = [
-  "约定",
-  "关于我",
-  "人物",
-];
+/** Section names are short: the bound on a heading (and on entry.section). */
+export const MEMORY_SECTION_MAX_CHARS = 24;
 
 /** The expiry marker at end of line: one space, then ` (至 YYYY-MM-DD)`. */
 const UNTIL_MARKER_RE = /\s+\(至 (\d{4}-\d{2}-\d{2})\)\s*$/;
@@ -59,31 +57,50 @@ export function isValidMemoryDate(text: string): boolean {
   );
 }
 
-/**
- * The rendered file line of one entry — also the exact-match key the
- * service uses for duplicates and replaceExact: `- text (至 date)` or
- * `- name: text (至 date)`.
- */
-export function renderMemoryLine(entry: MemoryEntry): string {
-  const body =
-    entry.type === "人物" ? `${entry.name ?? ""}: ${entry.text}` : entry.text;
-  return `- ${body}${entry.until === undefined ? "" : ` (至 ${entry.until})`}`;
+/** Character count over code points, so any script counts fairly. */
+function charLength(text: string): number {
+  return [...text].length;
 }
 
 /**
- * The one validation rulebook for a single entry, shared by the parser
- * (a problem rejects the file) and the service (a problem rejects the
- * write with INVALID_ENTRY). Returns a human-readable problem, or null
- * when the entry is valid.
+ * The one rulebook for a section name, shared by the parser (a bad
+ * heading rejects the file), the service (a bad name rejects the write
+ * with INVALID_ENTRY) and the page's rename. Returns a human-readable
+ * problem, or null when the name is valid.
+ */
+export function memorySectionNameProblem(name: string): string | null {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    return "section must not be empty";
+  }
+  if (charLength(trimmed) > MEMORY_SECTION_MAX_CHARS) {
+    return `section must be at most ${MEMORY_SECTION_MAX_CHARS} characters`;
+  }
+  return null;
+}
+
+/**
+ * The rendered file line of one entry — also the exact-match key the
+ * service uses for duplicate detection: `- text (至 date)`.
+ */
+export function renderMemoryLine(entry: MemoryEntry): string {
+  return `- ${entry.text}${entry.until === undefined ? "" : ` (至 ${entry.until})`}`;
+}
+
+/**
+ * The one validation rulebook for a single entry, shared by the service
+ * (a problem rejects the write with INVALID_ENTRY) and the parser's own
+ * line rules. Returns a human-readable problem, or null when the entry
+ * is valid.
  */
 export function memoryEntryProblem(entry: {
-  type: MemoryType;
+  section: string;
   text: string;
-  name?: string;
   until?: string;
 }): string | null {
-  if (!MEMORY_SECTION_ORDER.includes(entry.type)) {
-    return "type must be one of 约定 / 关于我 / 人物";
+  const sectionProblem = memorySectionNameProblem(entry.section);
+  if (sectionProblem !== null) {
+    return sectionProblem;
   }
   const text = entry.text.trim();
   if (text.length === 0) {
@@ -100,18 +117,6 @@ export function memoryEntryProblem(entry: {
   ) {
     return "text must not end with a (至 date) marker — pass until instead";
   }
-  if (entry.type === "人物") {
-    const name = (entry.name ?? "").trim();
-    if (name.length === 0) {
-      return "a 人物 entry needs a non-empty name";
-    }
-    if (name.includes(":")) {
-      return 'name must not contain ":"';
-    }
-    if (/[\r\n]/.test(name)) {
-      return "name must be a single line";
-    }
-  }
   if (entry.until !== undefined && !isValidMemoryDate(entry.until.trim())) {
     return `until is not a real calendar date: ${entry.until}`;
   }
@@ -124,10 +129,10 @@ function invalid(lineNumber: number, detail: string): MemoryFileInvalidError {
   );
 }
 
-/** One entry from the text after `- `, per its section's rules. */
+/** One entry from the text after `- `. */
 function entryFromLine(
   body: string,
-  type: MemoryType,
+  section: string,
   lineNumber: number,
 ): MemoryEntry {
   const markerMatch = UNTIL_MARKER_RE.exec(body);
@@ -145,36 +150,21 @@ function entryFromLine(
   if (text.length === 0) {
     throw invalid(lineNumber, "条目内容不能为空");
   }
-  if (type === "人物") {
-    const colonIndex = text.indexOf(":");
-    if (colonIndex < 0) {
-      throw invalid(lineNumber, "人物条目需要 name: text 形式");
-    }
-    const name = text.slice(0, colonIndex).trim();
-    const entryText = text.slice(colonIndex + 1).trim();
-    if (name.length === 0 || entryText.length === 0) {
-      throw invalid(lineNumber, "人物条目的 name 和 text 都不能为空");
-    }
-    return {
-      type,
-      name,
-      text: entryText,
-      ...(until === undefined ? {} : { until }),
-    };
-  }
-  return { type, text, ...(until === undefined ? {} : { until }) };
+  return { section, text, ...(until === undefined ? {} : { until }) };
 }
 
 /**
  * Parse the whole file. The first offending line throws
  * MemoryFileInvalidError with its line number in the message; nothing is
- * ever skipped, repaired or defaulted.
+ * ever skipped, repaired or defaulted. An empty (or blank-only) file is
+ * the empty book — every section starts from a first write.
  */
 export function parseMemoryMarkdown(content: string): ParsedMemory {
   const lines = content.split(/\r\n|\r|\n/);
   const entries: MemoryEntry[] = [];
-  // -1 = before the first heading; then indexes into MEMORY_SECTION_ORDER.
-  let sectionIndex = -1;
+  const seenSections = new Set<string>();
+  // null = before the first heading.
+  let section: string | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i] ?? "";
@@ -183,62 +173,59 @@ export function parseMemoryMarkdown(content: string): ParsedMemory {
     if (line.length === 0) {
       continue;
     }
-    if (line.startsWith("## ")) {
-      const heading = line.slice(3).trim();
-      const expected = MEMORY_SECTION_ORDER[sectionIndex + 1];
-      if (expected === undefined) {
-        throw invalid(lineNumber, `多余的标题「${line}」——只允许三个小节`);
+    if (line.startsWith("##")) {
+      if (line.startsWith("###")) {
+        throw invalid(lineNumber, "只支持二级标题「## 」");
       }
-      if (heading !== expected) {
-        throw invalid(lineNumber, `期望标题「## ${expected}」`);
+      const name = line.slice(2).trim();
+      const nameProblem = memorySectionNameProblem(name);
+      if (nameProblem !== null) {
+        throw invalid(lineNumber, `小节名无效: ${nameProblem}`);
       }
-      sectionIndex += 1;
+      if (seenSections.has(name)) {
+        throw invalid(lineNumber, `重复的小节「${name}」——请合并同名小节`);
+      }
+      seenSections.add(name);
+      section = name;
       continue;
     }
-    if (sectionIndex < 0) {
-      throw invalid(lineNumber, "必须以「## 约定」开头");
+    if (section === null) {
+      throw invalid(lineNumber, "必须以「## 小节名」开头");
     }
     if (!line.startsWith("- ")) {
       throw invalid(lineNumber, `无法解析的行: ${raw.trim()}`);
     }
-    entries.push(
-      entryFromLine(
-        line.slice(2),
-        MEMORY_SECTION_ORDER[sectionIndex] as MemoryType,
-        lineNumber,
-      ),
-    );
+    entries.push(entryFromLine(line.slice(2), section, lineNumber));
   }
 
-  if (sectionIndex < 0) {
-    throw invalid(lines.length, "缺少「## 约定」小节");
-  }
-  const missing = MEMORY_SECTION_ORDER[sectionIndex + 1];
-  if (missing !== undefined) {
-    throw invalid(lines.length, `缺少「## ${missing}」小节`);
-  }
   return { entries };
 }
 
 /**
- * The canonical file text: headings in fixed order, one blank line after
- * each heading, a blank line between sections, entries in file order
- * within their type, and a trailing newline. Empty section = heading +
- * blank line.
+ * The canonical file text: sections in file order (first appearance),
+ * one blank line after each heading, a blank line between sections,
+ * entries in file order within their section, and a trailing newline.
+ * The empty book serializes to the empty string — sections exist only
+ * where entries exist.
  */
 export function serializeMemoryMarkdown(memory: ParsedMemory): string {
-  const lines: string[] = [];
-  for (const type of MEMORY_SECTION_ORDER) {
-    if (lines.length > 0) {
-      lines.push("");
+  // Group by section, first appearance first: a parsed file already has
+  // unique headings, and grouping also makes any hand-built entry list
+  // serialize to a file that parses (never duplicate headings).
+  const order: string[] = [];
+  const blocks = new Map<string, string[]>();
+  for (const entry of memory.entries) {
+    let lines = blocks.get(entry.section);
+    if (lines === undefined) {
+      lines = [`## ${entry.section}`, ""];
+      blocks.set(entry.section, lines);
+      order.push(entry.section);
     }
-    lines.push(`## ${type}`);
-    lines.push("");
-    for (const entry of memory.entries) {
-      if (entry.type === type) {
-        lines.push(renderMemoryLine(entry));
-      }
-    }
+    lines.push(renderMemoryLine(entry));
   }
-  return `${lines.join("\n")}\n`;
+  const rendered: string[] = [];
+  for (const section of order) {
+    rendered.push((blocks.get(section) ?? []).join("\n"));
+  }
+  return rendered.length === 0 ? "" : `${rendered.join("\n\n")}\n`;
 }

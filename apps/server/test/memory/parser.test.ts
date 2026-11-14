@@ -9,6 +9,7 @@ import { MemoryFileInvalidError } from "../../src/domains/memory/errors.ts";
 import {
   isValidMemoryDate,
   memoryEntryProblem,
+  memorySectionNameProblem,
   parseMemoryMarkdown,
   renderMemoryLine,
   serializeMemoryMarkdown,
@@ -24,73 +25,66 @@ const EXAMPLE = `## 约定
 - 不吃香菜
 - 在减脂
 
+## 转账
+
+- 给小王的转账走「人情往来」
+
 ## 人物
 
 - 小王: 房东
 `;
 
 describe("parseMemoryMarkdown", () => {
-  it("parses the three sections into entries in file order", () => {
+  it("parses open sections into entries in file order", () => {
     expect(parseMemoryMarkdown(EXAMPLE).entries).toEqual([
-      { type: "约定", text: "咖啡记「饮品」" },
-      { type: "约定", text: "出差期间餐饮记「差旅」", until: "2026-11-30" },
-      { type: "关于我", text: "不吃香菜" },
-      { type: "关于我", text: "在减脂" },
-      { type: "人物", name: "小王", text: "房东" },
+      { section: "约定", text: "咖啡记「饮品」" },
+      { section: "约定", text: "出差期间餐饮记「差旅」", until: "2026-11-30" },
+      { section: "关于我", text: "不吃香菜" },
+      { section: "关于我", text: "在减脂" },
+      { section: "转账", text: "给小王的转账走「人情往来」" },
+      { section: "人物", text: "小王: 房东" },
     ]);
   });
 
-  it("accepts blank lines anywhere and CRLF line endings", () => {
+  it("accepts blank lines anywhere, CRLF endings, and any topic name", () => {
     const memory = parseMemoryMarkdown(
-      "## 约定\r\n\r\n\r\n- a\r\n\r\n## 关于我\r\n\r\n\r\n## 人物\r\n\r\n",
+      "## 健康\r\n\r\n\r\n- 每天走八千步\r\n\r\n## a\r\n\r\n\r\n- b\r\n\r\n",
     );
-    expect(memory.entries).toEqual([{ type: "约定", text: "a" }]);
+    expect(memory.entries).toEqual([
+      { section: "健康", text: "每天走八千步" },
+      { section: "a", text: "b" },
+    ]);
   });
 
-  it("parses the empty skeleton into no entries", () => {
-    const skeleton = serializeMemoryMarkdown({ entries: [] });
-    expect(parseMemoryMarkdown(skeleton).entries).toEqual([]);
+  it("parses the empty file as the empty book", () => {
+    expect(parseMemoryMarkdown("").entries).toEqual([]);
+    expect(parseMemoryMarkdown("\n\n").entries).toEqual([]);
   });
 
   it("rejects bad lines with the offending line number", () => {
     const bad: readonly [string, RegExp][] = [
-      ["hello\n", /第 1 行.*必须以「## 约定」开头/],
-      ["## 人物\n\n- a: b\n\n\n\n", /第 1 行.*期望标题「## 约定」/],
-      // A fourth heading is not allowed.
+      // An entry line before any heading.
+      ["- a\n", /第 1 行.*必须以「## 小节名」开头/],
+      // A heading with no name.
+      ["##\n", /第 1 行.*小节名无效/],
+      ["##   \n\n- a\n", /第 1 行.*小节名无效/],
+      // A third-level heading is not allowed.
+      ["## 约定\n\n### 子标题\n", /第 3 行.*只支持二级标题/],
+      // A duplicate heading is invalid — merge instead.
       [
-        "## 约定\n\n\n## 关于我\n\n\n## 人物\n\n- a: b\n\n## 人物\n\n",
-        /第 11 行.*多余的标题/,
+        "## 约定\n\n- a\n\n## 工作\n\n- b\n\n## 约定\n\n- c\n",
+        /第 9 行.*重复的小节「约定」/,
       ],
-      // Missing tail sections.
-      ["## 约定\n\n- a\n", /第 4 行.*缺少「## 关于我」小节/],
-      ["## 约定\n\n\n## 关于我\n\n", /第 6 行.*缺少「## 人物」小节/],
+      // Names are bounded.
+      [`## ${"x".repeat(25)}\n`, /第 1 行.*小节名无效/],
       // Not an entry line.
-      [
-        "## 约定\n\n\n## 关于我\n\n随便一句话\n\n## 人物\n\n",
-        /第 6 行.*无法解析的行/,
-      ],
+      ["## 约定\n\n随便一句话\n", /第 3 行.*无法解析的行/],
       // Empty entry text.
-      [
-        "## 约定\n\n-   \n\n## 关于我\n\n\n## 人物\n\n",
-        /第 3 行.*无法解析的行/,
-      ],
+      ["## 约定\n\n-   \n", /第 3 行.*无法解析的行/],
       // A marker with no text before it.
-      [
-        "## 约定\n\n-  (至 2026-11-30)\n\n## 关于我\n\n\n## 人物\n\n",
-        /第 3 行.*条目内容不能为空/,
-      ],
-      // 人物 needs name: text.
-      [
-        "## 约定\n\n\n## 关于我\n\n\n## 人物\n\n- 没有冒号\n",
-        /第 9 行.*name: text/,
-      ],
-      ["## 约定\n\n\n## 关于我\n\n\n## 人物\n\n- : 只有正文\n", /第 9 行/],
-      ["## 约定\n\n\n## 关于我\n\n\n## 人物\n\n- 小王: \n", /第 9 行/],
+      ["## 约定\n\n-  (至 2026-11-30)\n", /第 3 行.*条目内容不能为空/],
       // Shape-valid but impossible dates are rejected, never stored.
-      [
-        "## 约定\n\n- x (至 2026-02-30)\n\n## 关于我\n\n\n## 人物\n\n",
-        /第 3 行.*不是真实日期.*2026-02-30/,
-      ],
+      ["## 约定\n\n- x (至 2026-02-30)\n", /第 3 行.*不是真实日期.*2026-02-30/],
     ];
     for (const [content, message] of bad) {
       let error: unknown;
@@ -108,23 +102,22 @@ describe("parseMemoryMarkdown", () => {
     }
   });
 
-  it("rejects a blank file", () => {
-    expect(() => parseMemoryMarkdown("")).toThrow(MemoryFileInvalidError);
-    expect(() => parseMemoryMarkdown("\n\n")).toThrow(MemoryFileInvalidError);
+  it("still rejects a file of unparseable prose", () => {
+    expect(() => parseMemoryMarkdown("这不是记忆文件\n")).toThrow(
+      MemoryFileInvalidError,
+    );
   });
 });
 
 describe("serializeMemoryMarkdown", () => {
-  it("writes headings in fixed order with one blank line after each", () => {
-    expect(serializeMemoryMarkdown({ entries: [] })).toBe(
-      "## 约定\n\n\n## 关于我\n\n\n## 人物\n\n",
-    );
+  it("serializes the empty book to the empty string", () => {
+    expect(serializeMemoryMarkdown({ entries: [] })).toBe("");
   });
 
-  it("groups entries by type, in file order within a type", () => {
+  it("writes sections in file order, one blank line after each heading", () => {
     const memory = parseMemoryMarkdown(EXAMPLE);
     expect(serializeMemoryMarkdown(memory)).toBe(
-      "## 约定\n\n- 咖啡记「饮品」\n- 出差期间餐饮记「差旅」 (至 2026-11-30)\n\n## 关于我\n\n- 不吃香菜\n- 在减脂\n\n## 人物\n\n- 小王: 房东\n",
+      "## 约定\n\n- 咖啡记「饮品」\n- 出差期间餐饮记「差旅」 (至 2026-11-30)\n\n## 关于我\n\n- 不吃香菜\n- 在减脂\n\n## 转账\n\n- 给小王的转账走「人情往来」\n\n## 人物\n\n- 小王: 房东\n",
     );
   });
 
@@ -136,10 +129,10 @@ describe("serializeMemoryMarkdown", () => {
 
   it("renders the 至 marker only when until is present", () => {
     const memory = parseMemoryMarkdown(
-      "## 约定\n\n- 有期限 (至 2026-11-30)\n- 无期限\n\n## 关于我\n\n\n## 人物\n\n",
+      "## 约定\n\n- 有期限 (至 2026-11-30)\n- 无期限\n",
     );
     expect(serializeMemoryMarkdown(memory)).toBe(
-      "## 约定\n\n- 有期限 (至 2026-11-30)\n- 无期限\n\n## 关于我\n\n\n## 人物\n\n",
+      "## 约定\n\n- 有期限 (至 2026-11-30)\n- 无期限\n",
     );
   });
 });
@@ -175,32 +168,46 @@ describe("isValidMemoryDate", () => {
   });
 });
 
+describe("memorySectionNameProblem", () => {
+  it("accepts free topic names, including the house vocabulary", () => {
+    for (const good of ["约定", "关于我", "人物", "转账", "工作", "a"]) {
+      expect(memorySectionNameProblem(good), good).toBeNull();
+    }
+  });
+
+  it("rejects empty and over-long names", () => {
+    expect(memorySectionNameProblem("  ")).toMatch(/empty/);
+    expect(memorySectionNameProblem("x".repeat(25))).toMatch(/at most 24/);
+    // Exactly 24 characters is fine.
+    expect(memorySectionNameProblem("x".repeat(24))).toBeNull();
+  });
+});
+
 describe("renderMemoryLine", () => {
-  it("renders plain, dated and person lines", () => {
-    expect(renderMemoryLine({ type: "约定", text: "咖啡记「饮品」" })).toBe(
+  it("renders plain and dated lines — no name field, people style is text", () => {
+    expect(renderMemoryLine({ section: "约定", text: "咖啡记「饮品」" })).toBe(
       "- 咖啡记「饮品」",
     );
     expect(
       renderMemoryLine({
-        type: "约定",
+        section: "约定",
         text: "出差餐饮记「差旅」",
         until: "2026-11-30",
       }),
     ).toBe("- 出差餐饮记「差旅」 (至 2026-11-30)");
-    expect(renderMemoryLine({ type: "人物", name: "小王", text: "房东" })).toBe(
+    expect(renderMemoryLine({ section: "人物", text: "小王: 房东" })).toBe(
       "- 小王: 房东",
     );
   });
 });
 
 describe("memoryEntryProblem", () => {
-  it("accepts a valid entry of every type", () => {
-    expect(memoryEntryProblem({ type: "约定", text: "x" })).toBeNull();
+  it("accepts a valid entry of any section", () => {
+    expect(memoryEntryProblem({ section: "约定", text: "x" })).toBeNull();
     expect(
       memoryEntryProblem({
-        type: "人物",
-        name: "小王",
-        text: "x",
+        section: "健康",
+        text: "小王: 房东",
         until: "2026-11-30",
       }),
     ).toBeNull();
@@ -208,15 +215,13 @@ describe("memoryEntryProblem", () => {
 
   it("rejects bad shapes and semantics", () => {
     const problems: readonly [unknown, RegExp][] = [
-      [{ type: "其他", text: "x" }, /type/],
-      [{ type: "约定", text: "  " }, /text/],
-      [{ type: "约定", text: "两\n行" }, /single line/],
-      [{ type: "约定", text: "- x (至 2026-11-30)" }, /until instead/],
-      [{ type: "人物", text: "x" }, /name/],
-      [{ type: "人物", name: "  ", text: "x" }, /name/],
-      [{ type: "人物", name: "a:b", text: "x" }, /name.*:/],
-      [{ type: "约定", text: "x", until: "2026-02-30" }, /real calendar/],
-      [{ type: "约定", text: "x", until: "2026-1-2" }, /real calendar/],
+      [{ section: "  ", text: "x" }, /section/],
+      [{ section: "x".repeat(25), text: "x" }, /at most 24/],
+      [{ section: "约定", text: "  " }, /text/],
+      [{ section: "约定", text: "两\n行" }, /single line/],
+      [{ section: "约定", text: "- x (至 2026-11-30)" }, /until instead/],
+      [{ section: "约定", text: "x", until: "2026-02-30" }, /real calendar/],
+      [{ section: "约定", text: "x", until: "2026-1-2" }, /real calendar/],
     ];
     for (const [entry, message] of problems) {
       expect(memoryEntryProblem(entry as never), JSON.stringify(entry)).toMatch(

@@ -21,13 +21,9 @@ export type {
 export { createMemoryClient } from "./memory-client.ts";
 export type {
   MemoryClient,
-  MemoryEntry,
-  MemoryEntryView,
   MemoryErrorCode,
   MemoryOffRecordState,
   MemoryReceipt,
-  MemoryRememberInput,
-  MemoryType,
 } from "./memory-client.ts";
 export { createAuthClient } from "./auth-client.ts";
 export type {

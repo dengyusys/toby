@@ -1,16 +1,14 @@
 /**
  * The memory tools against a scripted service: the off-record refusal
  * (bound session included — the gate is the session-free flag read),
- * receipt/ambiguous/already-remembered/nothing-matched copy, the empty
- * keyword's flip-through recall, and the off_record toggle itself, which
- * is never gated. Tool kinds are pinned: recall read-only, the rest
- * write-intent.
+ * receipt/ambiguous/already-remembered/nothing-matched copy, the section
+ * parameter riding through to the service, and the off_record toggle
+ * itself, which is never gated. All three tools are write-intent.
  */
 
 import { describe, expect, it } from "vitest";
 import { createMemoryTools } from "../../src/domains/memory/tools.ts";
 import type {
-  MemoryEntryView,
   MemoryOffRecordState,
   MemoryService,
   MemoryWriteResult,
@@ -19,7 +17,6 @@ import type { TobyTool } from "../../src/infrastructure/model/agent.ts";
 
 function makeService(
   overrides: {
-    recall?: MemoryService["recall"];
     remember?: MemoryService["remember"];
     forget?: MemoryService["forget"];
     on?: boolean;
@@ -28,14 +25,7 @@ function makeService(
   const calls: string[] = [];
   const state = { on: overrides.on ?? false };
   const service: MemoryService = {
-    list: async () => ({ entries: [] }),
-    exportMarkdown: async () => "",
-    recall:
-      overrides.recall ??
-      (async (keyword) => {
-        calls.push(`recall(${keyword})`);
-        return [];
-      }),
+    readFile: async () => "",
     remember:
       overrides.remember ??
       (async (input) => {
@@ -44,7 +34,7 @@ function makeService(
           kind: "receipt" as const,
           receipt: {
             action: "remembered" as const,
-            type: input.type,
+            section: input.section,
             after: `- ${input.text}`,
             created_at: "2026-11-14T08:00:00.000Z",
           },
@@ -58,15 +48,13 @@ function makeService(
           kind: "receipt" as const,
           receipt: {
             action: "forgot" as const,
-            type: "约定" as const,
+            section: "约定" as const,
             before: `- 关于${keyword}`,
             created_at: "2026-11-14T08:00:00.000Z",
           },
         };
       }),
-    replaceExact: async () => {
-      throw new Error("unused");
-    },
+    resetMemory: async () => ({ reset_at: "2026-11-14T08:00:00.000Z" }),
     buildMemorySection: async () => "",
     observeSession: () => {},
     isOffRecord: () => state.on,
@@ -95,45 +83,12 @@ async function run(
   };
 }
 
-describe("memory tools: recall", () => {
-  it("is read-only, groups the hits by type, and quotes the empty answer", async () => {
-    const { service } = makeService({
-      recall: async () => [
-        { type: "约定", text: "咖啡记「饮品」", expired: false },
-        { type: "人物", name: "小王", text: "房东", expired: false },
-      ],
-    });
-    const { recall } = createMemoryTools({ service });
-    const result = await run(recall, { keyword: "咖啡" });
-    expect(result.isError).toBe(false);
-    expect(result.text).toBe("约定:\n- 咖啡记「饮品」\n\n人物:\n- 小王: 房东");
-    expect(result.details).toMatchObject({
-      entries: [{ text: "咖啡记「饮品」" }, { name: "小王" }],
-    });
-  });
-
-  it("an empty keyword flips through the whole book", async () => {
-    const { service, calls } = makeService();
-    const { recall } = createMemoryTools({ service });
-    const result = await run(recall, {});
-    expect(calls).toEqual(["recall()"]);
-    expect(result.text).toBe("没有相关记忆");
-  });
-
-  it("an empty-string keyword is the same flip-through", async () => {
-    const { service, calls } = makeService();
-    const { recall } = createMemoryTools({ service });
-    await run(recall, { keyword: "   " });
-    expect(calls).toEqual(["recall(   )"]);
-  });
-});
-
 describe("memory tools: remember", () => {
   it("is write-intent, answers 已记住 with the landed line, receipt in details", async () => {
     const { service, calls } = makeService();
     const { remember } = createMemoryTools({ service });
     const result = await run(remember, {
-      type: "约定",
+      section: "约定",
       text: "咖啡记「饮品」",
     });
     expect(result.isError).toBe(false);
@@ -141,7 +96,10 @@ describe("memory tools: remember", () => {
     expect(result.details).toMatchObject({
       receipt: { action: "remembered", after: "- 咖啡记「饮品」" },
     });
-    expect(calls).toHaveLength(1);
+    // The section rides through to the service untouched.
+    expect(calls).toEqual([
+      `remember(${JSON.stringify({ section: "约定", text: "咖啡记「饮品」" })})`,
+    ]);
   });
 
   it("answers 已更新 with the new line when the receipt is an update", async () => {
@@ -150,7 +108,7 @@ describe("memory tools: remember", () => {
         kind: "receipt",
         receipt: {
           action: "updated",
-          type: "约定",
+          section: "约定",
           before: "- 咖啡记「拿铁」",
           after: "- 咖啡记「饮品」",
           created_at: "2026-11-14T08:00:00.000Z",
@@ -159,7 +117,7 @@ describe("memory tools: remember", () => {
     });
     const { remember } = createMemoryTools({ service });
     const result = await run(remember, {
-      type: "约定",
+      section: "工作",
       text: "咖啡记「饮品」",
       replaceKeyword: "咖啡",
     });
@@ -171,7 +129,7 @@ describe("memory tools: remember", () => {
     // conversation is the one being served, so the write must be refused.
     const { service, calls } = makeService({ on: true });
     const { remember } = createMemoryTools({ service });
-    const result = await run(remember, { type: "关于我", text: "不吃香菜" });
+    const result = await run(remember, { section: "关于我", text: "不吃香菜" });
     expect(result.isError).toBe(true);
     expect(result.text).toBe("本通对话设置了不记忆，这次不记。");
     expect(calls).toEqual([]);
@@ -186,7 +144,7 @@ describe("memory tools: remember", () => {
     });
     const { remember } = createMemoryTools({ service });
     const result = await run(remember, {
-      type: "约定",
+      section: "约定",
       text: "新约定",
       replaceKeyword: "咖啡",
     });
@@ -204,11 +162,22 @@ describe("memory tools: remember", () => {
     });
     const { remember } = createMemoryTools({ service });
     const result = await run(remember, {
-      type: "约定",
+      section: "约定",
       text: "咖啡记「饮品」",
     });
     expect(result.isError).toBe(false);
     expect(result.text).toBe("已记得：- 咖啡记「饮品」");
+  });
+
+  it("the prompt guidance carries the section-choice rules, and no tool names", () => {
+    const { service } = makeService();
+    const tools = createMemoryTools({ service });
+    expect(tools.remember.promptGuidelines.join("\n")).toContain(
+      "优先用记忆里已有的",
+    );
+    expect(tools.remember.promptGuidelines.join("\n")).toContain(
+      "用户明确指定了小节",
+    );
   });
 });
 
@@ -283,25 +252,34 @@ describe("memory tools: off_record", () => {
 });
 
 describe("memory tools: kinds", () => {
-  it("recall is read-only; the writes are write-intent", () => {
+  it("every memory tool is write-intent", () => {
     const { service } = makeService();
     const tools = createMemoryTools({ service });
-    expect(tools.recall.kind).toBe("read-only");
     expect(tools.remember.kind).toBe("write-intent");
     expect(tools.forget.kind).toBe("write-intent");
     expect(tools.offRecord.kind).toBe("write-intent");
+    expect(Object.keys(tools).sort()).toEqual([
+      "forget",
+      "offRecord",
+      "remember",
+    ]);
   });
 
-  it("the empty-recall view type stays the entry view (details contract)", async () => {
-    const entries: readonly MemoryEntryView[] = [
-      { type: "关于我", text: "不吃香菜", expired: false },
-    ];
-    const { service } = makeService({ recall: async () => entries });
-    const { recall } = createMemoryTools({ service });
-    const result = await run(recall, { keyword: "" });
-    expect(
-      (result.details as { entries: readonly MemoryEntryView[] }).entries,
-    ).toBe(entries);
-    expect(result.text).toContain("关于我:\n- 不吃香菜");
+  it("the until parameter rides through to the service", async () => {
+    const { service, calls } = makeService();
+    const { remember } = createMemoryTools({ service });
+    const result = await run(remember, {
+      section: "约定",
+      text: "出差餐饮记「差旅」",
+      until: "2026-11-30",
+    });
+    expect(result.isError).toBe(false);
+    expect(calls).toEqual([
+      `remember(${JSON.stringify({
+        section: "约定",
+        text: "出差餐饮记「差旅」",
+        until: "2026-11-30",
+      })})`,
+    ]);
   });
 });

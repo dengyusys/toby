@@ -380,7 +380,7 @@ describe("createLedgerExtractor", () => {
 });
 
 /**
- * The memory wiring: the sentence-scoped `<memory>` section rides the
+ * The memory wiring: the whole-book `<memory>` section rides the
  * extraction spec, the conversational memory tools ride the toolset, and
  * a memory write the run executed travels back on the draft as
  * memory_receipts (a follow-up question carries none — it lands nothing).
@@ -391,14 +391,12 @@ describe("createLedgerExtractor with the memory port", () => {
   /** A minimal memory service: remember lands, everything else unused. */
   function makeFakeMemoryService(): MemoryService {
     return {
-      list: async () => ({ entries: [] }),
-      exportMarkdown: async () => "",
-      recall: async () => [],
+      readFile: async () => "",
       remember: async (input): Promise<MemoryWriteResult> => ({
         kind: "receipt",
         receipt: {
           action: "remembered",
-          type: input.type,
+          section: input.section,
           after: `- ${input.text}`,
           created_at: "2026-10-20T08:00:00.000Z",
         },
@@ -406,9 +404,7 @@ describe("createLedgerExtractor with the memory port", () => {
       forget: async () => {
         throw new Error("unused");
       },
-      replaceExact: async () => {
-        throw new Error("unused");
-      },
+      resetMemory: async () => ({ reset_at: "2026-10-20T08:00:00.000Z" }),
       buildMemorySection: async () => MEMORY_SECTION,
       observeSession: () => {},
       isOffRecord: () => false,
@@ -508,41 +504,41 @@ describe("createLedgerExtractor with the memory port", () => {
     const memoryTools = createMemoryTools({
       service: makeFakeMemoryService(),
     });
-    const sectionsFor: string[] = [];
+    let sectionCalls = 0;
     const memory: LedgerMemoryPort = {
-      sectionFor: async (sentence) => {
-        sectionsFor.push(sentence);
+      sectionFor: async () => {
+        sectionCalls += 1;
         return MEMORY_SECTION;
       },
-      tools: [memoryTools.recall, memoryTools.remember, memoryTools.forget],
+      tools: [memoryTools.remember, memoryTools.forget],
     };
     const { factory, specs } = makeMemoryAwareFactory(steps);
     const extractor = createLedgerExtractor({ agentFactory: factory, memory });
-    return { extractor, specs, sectionsFor };
+    return { extractor, specs, sectionCallsOf: () => sectionCalls };
   }
 
-  it("the extraction spec carries the memory tools and the sentence-scoped section", async () => {
-    const { extractor, specs, sectionsFor } = makeMemoryExtractor([
+  it("the extraction spec carries the memory tools and the whole-book section", async () => {
+    const { extractor, specs, sectionCallsOf } = makeMemoryExtractor([
       { text: "unused" },
     ]);
     await expect(extractor.extract("午饭 30", NOW)).rejects.toBeInstanceOf(
       AiError,
     );
     const spec = specs[0]!;
-    // The conversational trio rides after the ledger's own tools.
+    // The conversational pair rides after the ledger's own tools — there
+    // is no recall: the whole book is already in the prompt.
     expect(spec.tools.map((entry) => entry.tool.name)).toEqual([
       "submit_entries",
       "submit_edit",
       "ask_user",
-      "recall",
       "remember",
       "forget",
     ]);
     expect(spec.memory).toBeTypeOf("function");
     expect(await (spec.memory as () => Promise<string>)()).toBe(MEMORY_SECTION);
-    expect(sectionsFor).toEqual(["午饭 30"]);
-    // The section is exempt from the tool-name check: an index heading
-    // may name recall; assembly must not throw.
+    expect(sectionCallsOf()).toBe(1);
+    // The section names no tool: the no-tool-names rule applies to the
+    // <memory> text like every other section, and assembly must not throw.
     const prompt = buildSystemPrompt(spec, MEMORY_SECTION);
     expect(prompt).toContain("<memory>\n## 约定\n- 咖啡记「饮品」\n</memory>");
     const rulesEnd = prompt.indexOf("</rules>");
@@ -560,7 +556,7 @@ describe("createLedgerExtractor with the memory port", () => {
       sectionFor: async () => {
         throw new Error("MEMORY.md 第 3 行无法解析");
       },
-      tools: [memoryTools.recall, memoryTools.remember, memoryTools.forget],
+      tools: [memoryTools.remember, memoryTools.forget],
     };
     const { factory, specs } = makeMemoryAwareFactory([{ text: "unused" }]);
     const extractor = createLedgerExtractor({ agentFactory: factory, memory });
@@ -572,7 +568,10 @@ describe("createLedgerExtractor with the memory port", () => {
 
   it("a memory write the run executed rides back on the entries draft", async () => {
     const { extractor } = makeMemoryExtractor([
-      { tool: "remember", args: { type: "约定", text: "咖啡记「饮品」" } },
+      {
+        tool: "remember",
+        args: { section: "约定", text: "咖啡记「饮品」" },
+      },
       {
         tool: "submit_entries",
         args: {
@@ -601,7 +600,7 @@ describe("createLedgerExtractor with the memory port", () => {
       memory_receipts: [
         {
           action: "remembered",
-          type: "约定",
+          section: "约定",
           after: "- 咖啡记「饮品」",
           created_at: "2026-10-20T08:00:00.000Z",
         },
@@ -611,7 +610,10 @@ describe("createLedgerExtractor with the memory port", () => {
 
   it("a follow-up question carries no receipts — it has no channel", async () => {
     const { extractor } = makeMemoryExtractor([
-      { tool: "remember", args: { type: "约定", text: "咖啡记「饮品」" } },
+      {
+        tool: "remember",
+        args: { section: "约定", text: "咖啡记「饮品」" },
+      },
       { tool: "ask_user", args: { question: "这笔是支出还是收入?" } },
     ]);
     const draft = await extractor.extract("book 25,记住咖啡记饮品", NOW);

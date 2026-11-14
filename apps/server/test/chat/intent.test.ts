@@ -21,8 +21,7 @@ function makeMemoryPort(section: () => Promise<string>): {
   const observeCalls: string[] = [];
   return {
     port: {
-      sectionForChat: async () => "",
-      sectionForClassifier: section,
+      sectionFor: section,
       observeSession: (sessionId) => {
         observeCalls.push(sessionId);
       },
@@ -104,7 +103,7 @@ describe("createIntentClassifier (registry-derived)", () => {
     const prompt = systemPrompts[0]!;
     expect(prompt).toContain("<memory>\n## 约定\n- 咖啡记「饮品」\n</memory>");
     // The block rides last — after the fixed rules, including the JSON
-    // output rule. The classifier carries no tools, so no index line.
+    // output rule. The classifier sees the same book the write agents do.
     expect(prompt.trimEnd().endsWith("</memory>")).toBe(true);
     expect(prompt.indexOf("</rules>")).toBeLessThan(prompt.indexOf("<memory>"));
     expect(prompt).not.toContain("记忆索引");

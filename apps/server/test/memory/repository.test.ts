@@ -57,7 +57,7 @@ function buildRepository(): {
 }
 
 function entry(overrides: Partial<MemoryEntry> = {}): MemoryEntry {
-  return { type: "约定", text: "条目", ...overrides };
+  return { section: "约定", text: "条目", ...overrides };
 }
 
 describe("memory repository", () => {
@@ -75,7 +75,7 @@ describe("memory repository", () => {
     const entries = await repository.mutate((list) => [
       ...list,
       entry({ text: "咖啡记「饮品」" }),
-      entry({ type: "人物", name: "小王", text: "房东" }),
+      entry({ section: "人物", text: "小王: 房东" }),
     ]);
     expect(entries).toHaveLength(2);
 
@@ -84,13 +84,13 @@ describe("memory repository", () => {
       serializeMemoryMarkdown({
         entries: [
           entry({ text: "咖啡记「饮品」" }),
-          entry({ type: "人物", name: "小王", text: "房东" }),
+          entry({ section: "人物", text: "小王: 房东" }),
         ],
       }),
     );
     expect(await repository.list()).toEqual([
       entry({ text: "咖啡记「饮品」" }),
-      entry({ type: "人物", name: "小王", text: "房东" }),
+      entry({ section: "人物", text: "小王: 房东" }),
     ]);
 
     // The atomic replace leaves no staging files behind.

@@ -157,8 +157,7 @@ async function buildLedgerMemoryApp(
   const memoryDomain = createMemoryDomain({ config, clock: () => nowMs });
   const memoryTools = createMemoryTools({ service: memoryDomain.service });
   const memoryPort: ChatMemoryPort = {
-    sectionForChat: async () => "",
-    sectionForClassifier: async () => "",
+    sectionFor: async () => "",
     observeSession: observeCalls.push.bind(observeCalls),
   };
   const mounts: DomainMount[] = [
@@ -571,8 +570,7 @@ describe("chat api: send and the item stream", () => {
   it("every served message re-binds the memory session before routing", async () => {
     await buildChatOnlyApp({
       memory: {
-        sectionForChat: async () => "",
-        sectionForClassifier: async () => "",
+        sectionFor: async () => "",
         observeSession: observeCalls.push.bind(observeCalls),
       },
     });
@@ -601,7 +599,7 @@ describe("chat api: send and the item stream", () => {
     // remember the model invoked through the shared memory tool set.
     const memoryReceipt = {
       action: "remembered",
-      type: "约定",
+      section: "约定",
       after: "- 咖啡只喝拿铁",
       created_at: "2026-11-05T08:00:00.000Z",
     };
@@ -651,7 +649,7 @@ describe("chat api: send and the item stream", () => {
             type: "toolCall",
             id: "c2",
             name: "remember",
-            arguments: { type: "约定", text: "咖啡只喝拿铁" },
+            arguments: { section: "约定", text: "咖啡只喝拿铁" },
           },
         ],
         model: "faux-1",

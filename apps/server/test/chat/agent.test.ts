@@ -128,11 +128,9 @@ describe("createChatAgent", () => {
 
   it("resolves the <memory> section per run, rendered between rules and context", async () => {
     specs.length = 0;
-    let section =
-      "## 约定\n- 咖啡记「饮品」\n\n## 记忆索引 — 详情用 recall 工具查询";
+    let section = "## 约定\n- 咖啡记「饮品」\n\n## 人物\n- 小王: 房东";
     const memory: ChatMemoryPort = {
-      sectionForChat: async () => section,
-      sectionForClassifier: async () => "",
+      sectionFor: async () => section,
       observeSession: () => {},
     };
     const agent = createChatAgent({
@@ -147,8 +145,8 @@ describe("createChatAgent", () => {
 
     const resolved = await (spec.memory as () => Promise<string>)();
     expect(resolved).toBe(section);
-    // The index heading names recall — exactly why <memory> is exempt
-    // from the tool-name check; the build must not throw.
+    // The whole book renders between <rules> and <context>; it names no
+    // tool, so the no-tool-names rule passes over it unchecked-in-prose.
     const prompt = buildSystemPrompt(spec, resolved);
     const rulesEnd = prompt.indexOf("</rules>");
     const memoryStart = prompt.indexOf("<memory>");
@@ -156,7 +154,7 @@ describe("createChatAgent", () => {
     expect(rulesEnd).toBeGreaterThan(-1);
     expect(memoryStart).toBeGreaterThan(rulesEnd);
     expect(contextStart).toBeGreaterThan(memoryStart);
-    expect(prompt).toContain("## 记忆索引 — 详情用 recall 工具查询");
+    expect(prompt).toContain("## 人物\n- 小王: 房东");
 
     // Fresh per run: the file changed between turns, the next run sees it.
     section = "## 约定\n- 周三聚餐";
@@ -169,8 +167,7 @@ describe("createChatAgent", () => {
   it("an empty section renders no <memory> block; a corrupt file degrades honestly", async () => {
     specs.length = 0;
     const memory: ChatMemoryPort = {
-      sectionForChat: async () => "",
-      sectionForClassifier: async () => "",
+      sectionFor: async () => "",
       observeSession: () => {},
     };
     const agent = createChatAgent({
@@ -186,7 +183,7 @@ describe("createChatAgent", () => {
     // corrupt MEMORY.md — one honest line instead of a failed run.
     const corrupt: ChatMemoryPort = {
       ...memory,
-      sectionForChat: async () => {
+      sectionFor: async () => {
         throw new Error("MEMORY.md 第 3 行无法解析");
       },
     };

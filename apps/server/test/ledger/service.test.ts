@@ -356,7 +356,7 @@ describe("ledger service one-sentence path", () => {
   it("memory receipts the draft carried ride onto the landed receipt", async () => {
     const memoryReceipt = {
       action: "remembered",
-      type: "约定",
+      section: "约定",
       after: "- 咖啡记「饮品」",
       created_at: "2026-10-20T08:00:00.000Z",
     };
@@ -502,7 +502,7 @@ describe("ledger service one-sentence path", () => {
       const after = { ...before, amount: 3500 };
       const memoryReceipt = {
         action: "updated",
-        type: "约定",
+        section: "约定",
         before: "- 咖啡记「拿铁」",
         after: "- 咖啡记「饮品」",
         created_at: "2026-10-20T08:00:00.000Z",

@@ -1,12 +1,13 @@
 /**
  * The memory tools (docs/decisions/personal-agent-memory.md, "How it is
- * written"): recall (read-only) plus remember / forget / off_record
- * (write-intent). Every conversational agent carries recall + remember +
- * forget — silent learning rides whichever agent is already running —
- * while off_record exists for the explicit 这通别记 / 可以记了 sentences
- * and stays on the memory domain's own agent only. The off-record gate is
- * checked on the tool, not on which agent calls it; off_record itself is
- * never gated (turning the flag back off must always work).
+ * written"): remember / forget / off_record, all write-intent. Every
+ * conversational agent carries remember + forget — silent learning rides
+ * whichever agent is already running — while off_record exists for the
+ * explicit 这通别记 / 可以记了 sentences and stays on the memory domain's
+ * own agent only. There is no recall: the whole book rides in every
+ * prompt, so there is nothing to fetch. The off-record gate is checked
+ * on the tool, not on which agent calls it; off_record itself is never
+ * gated (turning the flag back off must always work).
  *
  * One instance set serves every consumer (chat capability, ledger
  * extractor, memory agent): the gate and the receipts stay consistent
@@ -16,26 +17,11 @@
 import { z } from "zod";
 import { defineTool } from "../../infrastructure/model/agent.ts";
 import type { TobyTool } from "../../infrastructure/model/agent.ts";
-import {
-  MEMORY_SECTION_ORDER,
-  isValidMemoryDate,
-  renderMemoryLine,
-} from "./parser.ts";
-import type { MemoryEntryView, MemoryService } from "./types.ts";
+import { MEMORY_SECTION_MAX_CHARS, isValidMemoryDate } from "./parser.ts";
+import type { MemoryService } from "./types.ts";
 
 /** The off-record copy, shared by both write tools' gate. */
 const OFF_RECORD_REFUSAL = "本通对话设置了不记忆，这次不记。";
-
-/** Recall's answer: lines grouped by type, or the honest empty answer. */
-function recallText(entries: readonly MemoryEntryView[]): string {
-  const groups = MEMORY_SECTION_ORDER.flatMap((type) => {
-    const lines = entries
-      .filter((entry) => entry.type === type)
-      .map(renderMemoryLine);
-    return lines.length > 0 ? [`${type}:\n${lines.join("\n")}`] : [];
-  });
-  return groups.length > 0 ? groups.join("\n\n") : "没有相关记忆";
-}
 
 /** The candidates as one model-facing line: ask, never guess. */
 function ambiguousText(candidates: readonly string[]): string {
@@ -60,7 +46,6 @@ function offRecordRefusal(service: MemoryService) {
 }
 
 export interface MemoryTools {
-  readonly recall: TobyTool;
   readonly remember: TobyTool;
   readonly forget: TobyTool;
   readonly offRecord: TobyTool;
@@ -71,42 +56,21 @@ export function createMemoryTools(deps: {
 }): MemoryTools {
   const { service } = deps;
 
-  const recall = defineTool("read-only", {
-    name: "recall",
-    label: "查记忆",
-    description:
-      "按关键词翻查记忆条目，子串匹配名字和正文；keyword 省略时返回全部未过期的记忆。",
-    promptSnippet: "翻查记忆条目",
-    promptGuidelines: [
-      "回答关于用户长期事实、他人身份或既定约定的问题前，先翻查记忆找到原文再答。",
-      "keyword 省略就翻出全部记忆，适合「你记得我什么」这类总览问题，答案要逐条照原文列出。",
-    ],
-    parameters: z.object({ keyword: z.string().optional() }).strict(),
-    execute: async (_toolCallId, params) => {
-      const entries = await service.recall(params.keyword ?? "");
-      return {
-        content: [{ type: "text" as const, text: recallText(entries) }],
-        details: { entries },
-      };
-    },
-  });
-
   const remember = defineTool("write-intent", {
     name: "remember",
     label: "写记忆",
     description:
-      "把一条记忆写进记忆文件（约定 / 关于我 / 人物），带 replaceKeyword 时替换定位到的那条旧行。",
+      "把一条记忆写进记忆文件的某个小节(section),带 replaceKeyword 时替换定位到的那条旧行。",
     promptSnippet: "把一条事实或约定记进记忆",
     promptGuidelines: [
-      "对话里出现值得长期记住的事实、约定或更正时用它，一条记忆一句话。",
-      "更正已有记忆时给 replaceKeyword 定位旧行，让新内容替换旧行而不是并存。",
-      "人物记忆必须带 name。",
+      "对话里出现值得长期记住的事实、约定或更正时用它,一条记忆一句话。",
+      "section 优先用记忆里已有的、这条明确属于的小节;确实都不合适才开新小节;用户明确指定了小节(如记到「工作」里)时照办。",
+      "更正已有记忆时给 replaceKeyword 定位旧行,让新内容替换旧行而不是并存。",
     ],
     parameters: z
       .object({
-        type: z.enum(["约定", "关于我", "人物"]),
+        section: z.string().min(1).max(MEMORY_SECTION_MAX_CHARS),
         text: z.string().min(1),
-        name: z.string().min(1).optional(),
         until: z
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -114,25 +78,15 @@ export function createMemoryTools(deps: {
           .optional(),
         replaceKeyword: z.string().min(1).optional(),
       })
-      .strict()
-      .superRefine((params, ctx) => {
-        if (params.type === "人物" && (params.name?.trim().length ?? 0) === 0) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["name"],
-            message: "a 人物 memory requires name",
-          });
-        }
-      }),
+      .strict(),
     execute: async (_toolCallId, params) => {
       const refusal = offRecordRefusal(service);
       if (refusal !== undefined) {
         return refusal;
       }
       const result = await service.remember({
-        type: params.type,
+        section: params.section,
         text: params.text,
-        ...(params.name === undefined ? {} : { name: params.name }),
         ...(params.until === undefined ? {} : { until: params.until }),
         ...(params.replaceKeyword === undefined
           ? {}
@@ -176,7 +130,7 @@ export function createMemoryTools(deps: {
       "按关键词删除一条不再成立的记忆；命中多行时会列出候选，命中为零时如实回答。",
     promptSnippet: "删掉一条不再成立的记忆",
     promptGuidelines: [
-      "keyword 是子串匹配，对名字和正文都生效；命中多行时把候选列给用户确认，不要猜。",
+      "keyword 是子串匹配,对所有未过期记忆的正文生效;命中多行时把候选列给用户确认,不要猜。",
     ],
     parameters: z.object({ keyword: z.string().min(1) }).strict(),
     execute: async (_toolCallId, params) => {
@@ -221,7 +175,7 @@ export function createMemoryTools(deps: {
     description:
       "打开或关闭本通对话的记录开关；关闭后这次对话不再写入任何记忆，重新打开即恢复。",
     promptSnippet: "开关本通对话的记忆",
-    promptGuidelines: ["用户说这通不要记时关闭，说可以记了或恢复时打开。"],
+    promptGuidelines: ["用户说这通不要记时关闭,说可以记了或恢复时打开。"],
     parameters: z.object({ on: z.boolean() }).strict(),
     execute: async (_toolCallId, params) => {
       // Deliberately never gated by the flag itself: turning it back off
@@ -239,5 +193,5 @@ export function createMemoryTools(deps: {
     },
   });
 
-  return { recall, remember, forget, offRecord };
+  return { remember, forget, offRecord };
 }

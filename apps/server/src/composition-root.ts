@@ -90,11 +90,7 @@ export function productionDomains(options: {
   // (docs/decisions/personal-agent-memory.md).
   const memoryDomain = createMemoryDomain({ config, clock });
   const memoryTools = createMemoryTools({ service: memoryDomain.service });
-  const memoryConversationTools = [
-    memoryTools.recall,
-    memoryTools.remember,
-    memoryTools.forget,
-  ];
+  const memoryConversationTools = [memoryTools.remember, memoryTools.forget];
   const ledgerDomain = createLedgerDomain({
     config,
     clock,
@@ -103,13 +99,7 @@ export function productionDomains(options: {
       ? {
           memory: {
             tools: memoryConversationTools,
-            sectionFor: (sentence: string) =>
-              memoryDomain.service.buildMemorySection({
-                conventions: true,
-                peopleIndex: true,
-                aboutIndex: false,
-                sentence,
-              }),
+            sectionFor: () => memoryDomain.service.buildMemorySection(),
           },
         }
       : {}),
@@ -140,20 +130,7 @@ export function productionDomains(options: {
           ...(agentFactory ? { agentFactory } : {}),
           ...(aiClient ? { aiClient } : {}),
           memory: {
-            sectionForChat: () =>
-              memoryDomain.service.buildMemorySection({
-                conventions: true,
-                peopleIndex: true,
-                aboutIndex: true,
-              }),
-            // Conventions only — the classifier carries no tools, so no
-            // index line (docs/decisions/personal-agent-memory.md).
-            sectionForClassifier: () =>
-              memoryDomain.service.buildMemorySection({
-                conventions: true,
-                peopleIndex: false,
-                aboutIndex: false,
-              }),
+            sectionFor: () => memoryDomain.service.buildMemorySection(),
             observeSession: (sessionId) =>
               memoryDomain.service.observeSession(sessionId),
           },

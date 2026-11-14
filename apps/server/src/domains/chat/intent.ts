@@ -8,11 +8,11 @@
  * exchange history), and corrections about the previous turn re-classify
  * naturally — every message is classified fresh against that history.
  *
- * The system prompt is built per classify() call so the memory
- * conventions it embeds stay fresh; everything else (intent lines,
- * rules) is static per construction. When a memory port is wired, the
- * prompt carries the conventions-only `<memory>` block — the classifier
- * carries no tools, so no index line
+ * The system prompt is built per classify() call so the memory book it
+ * embeds stays fresh; everything else (intent lines, rules) is static per
+ * construction. When a memory port is wired, the prompt carries the
+ * whole-book `<memory>` block — the classifier sees the same book the
+ * write agents see; it carries no tools
  * (docs/decisions/personal-agent-memory.md).
  *
  * The valid intents are registry-derived: each registered capability
@@ -78,19 +78,19 @@ export function createIntentClassifier(deps: {
   client: AiClient;
   /** The registered capabilities, in registration order. */
   intents: readonly IntentDescriptor[];
-  /** The memory wiring port; its conventions feed the prompt per call. */
+  /** The memory wiring port; the whole book feeds the prompt per call. */
   memory?: ChatMemoryPort;
 }): IntentClassifier {
   const { client } = deps;
   const schema = classificationSchema(deps.intents);
   return {
     async classify(text, history) {
-      // Per call: conventions change between turns, and the prompt must
+      // Per call: the book changes between turns, and the prompt must
       // always carry the file's current state.
       let memory: string | undefined;
       if (deps.memory) {
         try {
-          memory = await deps.memory.sectionForClassifier();
+          memory = await deps.memory.sectionFor();
         } catch {
           memory = "（记忆文件当前无法读取）";
         }

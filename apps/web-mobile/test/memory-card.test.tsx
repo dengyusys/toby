@@ -30,7 +30,7 @@ it("renders an in-run receipt with its before to after diff", () => {
     <Card
       receipt={{
         action: "updated",
-        type: "约定",
+        section: "约定",
         before: "- 咖啡记「饮品」",
         after: "- 咖啡记「饮品」，不加糖",
         created_at: CREATED_AT,
@@ -60,8 +60,8 @@ it("renders every routed receipt and the verbatim listed block", () => {
           },
           {
             action: "forgot",
-            type: "人物",
-            before: "- 小王:房东",
+            section: "转账",
+            before: "- 给小王的转账走「人情往来」",
             created_at: CREATED_AT,
           },
         ],
@@ -75,7 +75,7 @@ it("renders every routed receipt and the verbatim listed block", () => {
   expect(screen.getByText("- 不吃香菜")).toBeInTheDocument();
   // Once in the diff and once verbatim in the requested listing.
   expect(screen.getAllByText("- 不吃葱")).toHaveLength(2);
-  expect(screen.getByText("- 小王:房东")).toBeInTheDocument();
+  expect(screen.getByText("- 给小王的转账走「人情往来」")).toBeInTheDocument();
   expect(
     screen.getByRole("heading", { name: "已逐条列出" }),
   ).toBeInTheDocument();
@@ -92,7 +92,7 @@ it("renders memory sidecar lines beneath a ledger receipt", () => {
         memory_receipts: [
           {
             action: "updated",
-            type: "约定",
+            section: "约定",
             before: "- 咖啡记「饮品」",
             after: "- 咖啡记「饮品」，不加糖",
             created_at: CREATED_AT,

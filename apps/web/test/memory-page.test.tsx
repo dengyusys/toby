@@ -1,43 +1,32 @@
 /**
- * Memory page flows with fetch routed by URL: grouped reads, exact-line
- * writes, the off-record toggle, markdown download and the corrupt-file
- * refusal. No real network, no server and no production files.
+ * The read-only memory page: MEMORY.md's raw Markdown source in file
+ * order, the empty state, the honest corrupt-file surface, the off-record
+ * toggle and the two-step reset. Fetch is routed by URL: no real network,
+ * no server and no production files.
  */
 
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  cleanup,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { MemoryPage } from "../src/features/memory/MemoryPage.tsx";
 
-const ENTRIES = [
-  { type: "约定", text: "咖啡记「饮品」", expired: false },
-  { type: "关于我", text: "不吃香菜", expired: false },
-  { type: "人物", name: "小王", text: "房东", expired: false },
-  {
-    type: "约定",
-    text: "出差期间餐饮记「差旅」",
-    until: "2026-01-01",
-    expired: true,
-  },
-];
+// The file's content as the raw view shows it: headings and "- " entry
+// lines in file order, blank lines included — four entries in total.
+const RAW_MARKDOWN = [
+  "## 约定",
+  "",
+  "- 咖啡记「饮品」",
+  "- 出差期间餐饮记「差旅」",
+  "",
+  "## 关于我",
+  "",
+  "- 不吃香菜",
+  "- 小王:房东",
+].join("\n");
 
 const calls: { url: string; init?: RequestInit }[] = [];
-const originalCreateObjectURL = Object.getOwnPropertyDescriptor(
-  URL,
-  "createObjectURL",
-);
-const originalRevokeObjectURL = Object.getOwnPropertyDescriptor(
-  URL,
-  "revokeObjectURL",
-);
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -46,9 +35,23 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function routeFetch({ corrupt = false }: { corrupt?: boolean } = {}): void {
+interface RouteOptions {
+  /** The file is unreadable: the file route fails like a corrupt file. */
+  corrupt?: boolean;
+  /** The file exists but holds only whitespace. */
+  empty?: boolean;
+  /** The reset endpoint answers 500. */
+  resetFails?: boolean;
+}
+
+function routeFetch({
+  corrupt = false,
+  empty = false,
+  resetFails = false,
+}: RouteOptions = {}): void {
   calls.length = 0;
   let offRecord = false;
+  let cleared = false;
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -60,47 +63,40 @@ function routeFetch({ corrupt = false }: { corrupt?: boolean } = {}): void {
         if (init?.method === "POST") offRecord = body.on;
         return Promise.resolve(json({ on: offRecord }));
       }
-      if (url.endsWith("/api/memory/export")) {
+      if (url.endsWith("/api/memory/file")) {
+        if (corrupt) {
+          return Promise.resolve(
+            json(
+              {
+                errorCode: "MEMORY_FILE_INVALID",
+                message: "line 4 cannot be parsed",
+              },
+              500,
+            ),
+          );
+        }
+        const markdown = cleared ? "" : empty ? "\n \n" : RAW_MARKDOWN;
         return Promise.resolve(
-          new Response("## 约定\n\n- 咖啡记「饮品」\n", {
+          new Response(markdown, {
             status: 200,
             headers: { "Content-Type": "text/markdown; charset=utf-8" },
           }),
         );
       }
-      if (url.endsWith("/api/memory/entries")) {
-        return Promise.resolve(
-          json({
-            action: "remembered",
-            type: body.type,
-            after: `- ${body.text}`,
-            created_at: "2026-11-14T08:00:00.000Z",
-          }),
-        );
-      }
-      if (url.endsWith("/api/memory/entry/replace")) {
-        return Promise.resolve(
-          json({
-            action: body.next === null ? "forgot" : "updated",
-            type: body.current.type,
-            before: `- ${body.current.text}`,
-            ...(body.next === null ? {} : { after: `- ${body.next.text}` }),
-            created_at: "2026-11-14T08:00:00.000Z",
-          }),
-        );
-      }
-      if (url.endsWith("/api/memory")) {
-        return Promise.resolve(
-          corrupt
-            ? json(
-                {
-                  errorCode: "MEMORY_FILE_INVALID",
-                  message: "line 4 cannot be parsed",
-                },
-                500,
-              )
-            : json({ entries: ENTRIES }),
-        );
+      if (url.endsWith("/api/memory/reset")) {
+        if (resetFails) {
+          return Promise.resolve(
+            json(
+              {
+                errorCode: "MEMORY_FILE_INVALID",
+                message: "cannot truncate a corrupt file",
+              },
+              500,
+            ),
+          );
+        }
+        cleared = true;
+        return Promise.resolve(json({ reset_at: "2026-11-14T08:00:00.000Z" }));
       }
       return Promise.resolve(json({ message: "unexpected route" }, 404));
     }),
@@ -118,120 +114,42 @@ function renderPage() {
   );
 }
 
-function requestBody(urlPart: string): Record<string, unknown> {
-  const call = calls.find(
-    ({ url, init }) => url.endsWith(urlPart) && init?.method === "POST",
+function wasResetPosted(): boolean {
+  return calls.some(
+    ({ url, init }) =>
+      url.endsWith("/api/memory/reset") && init?.method === "POST",
   );
-  expect(call, `POST ${urlPart}`).toBeDefined();
-  return JSON.parse(String(call?.init?.body)) as Record<string, unknown>;
 }
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  if (originalCreateObjectURL) {
-    Object.defineProperty(URL, "createObjectURL", originalCreateObjectURL);
-  } else {
-    Reflect.deleteProperty(URL, "createObjectURL");
-  }
-  if (originalRevokeObjectURL) {
-    Object.defineProperty(URL, "revokeObjectURL", originalRevokeObjectURL);
-  } else {
-    Reflect.deleteProperty(URL, "revokeObjectURL");
-  }
 });
 
-it("renders the three memo sections and puts expired entries last", async () => {
+it("renders MEMORY.md's raw source in file order", async () => {
   routeFetch();
   renderPage();
 
-  expect(await screen.findByText("咖啡记「饮品」")).toBeInTheDocument();
-  expect(screen.getByText("不吃香菜")).toBeInTheDocument();
-  expect(screen.getByText(/房东/)).toBeInTheDocument();
-  expect(screen.getByText("至 2026-01-01")).toBeInTheDocument();
+  // The regex matches only the <pre>, which directly holds the whole file
+  // text; its content is the verbatim source, so order comes for free.
+  const raw = await screen.findByText(/咖啡记「饮品」/);
+  expect(raw.tagName).toBe("PRE");
+  expect(raw.textContent).toBe(RAW_MARKDOWN);
 
-  const aboutHeading = screen.getByRole("heading", { name: "关于我" });
-  const expiredHeading = screen.getByRole("heading", { name: "已过期" });
+  // Read-only: no editors, no per-line buttons, no forms.
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(
-    aboutHeading.compareDocumentPosition(expiredHeading) &
-      Node.DOCUMENT_POSITION_FOLLOWING,
-  ).toBeTruthy();
-  const expiredSection = expiredHeading.closest("section");
-  expect(expiredSection).not.toBeNull();
-  expect(
-    within(expiredSection as HTMLElement).getByText(/出差期间餐饮/),
-  ).toBeInTheDocument();
+    screen.queryByRole("button", { name: "添加约定" }),
+  ).not.toBeInTheDocument();
 });
 
-it("adds an entry with the exact remember body", async () => {
-  routeFetch();
-  const user = userEvent.setup();
+it("shows the empty state for an empty or whitespace-only file", async () => {
+  routeFetch({ empty: true });
   renderPage();
 
-  await user.click(await screen.findByRole("button", { name: "添加约定" }));
-  await user.type(screen.getByLabelText("内容"), "出差期间餐饮记「差旅」");
-  await user.type(screen.getByLabelText("至日期（可选）"), "2026-12-31");
-  await user.click(screen.getByRole("button", { name: "保存" }));
-
-  await waitFor(() =>
-    expect(requestBody("/api/memory/entries")).toEqual({
-      type: "约定",
-      text: "出差期间餐饮记「差旅」",
-      until: "2026-12-31",
-    }),
-  );
-  expect(
-    await screen.findByRole("heading", { name: "已记住" }),
-  ).toBeInTheDocument();
-});
-
-it("edits an entry through replaceExact without sending the view flag", async () => {
-  routeFetch();
-  const user = userEvent.setup();
-  renderPage();
-
-  await user.click(
-    await screen.findByRole("button", { name: "编辑 咖啡记「饮品」" }),
-  );
-  const input = screen.getByLabelText("内容");
-  await user.clear(input);
-  await user.type(input, "咖啡记「饮品」，不加糖");
-  await user.click(screen.getByRole("button", { name: "保存" }));
-
-  await waitFor(() =>
-    expect(requestBody("/api/memory/entry/replace")).toEqual({
-      current: { type: "约定", text: "咖啡记「饮品」" },
-      next: { type: "约定", text: "咖啡记「饮品」，不加糖" },
-    }),
-  );
-  expect(
-    await screen.findByRole("heading", { name: "已更新" }),
-  ).toBeInTheDocument();
-});
-
-it("uses a two-step delete and sends null as the replacement", async () => {
-  routeFetch();
-  const user = userEvent.setup();
-  renderPage();
-
-  await user.click(
-    await screen.findByRole("button", { name: "删除 咖啡记「饮品」" }),
-  );
-  expect(
-    calls.some(({ url }) => url.endsWith("/api/memory/entry/replace")),
-  ).toBe(false);
-  await user.click(screen.getByRole("button", { name: "确认删除" }));
-
-  await waitFor(() =>
-    expect(requestBody("/api/memory/entry/replace")).toEqual({
-      current: { type: "约定", text: "咖啡记「饮品」" },
-      next: null,
-    }),
-  );
-  expect(
-    await screen.findByRole("heading", { name: "已清理" }),
-  ).toBeInTheDocument();
+  expect(await screen.findByText(/还没有任何记忆/)).toBeInTheDocument();
+  expect(screen.queryByText(/咖啡记/)).not.toBeInTheDocument();
 });
 
 it("toggles off-record and reflects the returned state", async () => {
@@ -243,57 +161,86 @@ it("toggles off-record and reflects the returned state", async () => {
     name: /关闭记忆/,
   });
   expect(toggle).toHaveAttribute("aria-pressed", "false");
+  expect(toggle).toHaveAttribute(
+    "title",
+    "关闭后需手动重新开启；重启服务也会恢复记忆",
+  );
   await user.click(toggle);
 
   const enabled = await screen.findByRole("button", {
     name: /开启记忆/,
   });
   expect(enabled).toHaveAttribute("aria-pressed", "true");
-  expect(requestBody("/api/memory/off-record")).toEqual({ on: true });
+  expect(
+    calls.some(
+      ({ url, init }) =>
+        url.endsWith("/api/memory/off-record") && init?.method === "POST",
+    ),
+  ).toBe(true);
 });
 
-it("exports MEMORY.md as a client-side download", async () => {
+it("resets through the inline confirm and refetches to the empty state", async () => {
   routeFetch();
   const user = userEvent.setup();
-  const createObjectURL = vi.fn(() => "blob:memory-test");
-  const revokeObjectURL = vi.fn();
-  Object.defineProperty(URL, "createObjectURL", {
-    configurable: true,
-    value: createObjectURL,
-  });
-  Object.defineProperty(URL, "revokeObjectURL", {
-    configurable: true,
-    value: revokeObjectURL,
-  });
-  let downloaded = "";
-  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
-    this: HTMLAnchorElement,
-  ) {
-    downloaded = this.download;
-  });
   renderPage();
 
-  await user.click(await screen.findByRole("button", { name: "导出 .md" }));
+  await screen.findByText(/咖啡记「饮品」/);
+  await user.click(screen.getByRole("button", { name: "重置" }));
 
-  await waitFor(() => expect(downloaded).toBe("MEMORY.md"));
-  expect(calls.some(({ url }) => url.endsWith("/api/memory/export"))).toBe(
-    true,
-  );
-  expect(createObjectURL).toHaveBeenCalledOnce();
-  expect(revokeObjectURL).toHaveBeenCalledWith("blob:memory-test");
+  // Two-step: the panel counts the "- " lines client-side and warns that
+  // the reset cannot be undone; nothing is sent until 确认重置.
+  expect(screen.getByText(/将清空 4 条记忆/)).toBeInTheDocument();
+  expect(screen.getByText(/此操作不可撤销/)).toBeInTheDocument();
+  expect(wasResetPosted()).toBe(false);
+
+  await user.click(screen.getByRole("button", { name: "取消" }));
+  expect(
+    screen.queryByRole("button", { name: "确认重置" }),
+  ).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "重置" }));
+  await user.click(screen.getByRole("button", { name: "确认重置" }));
+
+  await waitFor(() => expect(wasResetPosted()).toBe(true));
+  expect(await screen.findByText(/还没有任何记忆/)).toBeInTheDocument();
 });
 
-it("shows the corrupt-file guidance instead of a fake empty list", async () => {
+it("shows the honest broken state and still allows reset", async () => {
   routeFetch({ corrupt: true });
+  const user = userEvent.setup();
   renderPage();
 
+  // The heading depends on whether the client maps the file error to
+  // MEMORY_FILE_INVALID; either way the failure is shown, never faked.
   expect(
-    await screen.findByRole("heading", { name: "记忆文件需要修复" }),
+    await screen.findByText(/无法读取记忆文件|记忆文件需要修复/),
   ).toBeInTheDocument();
-  expect(screen.getByText(/请手工修复 MEMORY.md/)).toBeInTheDocument();
-  expect(screen.getByText(/页面不会改写或跳过/)).toBeInTheDocument();
-  expect(screen.queryByText("咖啡记「饮品」")).not.toBeInTheDocument();
   expect(
-    screen.queryByRole("button", { name: "添加约定" }),
-  ).not.toBeInTheDocument();
+    screen.getByText(/line 4 cannot be parsed|记忆文件损坏/),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/咖啡记/)).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "重置" }));
+  expect(screen.getByText(/无法读取文件（可能已损坏）/)).toBeInTheDocument();
+  expect(screen.queryByText(/将清空/)).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "确认重置" }));
+  await waitFor(() => expect(wasResetPosted()).toBe(true));
+});
+
+it("surfaces reset failures and keeps the confirm panel open", async () => {
+  routeFetch({ resetFails: true });
+  const user = userEvent.setup();
+  renderPage();
+
+  await screen.findByText(/咖啡记「饮品」/);
+  await user.click(screen.getByRole("button", { name: "重置" }));
+  await user.click(screen.getByRole("button", { name: "确认重置" }));
+
+  // The route answers MEMORY_FILE_INVALID; describeError renders its
+  // fixed copy for that code, not the raw server message.
+  expect(await screen.findByText(/重置失败：/)).toBeInTheDocument();
+  expect(screen.getByText(/记忆文件损坏/)).toBeInTheDocument();
+  // The panel stays open so the reset can be retried or cancelled.
+  expect(screen.getByRole("button", { name: "确认重置" })).toBeEnabled();
 });

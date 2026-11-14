@@ -32,9 +32,9 @@ export interface LedgerPluginOptions {
   agentFactory?: TobyAgentFactory;
   /**
    * The memory wiring port (docs/decisions/personal-agent-memory.md):
-   * sentence-scoped `<memory>` section plus the shared conversational
-   * memory tools for the extraction agent. A wiring port, not a domain
-   * import — the composition root binds the memory service to it.
+   * whole-book `<memory>` section plus the shared conversational memory
+   * tools for the extraction agent. A wiring port, not a domain import —
+   * the composition root binds the memory service to it.
    */
   memory?: LedgerMemoryPort;
 }

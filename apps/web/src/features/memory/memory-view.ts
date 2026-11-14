@@ -1,38 +1,11 @@
 /**
- * Memory page view helpers: exact wire entries, stable row identities and
- * plain Chinese error copy keyed by the domain's closed error-code union.
+ * Memory view helpers shared by the chat cards and the raw page: the
+ * receipt shape guard and plain Chinese error copy keyed by the domain's
+ * closed error-code union.
  */
 
 import { ApiError } from "@toby/contract";
-import type {
-  MemoryEntry,
-  MemoryEntryView,
-  MemoryReceipt,
-  MemoryType,
-} from "@toby/contract";
-
-/** The view-only expiry flag must not cross the strict write schema. */
-export function exactEntry(entry: MemoryEntryView): MemoryEntry {
-  return {
-    type: entry.type,
-    text: entry.text,
-    ...(entry.name === undefined ? {} : { name: entry.name }),
-    ...(entry.until === undefined ? {} : { until: entry.until }),
-  };
-}
-
-/** Exact lines are unique by domain rule, so the line is also the row key. */
-export function entryKey(entry: MemoryEntryView): string {
-  return JSON.stringify(exactEntry(entry));
-}
-
-export function entryLabel(entry: MemoryEntryView): string {
-  return entry.type === "人物"
-    ? `${entry.name ?? ""}:${entry.text}`
-    : entry.text;
-}
-
-const MEMORY_TYPES: readonly MemoryType[] = ["约定", "关于我", "人物"];
+import type { MemoryReceipt } from "@toby/contract";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -44,7 +17,8 @@ export function isMemoryReceipt(value: unknown): value is MemoryReceipt {
     (value.action === "remembered" ||
       value.action === "updated" ||
       value.action === "forgot") &&
-    MEMORY_TYPES.includes(value.type as MemoryType) &&
+    typeof value.section === "string" &&
+    value.section !== "" &&
     typeof value.created_at === "string" &&
     (value.before === undefined || typeof value.before === "string") &&
     (value.after === undefined || typeof value.after === "string")
@@ -68,7 +42,7 @@ export function describeError(error: unknown): string {
       case "DUPLICATE_ENTRY":
         return "已经记住了，不用重复添加";
       case "MEMORY_FILE_INVALID":
-        return "记忆文件损坏，请手工修复 MEMORY.md";
+        return "记忆文件损坏，请手工修复 MEMORY.md，或「重置」清空重来";
       case "LIMIT_REACHED":
         return "记忆满了，该忘点什么？";
       default:

@@ -30,6 +30,13 @@ export interface MemoryRepository {
   mutate(
     edit: (entries: MemoryEntry[]) => MemoryEntry[],
   ): Promise<readonly MemoryEntry[]>;
+  /**
+   * The maintenance reset: one full-file atomic replace with the empty
+   * book. Deliberately skips the read-parse cycle — a corrupt file is
+   * discarded explicitly (the documented recovery path), never repaired
+   * in place.
+   */
+  reset(): Promise<void>;
 }
 
 export function createMemoryRepository(deps: {
@@ -61,6 +68,11 @@ export function createMemoryRepository(deps: {
       }
       await deps.memoryFile.write({ entries: next });
       return next;
+    },
+    reset() {
+      // The empty book serializes to the empty file, which parses as the
+      // empty book — one atomic replace, no parse of the old content.
+      return deps.memoryFile.write({ entries: [] });
     },
   };
 }

@@ -1,5 +1,5 @@
 /**
- * The memory chat capability: identity and classifier line, the three
+ * The memory chat capability: identity and classifier line, the two
  * conversational tools it exposes (off_record stays memory-agent-only),
  * the write path through the memory agent (and the AI-unconfigured
  * notice without one), the in-run card mapping (receipt quoted verbatim,
@@ -25,16 +25,14 @@ import type {
 
 function makeService(overrides: Partial<MemoryService> = {}): MemoryService {
   return {
-    list: async () => ({ entries: [] }),
-    exportMarkdown: async () => "",
-    recall: async () => [],
+    readFile: async () => "",
     // The agent's scripted steps execute the real tools, so the tools do
     // call these; each lands a fixed receipt the tests can pin.
     remember: async (input) => ({
       kind: "receipt" as const,
       receipt: {
         action: "remembered" as const,
-        type: input.type,
+        section: input.section,
         after: `- ${input.text}`,
         created_at: "2026-11-14T08:00:00.000Z",
       },
@@ -43,14 +41,12 @@ function makeService(overrides: Partial<MemoryService> = {}): MemoryService {
       kind: "receipt" as const,
       receipt: {
         action: "forgot" as const,
-        type: "约定" as const,
+        section: "约定" as const,
         before: `- 关于${keyword}`,
         created_at: "2026-11-14T08:00:00.000Z",
       },
     }),
-    replaceExact: async () => {
-      throw new Error("unused");
-    },
+    resetMemory: async () => ({ reset_at: "2026-11-14T08:00:00.000Z" }),
     buildMemorySection: async () => "",
     observeSession: () => {},
     isOffRecord: () => false,
@@ -171,10 +167,9 @@ describe("createMemoryChatCapability", () => {
     expect(capability.intentDescription).toContain("这通别记");
   });
 
-  it("exposes exactly the three conversational tools — off_record stays agent-only", () => {
+  it("exposes exactly the two conversational tools — off_record stays agent-only", () => {
     const { capability } = makeCapability();
     expect(capability.tools.map((tool) => tool.tool.name)).toEqual([
-      "recall",
       "remember",
       "forget",
     ]);
@@ -185,7 +180,10 @@ describe("createMemoryChatCapability", () => {
 
   it("maps the agent's run onto the write outcome verbatim", async () => {
     const { capability } = makeCapability([
-      { tool: "remember", args: { type: "约定", text: "咖啡记「饮品」" } },
+      {
+        tool: "remember",
+        args: { section: "约定", text: "咖啡记「饮品」" },
+      },
       { text: "记好了。" },
     ]);
     const outcome = await capability.handleWrite("记住咖啡记饮品");
@@ -196,7 +194,7 @@ describe("createMemoryChatCapability", () => {
         receipts: [
           {
             action: "remembered",
-            type: "约定",
+            section: "约定",
             after: "- 咖啡记「饮品」",
             created_at: "2026-11-14T08:00:00.000Z",
           },
@@ -222,7 +220,7 @@ describe("createMemoryChatCapability", () => {
     const { capability } = makeCapability();
     const remembered = {
       action: "remembered" as const,
-      type: "约定" as const,
+      section: "约定" as const,
       after: "- 咖啡记「饮品」",
       created_at: "2026-11-14T08:00:00.000Z",
     };
@@ -232,7 +230,7 @@ describe("createMemoryChatCapability", () => {
     });
     const updated = {
       action: "updated" as const,
-      type: "约定" as const,
+      section: "约定" as const,
       before: "- 咖啡记「拿铁」",
       after: "- 咖啡记「饮品」",
       created_at: "2026-11-14T08:00:00.000Z",
@@ -243,7 +241,7 @@ describe("createMemoryChatCapability", () => {
     });
     const forgot = {
       action: "forgot" as const,
-      type: "约定" as const,
+      section: "约定" as const,
       before: "- 关于拿铁",
       created_at: "2026-11-14T08:00:00.000Z",
     };
@@ -256,7 +254,7 @@ describe("createMemoryChatCapability", () => {
   it("cardFor answers undefined for other tools and receipt-less results", () => {
     const { capability } = makeCapability();
     // Not a memory write tool.
-    expect(capability.cardFor?.("recall", { entries: [] })).toBeUndefined();
+    expect(capability.cardFor?.("off_record", { on: true })).toBeUndefined();
     expect(
       capability.cardFor?.("ledger_month_report", { count: 1 }),
     ).toBeUndefined();

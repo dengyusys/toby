@@ -2,8 +2,8 @@
  * The prompt builder's contract: section order (preamble, tools, rules,
  * memory, context), the generated <tools> lines from tool metadata, omitted
  * empty sections, deduplicated lists, context last (the only section that
- * changes per run), and the rule that hand-written prose never names a tool
- * — with the <memory> section the one deliberate exemption.
+ * changes per run), and the rule that no hand-written text — the resolved
+ * <memory> text included — ever names a tool.
  */
 
 import { describe, expect, it } from "vitest";
@@ -111,8 +111,8 @@ describe("buildSystemPrompt", () => {
       "## 约定",
       "- 咖啡记「饮品」",
       "",
-      "## 记忆索引 — 详情用 recall 工具查询",
-      "人物: 小王",
+      "## 人物",
+      "- 小王: 房东",
     ].join("\n");
     const prompt = buildSystemPrompt(
       {
@@ -140,8 +140,8 @@ describe("buildSystemPrompt", () => {
         "## 约定",
         "- 咖啡记「饮品」",
         "",
-        "## 记忆索引 — 详情用 recall 工具查询",
-        "人物: 小王",
+        "## 人物",
+        "- 小王: 房东",
         "</memory>",
         "",
         "<context>",
@@ -171,9 +171,10 @@ describe("buildSystemPrompt", () => {
     );
   });
 
-  it("exempts the <memory> section from the tool-name check by design", () => {
-    // The index heading names recall on purpose
-    // (docs/decisions/personal-agent-memory.md): assembly must not throw.
+  it("the no-tool-names rule applies to the <memory> section like every other", () => {
+    // A memory section that names a tool is a violation now — the index
+    // heading that once named recall no longer exists
+    // (docs/decisions/personal-agent-memory.md).
     expect(() =>
       buildSystemPrompt(
         {
@@ -183,7 +184,7 @@ describe("buildSystemPrompt", () => {
         },
         "## 记忆索引 — 详情用 recall 工具查询",
       ),
-    ).not.toThrow();
+    ).toThrow(/names tool "recall"/);
     // The same mention in hand-written prose stays a violation.
     expect(() =>
       buildSystemPrompt({

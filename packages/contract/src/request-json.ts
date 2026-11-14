@@ -55,3 +55,13 @@ export async function requestJson<T>(
   }
   return (await response.json()) as T;
 }
+
+/** Same error decoding as requestJson, for routes that answer plain text
+ * (e.g. the memory export) instead of JSON. */
+export async function requestText(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw decodeErrorBody(response.status, await response.text());
+  }
+  return response.text();
+}
