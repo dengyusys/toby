@@ -12,6 +12,7 @@
 import cookie from "@fastify/cookie";
 import fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import pino from "pino";
+import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { authPlugin } from "./domains/auth/plugin.ts";
 import { chatPlugin } from "./domains/chat/plugin.ts";
 import { createLedgerChatCapability } from "./domains/ledger/chat-capability.ts";
@@ -20,10 +21,12 @@ import { createMemoryChatCapability } from "./domains/memory/chat-capability.ts"
 import { createMemoryDomain } from "./domains/memory/plugin.ts";
 import { createMemoryTools } from "./domains/memory/tools.ts";
 import { systemPlugin } from "./domains/system/plugin.ts";
+import { createSettingsDomain } from "./domains/settings/plugin.ts";
 import { tracesPlugin } from "./domains/traces/plugin.ts";
 import type { TobyConfig } from "./infrastructure/config/config.ts";
 import { createTobyAgentFactory } from "./infrastructure/model/agent.ts";
 import { createPiAiClient } from "./infrastructure/model/client.ts";
+import type { AiRuntimeConfig } from "./infrastructure/model/types.ts";
 import { createTraceBus } from "./infrastructure/trace/bus.ts";
 import type { Clock } from "./infrastructure/clock.ts";
 import { REQUEST_BODY_LIMIT_BYTES } from "./infrastructure/http/body-limit.ts";
@@ -72,12 +75,39 @@ export function productionDomains(options: {
   // it, the traces domain streams it to the web monitor. Nothing is
   // stored — console semantics, live observation only.
   const traceBus = clock ? createTraceBus({ clock }) : createTraceBus();
-  const agentFactory = config.ai
-    ? createTobyAgentFactory(config.ai, { reporter: traceBus })
-    : undefined;
-  const aiClient = config.ai
-    ? createPiAiClient(config.ai, { reporter: traceBus })
-    : undefined;
+  // The settings domain: runtime-editable AI settings and provider
+  // credentials (data/settings.db). Its createModels factory attaches the
+  // credential store to the pi-ai catalog, so ONE Models instance serves
+  // the settings page's catalog and auth statuses AND carries the stored
+  // credentials into every AI request.
+  const settingsDomain = createSettingsDomain({
+    config,
+    clock,
+    createModels: ({ credentialStore }) =>
+      builtinModels({ credentials: credentialStore }),
+  });
+  // Effective AI config per request: the settings database wins over the
+  // environment fallback; no model anywhere → undefined → the AI paths
+  // answer their honest 501/unconfigured copy exactly as before. No
+  // caching layer: two SQLite point reads are noise next to a seconds-long
+  // model call — exact semantics beat a cache.
+  const resolveAiRuntimeConfig = async (): Promise<
+    AiRuntimeConfig | undefined
+  > => {
+    const runtime = await settingsDomain.service.resolveRuntimeConfig();
+    if (runtime.model === null) {
+      return undefined;
+    }
+    return { model: runtime.model, timeoutMs: runtime.timeoutMs };
+  };
+  // Both AI transports now always exist; with nothing configured they
+  // throw AiError("unconfigured") at run time instead of staying unwired.
+  const agentFactory = createTobyAgentFactory(resolveAiRuntimeConfig, {
+    reporter: traceBus,
+  });
+  const aiClient = createPiAiClient(resolveAiRuntimeConfig, {
+    reporter: traceBus,
+  });
   // The ledger and memory domains are built here so the composition root
   // can hand their services to the chat capabilities and to each other's
   // wiring ports — the only cross-domain wiring: a domain exports a
@@ -94,22 +124,18 @@ export function productionDomains(options: {
   const ledgerDomain = createLedgerDomain({
     config,
     clock,
-    ...(agentFactory ? { agentFactory } : {}),
-    ...(agentFactory
-      ? {
-          memory: {
-            tools: memoryConversationTools,
-            sectionFor: () => memoryDomain.service.buildMemorySection(),
-          },
-        }
-      : {}),
+    agentFactory,
+    memory: {
+      tools: memoryConversationTools,
+      sectionFor: () => memoryDomain.service.buildMemorySection(),
+    },
   });
   const chatCapabilities = [
     createLedgerChatCapability(ledgerDomain.service),
     createMemoryChatCapability({
       service: memoryDomain.service,
       tools: memoryTools,
-      ...(agentFactory ? { agentFactory } : {}),
+      agentFactory,
     }),
   ];
   return [
@@ -120,6 +146,7 @@ export function productionDomains(options: {
       await app.register(auth.plugin);
     },
     (app) => app.register(systemPlugin({ clock })),
+    (app) => app.register(settingsDomain.plugin),
     (app) => app.register(ledgerDomain.plugin),
     (app) => app.register(memoryDomain.plugin),
     (app) =>
@@ -127,8 +154,8 @@ export function productionDomains(options: {
         chatPlugin({
           config,
           clock,
-          ...(agentFactory ? { agentFactory } : {}),
-          ...(aiClient ? { aiClient } : {}),
+          agentFactory,
+          aiClient,
           memory: {
             sectionFor: () => memoryDomain.service.buildMemorySection(),
             observeSession: (sessionId) =>

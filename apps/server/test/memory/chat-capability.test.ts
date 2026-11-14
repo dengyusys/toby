@@ -212,7 +212,7 @@ describe("createMemoryChatCapability", () => {
     const outcome = await capability.handleWrite("记住一件事");
     expect(outcome).toEqual({
       kind: "notice",
-      text: 'AI is not configured: set TOBY_AI_MODEL to a "provider/model" pair (e.g. "zai/glm-4.7")',
+      text: 'AI is not configured: pick a model on the settings page, or set TOBY_AI_MODEL to a "provider/model" pair (e.g. "zai/glm-4.7")',
     });
   });
 

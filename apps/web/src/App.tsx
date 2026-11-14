@@ -5,6 +5,7 @@ import { MemoryPage } from "@/features/memory/MemoryPage.tsx";
 import { LoginPage } from "@/features/auth/LoginPage.tsx";
 import { RequireAuth } from "@/features/auth/RequireAuth.tsx";
 import { HealthPage } from "@/features/system/HealthPage.tsx";
+import { SettingsPage } from "@/features/settings/SettingsPage.tsx";
 import { TraceStreamProvider } from "@/features/traces/trace-stream.tsx";
 import { AppLayout } from "@/layouts/AppLayout.tsx";
 
@@ -33,6 +34,7 @@ export function App() {
           <Route path="/ledger" element={<LedgerPage />} />
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/system" element={<HealthPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Route>
     </Routes>

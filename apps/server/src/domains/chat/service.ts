@@ -12,7 +12,10 @@
 
 import type { Clock } from "../../infrastructure/clock.ts";
 import type { ChatDomainCapability } from "../../chat-capability.ts";
-import { AiError } from "../../infrastructure/model/errors.ts";
+import {
+  AiError,
+  AI_UNCONFIGURED_MESSAGE,
+} from "../../infrastructure/model/errors.ts";
 import { ChatRequestError } from "./errors.ts";
 import type { RateLimiter } from "./rate-limit.ts";
 import type { ChatRepository } from "./repository.ts";
@@ -46,8 +49,8 @@ import {
 const SAY_THAT_AGAIN = "没听清,再说一遍?";
 const AGENT_FALLBACK = "查询出了点问题,稍后再试一次。";
 
-const UNCONFIGURED_MESSAGE =
-  'AI is not configured: set TOBY_AI_MODEL to a "provider/model" pair (e.g. "zai/glm-4.7")';
+// The unconfigured notice — the one copy every AI path shares.
+const UNCONFIGURED_MESSAGE = AI_UNCONFIGURED_MESSAGE;
 
 const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 100;

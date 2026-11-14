@@ -65,7 +65,9 @@ export function createLedgerDomain(options: LedgerPluginOptions): LedgerDomain {
       return build(options.agentFactory);
     }
     if (options.config.ai) {
-      return build(createTobyAgentFactory(options.config.ai, {}));
+      // Standalone seam (tests): a constant resolver over the env config.
+      const envAi = options.config.ai;
+      return build(createTobyAgentFactory(async () => envAi, {}));
     }
     return undefined;
   };

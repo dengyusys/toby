@@ -104,12 +104,15 @@ to `request-failed`/`timeout`.
 ## Configuration
 
 - `TOBY_AI_MODEL` is a pi-ai "provider/model" pair (e.g. `zai/glm-4.7`);
-  unset keeps the AI paths plainly unavailable (501). The pair is
-  resolved against pi-ai's builtin model list at assembly — unknown pairs
-  fail startup.
+  unset keeps the AI paths plainly unavailable (501). Since the settings
+  domain (docs/decisions/ai-runtime-settings.md) the runtime resolves the
+  effective pair per request — settings database first, env fallback —
+  while an unknown env pair still fails startup.
 - Provider credentials live in pi-ai's per-provider environment variables
-  (e.g. `DEEPSEEK_API_KEY`) or its credential store — never in Toby's own
-  variables, never in the repository.
+  (e.g. `DEEPSEEK_API_KEY`), its credential store, or — since
+  docs/decisions/ai-runtime-settings.md — in the settings database
+  through pi-ai's CredentialStore port, where a stored credential wins
+  over env. Never in `TOBY_*` variables, never in the repository.
 
 ## Testing
 

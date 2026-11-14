@@ -27,7 +27,7 @@ import type {
   AiRequestOptions,
   AiRuntimeConfig,
 } from "./types.ts";
-import { AiError } from "./errors.ts";
+import { AiError, AI_UNCONFIGURED_MESSAGE } from "./errors.ts";
 import { resolveCatalogModel } from "./catalog.ts";
 import type { TraceReporter } from "../trace/types.ts";
 
@@ -125,7 +125,7 @@ async function mapFailure(
   if (!configured) {
     return new AiError(
       "unconfigured",
-      `AI provider "${message.provider}" is not configured: set its API key environment variable (see .env.example)`,
+      `AI provider "${message.provider}" is not configured: add its API key on the settings page or set its environment variable (see .env.example)`,
     );
   }
   return new AiError(
@@ -135,17 +135,25 @@ async function mapFailure(
 }
 
 export function createPiAiClient(
-  config: AiRuntimeConfig,
+  resolveConfig: () => Promise<AiRuntimeConfig | undefined>,
   options: { models?: Models; reporter?: TraceReporter } = {},
 ): AiClient {
   const models = options.models ?? builtinModels();
-  const model: ResolvedModel = resolveCatalogModel(models, config.model);
   const reporter = options.reporter;
 
   async function requestOnce(
     messages: readonly AiChatMessage[],
     options?: AiRequestOptions,
   ): Promise<string> {
+    // Per-request config resolution: the settings database wins over the
+    // environment, so a change lands on the very next call. No caching
+    // layer: two SQLite point reads are noise next to a seconds-long model
+    // call — exact semantics beat a cache.
+    const config = await resolveConfig();
+    if (config === undefined) {
+      throw new AiError("unconfigured", AI_UNCONFIGURED_MESSAGE);
+    }
+    const model: ResolvedModel = resolveCatalogModel(models, config.model);
     const capture = reporter?.begin({
       kind: "single-shot",
       label: "complete",

@@ -1,5 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Activity, Brain, Calendar, LogOut, MessageSquare } from "lucide-react";
+import {
+  Activity,
+  Brain,
+  Calendar,
+  LogOut,
+  MessageSquare,
+  Settings,
+} from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { authClient } from "@/lib/api.ts";
@@ -15,6 +22,7 @@ const NAV_ITEMS = [
   { to: "/", label: "对话", end: true, icon: MessageSquare },
   { to: "/ledger", label: "账单", end: false, icon: Calendar },
   { to: "/memory", label: "记忆", end: false, icon: Brain },
+  { to: "/settings", label: "设置", end: false, icon: Settings },
 ] as const;
 
 /**
@@ -58,6 +66,8 @@ export function AppLayout() {
                 key={to}
                 to={to}
                 end={end}
+                title={label}
+                aria-label={label}
                 className={({ isActive }) =>
                   `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors max-[767px]:justify-center max-[767px]:px-0 ${
                     isActive

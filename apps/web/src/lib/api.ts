@@ -3,6 +3,7 @@ import {
   createChatClient,
   createLedgerClient,
   createMemoryClient,
+  createSettingsClient,
   createSystemClient,
 } from "@toby/contract";
 
@@ -14,3 +15,4 @@ export const ledgerClient = createLedgerClient("");
 export const authClient = createAuthClient("");
 export const chatClient = createChatClient("");
 export const memoryClient = createMemoryClient("");
+export const settingsClient = createSettingsClient("");

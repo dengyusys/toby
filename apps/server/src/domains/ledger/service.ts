@@ -9,7 +9,10 @@
 
 import type { Clock } from "../../infrastructure/clock.ts";
 import { localDate } from "../../infrastructure/local-date.ts";
-import { AiError } from "../../infrastructure/model/errors.ts";
+import {
+  AiError,
+  AI_UNCONFIGURED_MESSAGE,
+} from "../../infrastructure/model/errors.ts";
 import type { LedgerRepository } from "./repository.ts";
 import type { EntryBody } from "./schema.ts";
 import { LedgerRequestError } from "./errors.ts";
@@ -97,9 +100,8 @@ export function buildDayReport(
 export type LedgerWriteResult =
   LedgerReceiptView | LedgerUpdateResult | LedgerFollowUp;
 
-/** One message for every 501 AI_UNAVAILABLE path. */
-const AI_UNCONFIGURED_MESSAGE =
-  'AI is not configured: set TOBY_AI_MODEL to a "provider/model" pair (e.g. "zai/glm-4.7")';
+// The 501 copy: the one unconfigured message every AI path shares
+// (imported from the AI port's errors — no domain-local drift).
 
 function aiHttpError(error: AiError): LedgerRequestError {
   if (error.code === "unconfigured") {

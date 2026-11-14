@@ -28,11 +28,19 @@ import { caughtAiError } from "../../helpers.ts";
 
 const CONFIG = { model: "faux/faux-1", timeoutMs: 5_000 };
 
-function makeHarness(extra: { reporter?: TraceReporter } = {}) {
+function makeHarness(
+  extra: {
+    reporter?: TraceReporter;
+    config?: { model: string; timeoutMs: number };
+  } = {},
+) {
   const models = createModels();
   const faux = fauxProvider();
   models.setProvider(faux.provider);
-  const factory = createTobyAgentFactory(CONFIG, { models, ...extra });
+  const factory = createTobyAgentFactory(async () => extra.config ?? CONFIG, {
+    models,
+    ...extra,
+  });
   return { factory, faux };
 }
 
@@ -65,10 +73,41 @@ const ECHO_TOOL = defineTool("read-only", {
 });
 
 describe("createTobyAgentFactory", () => {
-  it("rejects unknown provider/model pairs at construction", () => {
-    expect(() =>
-      createTobyAgentFactory({ model: "nope/x", timeoutMs: 1 }),
-    ).toThrow(/provider\/model/);
+  it("rejects unknown provider/model pairs at run time", async () => {
+    // The catalog lookup moved into the run: a stale model (e.g. a
+    // database row for a provider that no longer exists) degrades typed,
+    // not as a construction crash.
+    const factory = createTobyAgentFactory(async () => ({
+      model: "nope/x",
+      timeoutMs: 1,
+    }));
+    const agent = factory({
+      preamble: "sys",
+      tools: [],
+      policy: { allowedKinds: ["read-only"], maxTurns: 2 },
+    });
+    const error = await caughtAiError(agent.run("go"));
+    expect(error).toBeInstanceOf(AiError);
+    expect(error.code).toBe("request-failed");
+    expect(error.message).toMatch(/provider\/model/);
+  });
+
+  it("maps an absent resolved config to unconfigured before any provider call", async () => {
+    const models = createModels();
+    const faux = fauxProvider();
+    models.setProvider(faux.provider);
+    const factory = createTobyAgentFactory(async () => undefined, { models });
+    faux.appendResponses([fauxAssistantMessage("never reached")]);
+    const agent = factory({
+      preamble: "sys",
+      tools: [],
+      policy: { allowedKinds: ["read-only"], maxTurns: 2 },
+    });
+    const error = await caughtAiError(agent.run("go"));
+    expect(error.code).toBe("unconfigured");
+    expect(error.message).toContain("AI is not configured");
+    // Nothing reached the provider.
+    expect(faux.state.callCount).toBe(0);
   });
 
   it("runs a plain prompt through to the final text", async () => {
@@ -369,7 +408,7 @@ describe("createTobyAgentFactory", () => {
     const faux = fauxProvider({ tokensPerSecond: 100 });
     models.setProvider(faux.provider);
     const factory = createTobyAgentFactory(
-      { model: "faux/faux-1", timeoutMs: 50 },
+      async () => ({ model: "faux/faux-1", timeoutMs: 50 }),
       { models },
     );
     faux.appendResponses([fauxAssistantMessage("word ".repeat(200))]);

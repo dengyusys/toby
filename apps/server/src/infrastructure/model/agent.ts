@@ -43,7 +43,7 @@ import { toolSchema } from "./tool-schema.ts";
 import type { ToolParameterSchema } from "./tool-schema.ts";
 import { buildSystemPrompt, promptLine } from "./prompt.ts";
 import type { AiRuntimeConfig } from "./types.ts";
-import { AiError } from "./errors.ts";
+import { AiError, AI_UNCONFIGURED_MESSAGE } from "./errors.ts";
 import { resolveCatalogModel } from "./catalog.ts";
 import { textOf } from "./client.ts";
 import type { TraceReporter } from "../trace/types.ts";
@@ -235,7 +235,7 @@ async function throwForProviderFailure(
       )
     : new AiError(
         "unconfigured",
-        `AI provider "${model.provider}" is not configured: set its API key environment variable (see .env.example)`,
+        `AI provider "${model.provider}" is not configured: add its API key on the settings page or set its environment variable (see .env.example)`,
       );
 }
 
@@ -303,8 +303,7 @@ export interface TobyAgentFactoryOptions {
 
 function createTobyAgent(
   catalog: Models,
-  model: Model<string>,
-  timeoutMs: number,
+  resolveConfig: () => Promise<AiRuntimeConfig | undefined>,
   injected: TobyAgentFactoryOptions,
   spec: TobyAgentSpec,
 ): TobyAgent {
@@ -320,12 +319,24 @@ function createTobyAgent(
   // so the <memory> section always reflects the file's current state; the
   // rest of the prompt is byte-identical either way.
   const staticSystemPrompt = buildSystemPrompt(spec);
-  const history = historyMessagesOf(spec.history ?? [], model);
 
   return {
     async run(prompt: string): Promise<TobyAgentRunResult> {
+      // Per-run config resolution: the settings database wins over the
+      // environment, so a change lands on the very next run. No caching
+      // layer: two SQLite point reads are noise next to a seconds-long
+      // model call — exact semantics beat a cache. An absent config throws
+      // before any provider call or trace event.
+      const config = await resolveConfig();
+      if (config === undefined) {
+        throw new AiError("unconfigured", AI_UNCONFIGURED_MESSAGE);
+      }
+      const model = resolveCatalogModel(catalog, config.model);
+      const timeoutMs = config.timeoutMs;
+
       let turns = 0;
       let turnCapped = false;
+      const history = historyMessagesOf(spec.history ?? [], model);
 
       // The <memory> section resolves per run; a rejecting provider fails
       // the run honestly — no silent skip. Callers that must keep working
@@ -452,16 +463,16 @@ function createTobyAgent(
 }
 
 /**
- * Production agent factory: one shared model catalog, the model resolved
- * once at assembly (unknown provider/model pairs fail fast at startup).
+ * Production agent factory: one shared model catalog; the effective model
+ * and timeout resolve per run from the injected config resolver (the
+ * settings database wins over the environment), so a runtime change lands
+ * on the very next run.
  */
 export function createTobyAgentFactory(
-  config: AiRuntimeConfig,
+  resolveConfig: () => Promise<AiRuntimeConfig | undefined>,
   options: TobyAgentFactoryOptions = {},
 ): TobyAgentFactory {
   // Injected test models serve the default stream fn and auth checks.
   const catalog = options.models ?? builtinModels();
-  const resolved = resolveCatalogModel(catalog, config.model);
-  return (spec) =>
-    createTobyAgent(catalog, resolved, config.timeoutMs, options, spec);
+  return (spec) => createTobyAgent(catalog, resolveConfig, options, spec);
 }

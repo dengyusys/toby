@@ -13,13 +13,10 @@
 
 import type { TobyAgentFactory } from "../../infrastructure/model/agent.ts";
 import type { ChatDomainCapability } from "../../chat-capability.ts";
+import { AI_UNCONFIGURED_MESSAGE } from "../../infrastructure/model/errors.ts";
 import { createMemoryAgent } from "./agent.ts";
 import type { MemoryTools } from "./tools.ts";
 import type { MemoryReceipt, MemoryService } from "./types.ts";
-
-/** AI unconfigured: the same honest copy the chat agent itself answers. */
-const AI_UNCONFIGURED_NOTICE =
-  'AI is not configured: set TOBY_AI_MODEL to a "provider/model" pair (e.g. "zai/glm-4.7")';
 
 /**
  * The in-run card copy: one line per landed receipt, quoting the file —
@@ -57,7 +54,9 @@ export function createMemoryChatCapability(deps: {
       "- memory(记忆):记住、更新或忘掉某条记忆;问「你记得我什么」;说「这通别记」或「恢复记忆」。",
     async handleWrite(sentence) {
       if (!agent) {
-        return { kind: "notice", text: AI_UNCONFIGURED_NOTICE };
+        // Absent factory (test/standalone seams): the same honest copy the
+        // runtime unconfigured error maps to in production.
+        return { kind: "notice", text: AI_UNCONFIGURED_MESSAGE };
       }
       const { outcome } = await agent.run(sentence);
       return outcome;

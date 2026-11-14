@@ -25,6 +25,17 @@ export type {
   MemoryOffRecordState,
   MemoryReceipt,
 } from "./memory-client.ts";
+export { createSettingsClient } from "./settings-client.ts";
+export type {
+  AiCatalog,
+  AiCatalogProvider,
+  AiSettingsSource,
+  AiSettingsUpdate,
+  AiSettingsView,
+  ProviderStatus,
+  SettingsClient,
+  SettingsErrorCode,
+} from "./settings-client.ts";
 export { createAuthClient } from "./auth-client.ts";
 export type {
   AuthClient,
