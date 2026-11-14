@@ -3,7 +3,8 @@
 English | [简体中文](ai-runtime-settings.zh.md)
 
 The AI model and the per-provider API keys are configurable
-at runtime from the PC web settings page. Persistence is server-side: a
+at runtime from the web settings pages (PC and mobile). Persistence is
+server-side: a
 new `settings` domain with its own per-domain database
 (`data/settings.db`), where API keys are stored as pi-ai credentials
 through pi-ai's own `CredentialStore` port. A settings write takes effect

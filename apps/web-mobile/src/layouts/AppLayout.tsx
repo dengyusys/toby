@@ -1,5 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Brain, Calendar, LogOut, Menu, MessageSquare } from "lucide-react";
+import {
+  Brain,
+  Calendar,
+  LogOut,
+  Menu,
+  MessageSquare,
+  Settings,
+} from "lucide-react";
 import { NavLink, Outlet } from "react-router";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/api.ts";
@@ -16,6 +23,7 @@ const NAV_ITEMS = [
   { to: "/", label: "对话", end: true, icon: MessageSquare },
   { to: "/ledger", label: "账单", end: false, icon: Calendar },
   { to: "/memory", label: "记忆", end: false, icon: Brain },
+  { to: "/settings", label: "设置", end: false, icon: Settings },
 ] as const;
 
 function NavPills({ onNavigate }: { onNavigate: () => void }) {

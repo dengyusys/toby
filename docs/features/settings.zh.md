@@ -8,8 +8,8 @@
 ## 职责与边界
 
 settings 域拥有运行时可编辑的 AI 配置：用哪个模型应答、各供应商的
-API key——持久化在它自己的按域数据库（`data/settings.db`），在 PC
-设置页编辑，下一次 AI 请求即生效。
+API key——持久化在它自己的按域数据库（`data/settings.db`），在网页
+设置页（PC 与移动端）编辑，下一次 AI 请求即生效。
 
 - **拥有**：`/api/settings/ai`（读/写）与 `/api/settings/ai/catalog`；
   `settings` 与 `provider_credentials` 两张表；已存凭证的掩码视图；
@@ -64,5 +64,5 @@ API key——持久化在它自己的按域数据库（`data/settings.db`），�
   再指向环境变量。
 - 服务 `GET …/catalog` 的目录实例就是运行时流经的同一 pi-ai
   集合——下拉列表不会偏离服务器实际可调用的范围。
-- 移动端 v1 不做设置；API 与客户端无关，契约在 `@toby/contract`
-  （`createSettingsClient`）。
+- PC 与移动端均有设置页（各自 `/settings`）；API 与客户端无关，
+  契约在 `@toby/contract`（`createSettingsClient`）。

@@ -2,8 +2,8 @@
 
 [English](ai-runtime-settings.md) | 简体中文
 
-AI 模型与各供应商的 API key 可在 PC 网页设置页中于运行时
-配置。持久化在服务端：一个新的 `settings` 域，拥有自己的按域数据库
+AI 模型与各供应商的 API key 可在网页设置页（PC 与移动端）中于运行时
+配置。持久化在服务端：一个 `settings` 域，拥有自己的按域数据库
 （`data/settings.db`），API key 作为 pi-ai 凭证经 pi-ai 自身的
 `CredentialStore` 端口入库。设置写入后在下一次 AI 请求即生效——
 无需重启，无需重载。请求超时刻意不作为用户设置：它仍是运维事务，

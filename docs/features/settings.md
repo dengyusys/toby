@@ -9,8 +9,8 @@ English | [简体中文](settings.zh.md)
 
 The settings domain owns the runtime-editable AI configuration: which
 model answers and the per-provider API keys — persisted in its own
-per-domain database (`data/settings.db`), editable from the PC settings
-page, effective on the very next AI request.
+per-domain database (`data/settings.db`), editable from the web settings
+pages (PC and mobile), effective on the very next AI request.
 
 - **Owns**: `/api/settings/ai` (read/write) and
   `/api/settings/ai/catalog`; the `settings` and `provider_credentials`
@@ -71,6 +71,6 @@ use the server's one error body with these codes:
 - The catalog instance serving `GET …/catalog` is the same pi-ai
   collection the runtime streams through — the dropdown cannot drift
   from what the server can actually call.
-- The mobile app does not configure settings in v1; the API is
-  client-agnostic and the contract lives in `@toby/contract`
+- Both web apps configure settings (PC and mobile each at `/settings`);
+  the API is client-agnostic and the contract lives in `@toby/contract`
   (`createSettingsClient`).
