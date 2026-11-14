@@ -268,10 +268,23 @@ export function createLedgerService(deps: {
     if ("question" in draft) {
       return draft;
     }
+    // Silent learning: memory receipts the extraction run landed ride on
+    // the result it produced — absent when the run wrote no memory, so
+    // old responses stay byte-identical. A follow-up question carries
+    // none: it has no receipt channel (the memory writes themselves still
+    // landed and show their own cards through the tools).
+    const memoryReceipts = draft.memory_receipts;
     if ("edit" in draft) {
-      return writeEdit(draft.edit, new Date(clock()));
+      const result = await writeEdit(draft.edit, new Date(clock()));
+      if ("question" in result || memoryReceipts === undefined) {
+        return result;
+      }
+      return { ...result, memory_receipts: memoryReceipts };
     }
-    return writeBatch(draft.entries);
+    const receipt = await writeBatch(draft.entries);
+    return memoryReceipts === undefined
+      ? receipt
+      : { ...receipt, memory_receipts: memoryReceipts };
   }
 
   return {

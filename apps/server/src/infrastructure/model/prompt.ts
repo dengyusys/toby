@@ -5,15 +5,20 @@
  *   <tools>     generated from the registered tools: one line per tool,
  *               with that tool's own usage notes nested under it
  *   <rules>     the domain's own rules
+ *   <memory>    the resolved memory section (optional, per run)
  *   <context>   the values that change every run (date, weekday, ...)
  *
  * Two rules keep this honest:
  * - Tool names appear only in the generated <tools> section. Hand-written
  *   text describes behaviour, never procedures, so a renamed tool cannot
- *   leave a stale name behind in prose (a violation fails assembly).
+ *   leave a stale name behind in prose (a violation fails assembly). The
+ *   one exemption is the <memory> section's index heading, which names the
+ *   recall tool by design (docs/decisions/personal-agent-memory.md).
  * - <context> is rendered last: it is the only section that changes per
  *   run, so the static prefix ahead of it stays byte-identical for
- *   provider prompt caching.
+ *   provider prompt caching. <memory> resolves per run too; its provider
+ *   lives on the agent spec (agent.ts) and the run hands the resolved
+ *   text to buildSystemPrompt.
  *
  * Empty sections are omitted, and each list is deduplicated by its trimmed
  * text. Everything is plain text — the model-facing tool contract is still
@@ -71,6 +76,9 @@ function uniqueLines(lines: readonly string[], label: string): string[] {
  * lives in the tool definition and the generated <tools> section, and a
  * second mention would go stale on the next rename. Tool guidelines are
  * checked too — rendered under their tool, they can say "this tool".
+ * The `<memory>` section is deliberately exempt: its index heading names
+ * the recall tool by design
+ * (docs/decisions/personal-agent-memory.md, "How it is read").
  */
 function assertNoToolNames(spec: TobyPromptSpec, preamble: string): void {
   const prose = [
@@ -89,7 +97,10 @@ function assertNoToolNames(spec: TobyPromptSpec, preamble: string): void {
   }
 }
 
-export function buildSystemPrompt(spec: TobyPromptSpec): string {
+export function buildSystemPrompt(
+  spec: TobyPromptSpec,
+  memory?: string,
+): string {
   const preamble = spec.preamble.trim();
   if (preamble.length === 0) {
     throw new Error("preamble must not be empty");
@@ -122,6 +133,16 @@ export function buildSystemPrompt(spec: TobyPromptSpec): string {
   };
   section("tools", tools);
   section("rules", rules);
+  // The resolved `<memory>` section (docs/decisions/personal-agent-memory.md):
+  // multi-line by nature (it quotes whole entry lines), omitted when empty,
+  // and rendered after <rules> so <context> stays last — the per-run prefix
+  // ahead of it remains byte-identical for provider prompt caching. Unlike
+  // every other section it is exempt from the tool-name check above: the
+  // index heading deliberately names the recall tool.
+  const memoryText = memory?.trim() ?? "";
+  if (memoryText.length > 0) {
+    parts.push(["<memory>", memoryText, "</memory>"].join("\n"));
+  }
   section("context", context);
   return parts.join("\n\n");
 }

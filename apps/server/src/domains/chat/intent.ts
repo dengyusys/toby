@@ -8,6 +8,13 @@
  * exchange history), and corrections about the previous turn re-classify
  * naturally — every message is classified fresh against that history.
  *
+ * The system prompt is built per classify() call so the memory
+ * conventions it embeds stay fresh; everything else (intent lines,
+ * rules) is static per construction. When a memory port is wired, the
+ * prompt carries the conventions-only `<memory>` block — the classifier
+ * carries no tools, so no index line
+ * (docs/decisions/personal-agent-memory.md).
+ *
  * The valid intents are registry-derived: each registered capability
  * contributes its id and one prompt line (src/chat-capability.ts);
  * "none" is chat's own and always present. Unregistered intents are not
@@ -16,7 +23,7 @@
 
 import { z } from "zod";
 import type { AiClient } from "../../infrastructure/model/types.ts";
-import type { ChatIntent, IntentClassifier } from "./types.ts";
+import type { ChatIntent, ChatMemoryPort, IntentClassifier } from "./types.ts";
 
 /** The registry slice the classifier needs: identity plus prompt line. */
 export interface IntentDescriptor {
@@ -38,8 +45,11 @@ function classificationSchema(
     .strict();
 }
 
-function systemPrompt(descriptors: readonly IntentDescriptor[]): string {
-  return [
+function systemPrompt(
+  descriptors: readonly IntentDescriptor[],
+  memory?: string,
+): string {
+  const lines = [
     "你是 Toby 的意图分类器。把用户当前这句话路由到一个意图,并把碎片补全成一句自含的话。",
     "意图说明:",
     ...descriptors.map((descriptor) => descriptor.intentDescription),
@@ -48,7 +58,17 @@ function systemPrompt(descriptors: readonly IntentDescriptor[]): string {
     "1. sentence 必须自含:用户当前这句是碎片(如「今天呀」「用微信」)时,结合最近对话把它补成完整、可独立理解的句子;是完整句则原样返回。",
     "2. 用户在纠正上一轮(如「不对,是打车」)时,把纠正后的完整意思放进 sentence。",
     '3. 只输出 JSON 对象:{"intent":"...","sentence":"..."},不要输出其他任何文字。',
-  ].join("\n");
+  ];
+  // The `<memory>` block rides last, wrapped here (the port returns the
+  // inner text); a corrupt memory file degrades to the honest line so
+  // classification never breaks.
+  if (memory !== undefined) {
+    const text = memory.trim();
+    if (text.length > 0) {
+      lines.push(`<memory>\n${text}\n</memory>`);
+    }
+  }
+  return lines.join("\n");
 }
 
 /** One exchange the classifier sees, newest last. */
@@ -58,12 +78,24 @@ export function createIntentClassifier(deps: {
   client: AiClient;
   /** The registered capabilities, in registration order. */
   intents: readonly IntentDescriptor[];
+  /** The memory wiring port; its conventions feed the prompt per call. */
+  memory?: ChatMemoryPort;
 }): IntentClassifier {
   const { client } = deps;
   const schema = classificationSchema(deps.intents);
-  const system = systemPrompt(deps.intents);
   return {
     async classify(text, history) {
+      // Per call: conventions change between turns, and the prompt must
+      // always carry the file's current state.
+      let memory: string | undefined;
+      if (deps.memory) {
+        try {
+          memory = await deps.memory.sectionForClassifier();
+        } catch {
+          memory = "（记忆文件当前无法读取）";
+        }
+      }
+      const system = systemPrompt(deps.intents, memory);
       const recent = history.slice(-HISTORY_TURNS);
       const conversation = [
         ...(recent.length > 0

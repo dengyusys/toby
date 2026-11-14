@@ -23,7 +23,7 @@ import { createChatDb } from "./db.ts";
 import { createIntentClassifier } from "./intent.ts";
 import { createRateLimiter } from "./rate-limit.ts";
 import { createChatRepository } from "./repository.ts";
-import type { IntentClassifier } from "./types.ts";
+import type { ChatMemoryPort, IntentClassifier } from "./types.ts";
 
 export interface ChatPluginOptions {
   config: TobyConfig;
@@ -34,6 +34,8 @@ export interface ChatPluginOptions {
   aiClient?: AiClient;
   /** The registered routable domains (composition-root registry). */
   capabilities?: readonly ChatDomainCapability[];
+  /** The memory wiring port; absent memory changes nothing. */
+  memory?: ChatMemoryPort;
   /** Test seam: a fake classifier in place of the real AI one. */
   classifier?: IntentClassifier;
   /** Test seam: limiter knobs instead of the doc defaults. */
@@ -83,12 +85,14 @@ export function chatPlugin(options: ChatPluginOptions): FastifyPluginAsync {
       ? createIntentClassifier({
           client: options.aiClient,
           intents: capabilities,
+          ...(options.memory ? { memory: options.memory } : {}),
         })
       : undefined);
   const agent = options.agentFactory
     ? createChatAgent({
         agentFactory: options.agentFactory,
         capabilities,
+        ...(options.memory ? { memory: options.memory } : {}),
         clock,
       })
     : undefined;
@@ -97,6 +101,7 @@ export function chatPlugin(options: ChatPluginOptions): FastifyPluginAsync {
     clock,
     ...(classifier ? { classifier } : {}),
     ...(agent ? { agent } : {}),
+    ...(options.memory ? { memory: options.memory } : {}),
     capabilities: capabilityMap,
     limiter: createRateLimiter({
       now: clock,

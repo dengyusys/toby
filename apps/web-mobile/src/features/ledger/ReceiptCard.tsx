@@ -9,7 +9,10 @@ import type {
   LedgerEntry,
   LedgerReceiptView,
   LedgerUpdateResult,
+  MemoryReceipt,
 } from "@toby/contract";
+import { MemoryReceiptLines } from "@/features/memory/MemoryReceiptCard.tsx";
+import { isMemoryReceipt } from "@/features/memory/memory-view.ts";
 import { formatCents } from "./ledger-view.ts";
 
 interface ReceiptCardProps {
@@ -44,6 +47,23 @@ const FIELD_LABELS: Record<keyof LedgerEntry, string> = {
   note: "备注",
 };
 
+/** Optional memory sidecar on the AI write path; absent adds no DOM. */
+function MemorySidecar({ receipt }: ReceiptCardProps) {
+  const memoryReceipts: MemoryReceipt[] = (
+    receipt.memory_receipts ?? []
+  ).filter(isMemoryReceipt);
+  if (memoryReceipts.length === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-border pt-3">
+      <p className="text-xs font-medium text-muted-foreground">记忆</p>
+      <div className="mt-2">
+        <MemoryReceiptLines receipts={memoryReceipts} compact />
+      </div>
+    </div>
+  );
+}
+
 function UpdatedCard({ result }: { result: LedgerUpdateResult }) {
   const changed = EDITABLE_FIELDS.filter(
     (field) => result.before[field] !== result.after[field],
@@ -70,6 +90,7 @@ function UpdatedCard({ result }: { result: LedgerUpdateResult }) {
           </li>
         ))}
       </ul>
+      <MemorySidecar receipt={result} />
     </section>
   );
 }
@@ -117,6 +138,7 @@ export function ReceiptCard({ receipt }: ReceiptCardProps) {
           {formatCents(Math.abs(totalCents))}
         </p>
       )}
+      <MemorySidecar receipt={receipt} />
     </section>
   );
 }

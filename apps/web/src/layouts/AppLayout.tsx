@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Activity, Calendar, LogOut, MessageSquare } from "lucide-react";
+import { Activity, Brain, Calendar, LogOut, MessageSquare } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { authClient } from "@/lib/api.ts";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button.tsx";
 const NAV_ITEMS = [
   { to: "/", label: "对话", end: true, icon: MessageSquare },
   { to: "/ledger", label: "账单", end: false, icon: Calendar },
+  { to: "/memory", label: "记忆", end: false, icon: Brain },
 ] as const;
 
 /**

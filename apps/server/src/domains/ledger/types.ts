@@ -28,13 +28,16 @@ export interface LedgerTransactionRow extends LedgerEntry {
 /**
  * The receipt of a direct write: the batch has already landed when this
  * shape is returned. There is no revert window — recovery is writing again
- * or backup.
+ * or backup. `memory_receipts` rides only when the one-sentence run also
+ * wrote memory (silent learning); opaque passthrough, rendered by the
+ * memory card path, never read by the ledger.
  */
 export interface LedgerReceiptView {
   readonly written: number;
   readonly transaction_ids: readonly number[];
   readonly entries: readonly LedgerEntry[];
   readonly created_at: string;
+  readonly memory_receipts?: readonly unknown[];
 }
 
 /**
@@ -83,7 +86,9 @@ export interface LedgerEditInstruction {
 /**
  * Result of one transactional update — a structured PATCH or an AI
  * correction. `before` is read inside the same transaction as the UPDATE,
- * so the pair is one consistent snapshot of what changed.
+ * so the pair is one consistent snapshot of what changed. `memory_receipts`
+ * rides only when the AI correction run also wrote memory (opaque
+ * passthrough, see LedgerReceiptView).
  */
 export interface LedgerUpdateResult {
   readonly transaction_id: number;
@@ -91,6 +96,7 @@ export interface LedgerUpdateResult {
   readonly before: LedgerTransactionRow;
   readonly after: LedgerTransactionRow;
   readonly updated_at: string;
+  readonly memory_receipts?: readonly unknown[];
 }
 
 /** Category subtotal inside a month report. */

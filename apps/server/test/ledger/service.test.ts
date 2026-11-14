@@ -353,6 +353,52 @@ describe("ledger service one-sentence path", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("memory receipts the draft carried ride onto the landed receipt", async () => {
+    const memoryReceipt = {
+      action: "remembered",
+      type: "约定",
+      after: "- 咖啡记「饮品」",
+      created_at: "2026-10-20T08:00:00.000Z",
+    };
+    const { service, calls } = makeAiService(() => ({
+      entries: [entry({ amount: 3000, note: "" })],
+      memory_receipts: [memoryReceipt],
+    }));
+    const result = await service.write({ text: "午饭30,记住咖啡记饮品" });
+    if (!("entries" in result)) {
+      throw new Error("expected a receipt");
+    }
+    expect(result.written).toBe(1);
+    // Opaque passthrough: the receipts travel untouched, after the fields
+    // the write itself produced.
+    expect(result.memory_receipts).toEqual([memoryReceipt]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("a draft without memory receipts lands the old receipt shape, field absent", async () => {
+    const { service } = makeAiService(() => ({
+      entries: [entry({ amount: 3000, note: "" })],
+    }));
+    const result = await service.write({ text: "午饭30" });
+    if (!("entries" in result)) {
+      throw new Error("expected a receipt");
+    }
+    expect(result.written).toBe(1);
+    // Absent, not an empty array: old responses stay byte-identical.
+    expect(result).not.toHaveProperty("memory_receipts");
+  });
+
+  it("a follow-up question draft rides back verbatim — receipts or not", async () => {
+    // The extractor never attaches receipts to a question (pinned in
+    // extraction.test.ts); the service is a passthrough for questions,
+    // it neither adds nor strips anything.
+    const { service } = makeAiService(() => ({
+      question: "这笔是支出还是收入?",
+    }));
+    const result = await service.write({ text: "book 25" });
+    expect(result).toEqual({ question: "这笔是支出还是收入?" });
+  });
+
   it("maps extractor failures to 501/502 domain errors", async () => {
     const unconfigured = makeAiService(() => {
       throw new AiError("unconfigured", "no key");
@@ -445,6 +491,45 @@ describe("ledger service one-sentence path", () => {
         before,
         after,
         updated_at: new Date("2026-10-20T08:00:00.000Z").toISOString(),
+      });
+      // No memory writes during this run: the update result keeps the old
+      // shape, receipts absent.
+      expect(result).not.toHaveProperty("memory_receipts");
+    });
+
+    it("memory receipts ride onto the update result too", async () => {
+      const before = dayRows[0]!;
+      const after = { ...before, amount: 3500 };
+      const memoryReceipt = {
+        action: "updated",
+        type: "约定",
+        before: "- 咖啡记「拿铁」",
+        after: "- 咖啡记「饮品」",
+        created_at: "2026-10-20T08:00:00.000Z",
+      };
+      const { service, updates } = makeEditHarness(
+        dayRows,
+        { before, after },
+        () => ({
+          edit: {
+            match: { date: "2026-10-20", note_contains: "午饭" },
+            patch: { amount: 3500 },
+          },
+          memory_receipts: [memoryReceipt],
+        }),
+      );
+      const result = await service.write({
+        text: "把午饭那笔改成35,咖啡改记饮品",
+      });
+      expect(updates).toEqual([{ id: 11, patch: { amount: 3500 } }]);
+      // The landed update, with the run's silent-learning receipt after it.
+      expect(result).toEqual({
+        transaction_id: 11,
+        status: "updated",
+        before,
+        after,
+        updated_at: new Date("2026-10-20T08:00:00.000Z").toISOString(),
+        memory_receipts: [memoryReceipt],
       });
     });
 

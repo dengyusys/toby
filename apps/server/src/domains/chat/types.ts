@@ -96,6 +96,25 @@ export interface ChatHistoryMessage {
   readonly timestamp: number;
 }
 
+/**
+ * The wiring port chat uses to reach the memory domain without importing
+ * it: the composition root binds the memory service's readers and the
+ * session hook to it. Everything is optional at the chat level — absent
+ * memory means chat behaves exactly as before.
+ */
+export interface ChatMemoryPort {
+  /**
+   * The inner text of the none-agent's `<memory>` prompt section
+   * (conventions + index). Consumers degrade a failing read to an honest
+   * line so chat keeps working with a corrupt memory file.
+   */
+  sectionForChat(): Promise<string>;
+  /** The conventions-only section for the intent classifier's prompt. */
+  sectionForClassifier(): Promise<string>;
+  /** Bind the off-record gate to the session now being served. */
+  observeSession(sessionId: string): void;
+}
+
 /** The `none`-intent agent's settled run, transcript included. */
 export interface ChatAgentRun {
   /** Final assistant text ("" when none). */

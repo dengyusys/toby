@@ -32,7 +32,7 @@ flowchart LR
 - The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete is one validated, transactional repository write — no proposals, no confirmation gates (ledger is live on it).
 - AI tools carry a safety kind (read-only / write-intent) and run behind a policy gate; every write a tool produces is deterministic validation plus one transaction (docs/decisions/ai-pi-runtime.md).
 - Root `scripts/` only orchestrates dev and multi-process startup; it never touches data.
-- The remaining business domains (greeting, schedule, notes, todo, memory, library) land one at a time; each writes its contract doc in `docs/features/` when it lands — not before. The write rule is one sentence shared by all of them, not a shared module.
+- The remaining business domains (greeting, schedule, notes, todo, library) land one at a time; each writes its contract doc in `docs/features/` when it lands — not before. The write rule is one sentence shared by all of them, not a shared module.
 
 ## Repository layout
 
@@ -97,7 +97,7 @@ Two non-inferable details: the AI's draft passes shape, domain, and semantic val
 - Explicit `false` and numeric `0` are valid data, never treated as missing.
 - The server edits field by field: `NULL` means missing, omitted on read; unrelated fields stay untouched.
 - A multi-field commit is one database transaction; failure or interruption rolls back via the database. No user history and no in-product undo — deliberately; recovery is backup.
-- Each domain owns one database — a SQLite file `data/<domain>.db`, or a MySQL schema `toby_<domain>` when that dialect is on (see the [db adapter decision](decisions/db-adapter.md)); databases are never shared across domains.
+- Each domain owns one database — a SQLite file `data/<domain>.db`, or a MySQL schema `toby_<domain>` when that dialect is on (see the [db adapter decision](decisions/db-adapter.md)); databases are never shared across domains. The one recorded exception: memory's storage is the strictly parsed `data/memory/MEMORY.md` behind its repository port ([personal-agent-memory](decisions/personal-agent-memory.md)).
 
 ## Security and dependency direction
 

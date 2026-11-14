@@ -53,4 +53,15 @@ export interface ChatDomainCapability {
     toolName: string,
     args: Readonly<Record<string, unknown>>,
   ): { readonly target: string; readonly label: string } | undefined;
+  /**
+   * A mid-run tool result → its silent-learning card, or undefined when
+   * the tool produced nothing cardable. Called by chat for every
+   * toolResult the none agent produced, first capability that answers
+   * wins (tool names are the capability's own namespace). The receipt is
+   * opaque passthrough, like every card receipt.
+   */
+  cardFor?(
+    toolName: string,
+    details: unknown,
+  ): { readonly confirmText: string; readonly receipt: unknown } | undefined;
 }

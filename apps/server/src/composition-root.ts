@@ -16,6 +16,9 @@ import { authPlugin } from "./domains/auth/plugin.ts";
 import { chatPlugin } from "./domains/chat/plugin.ts";
 import { createLedgerChatCapability } from "./domains/ledger/chat-capability.ts";
 import { createLedgerDomain } from "./domains/ledger/plugin.ts";
+import { createMemoryChatCapability } from "./domains/memory/chat-capability.ts";
+import { createMemoryDomain } from "./domains/memory/plugin.ts";
+import { createMemoryTools } from "./domains/memory/tools.ts";
 import { systemPlugin } from "./domains/system/plugin.ts";
 import { tracesPlugin } from "./domains/traces/plugin.ts";
 import type { TobyConfig } from "./infrastructure/config/config.ts";
@@ -75,17 +78,50 @@ export function productionDomains(options: {
   const aiClient = config.ai
     ? createPiAiClient(config.ai, { reporter: traceBus })
     : undefined;
-  // The ledger domain is built here so the composition root can hand
-  // its service to the chat capability — the only cross-domain wiring:
-  // the domain exports a capability object (satisfied structurally, never
-  // importing chat), and this registry line is all a new domain adds
-  // (docs/decisions/chat-domain-capabilities.md).
+  // The ledger and memory domains are built here so the composition root
+  // can hand their services to the chat capabilities and to each other's
+  // wiring ports — the only cross-domain wiring: a domain exports a
+  // capability object (satisfied structurally, never importing chat), and
+  // this registry line is all a new domain adds
+  // (docs/decisions/chat-domain-capabilities.md). The memory tools are
+  // built once over the memory service and shared by the memory
+  // capability, the ledger extractor and the memory agent, so the
+  // off-record gate and the receipts stay consistent everywhere
+  // (docs/decisions/personal-agent-memory.md).
+  const memoryDomain = createMemoryDomain({ config, clock });
+  const memoryTools = createMemoryTools({ service: memoryDomain.service });
+  const memoryConversationTools = [
+    memoryTools.recall,
+    memoryTools.remember,
+    memoryTools.forget,
+  ];
   const ledgerDomain = createLedgerDomain({
     config,
     clock,
     ...(agentFactory ? { agentFactory } : {}),
+    ...(agentFactory
+      ? {
+          memory: {
+            tools: memoryConversationTools,
+            sectionFor: (sentence: string) =>
+              memoryDomain.service.buildMemorySection({
+                conventions: true,
+                peopleIndex: true,
+                aboutIndex: false,
+                sentence,
+              }),
+          },
+        }
+      : {}),
   });
-  const chatCapabilities = [createLedgerChatCapability(ledgerDomain.service)];
+  const chatCapabilities = [
+    createLedgerChatCapability(ledgerDomain.service),
+    createMemoryChatCapability({
+      service: memoryDomain.service,
+      tools: memoryTools,
+      ...(agentFactory ? { agentFactory } : {}),
+    }),
+  ];
   return [
     async (app) => {
       // Default-secure from here on: every `/api` route registered after
@@ -95,6 +131,7 @@ export function productionDomains(options: {
     },
     (app) => app.register(systemPlugin({ clock })),
     (app) => app.register(ledgerDomain.plugin),
+    (app) => app.register(memoryDomain.plugin),
     (app) =>
       app.register(
         chatPlugin({
@@ -102,6 +139,24 @@ export function productionDomains(options: {
           clock,
           ...(agentFactory ? { agentFactory } : {}),
           ...(aiClient ? { aiClient } : {}),
+          memory: {
+            sectionForChat: () =>
+              memoryDomain.service.buildMemorySection({
+                conventions: true,
+                peopleIndex: true,
+                aboutIndex: true,
+              }),
+            // Conventions only — the classifier carries no tools, so no
+            // index line (docs/decisions/personal-agent-memory.md).
+            sectionForClassifier: () =>
+              memoryDomain.service.buildMemorySection({
+                conventions: true,
+                peopleIndex: false,
+                aboutIndex: false,
+              }),
+            observeSession: (sessionId) =>
+              memoryDomain.service.observeSession(sessionId),
+          },
           capabilities: chatCapabilities,
         }),
       ),

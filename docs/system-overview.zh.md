@@ -32,7 +32,7 @@ flowchart LR
 - server 是唯一日常读写入口:查询走只读 API;新增、修改和删除一律是域仓库拥有的一次"先校验、后事务"的写入——没有提案、没有确认门;记账域已在使用。
 - AI 工具携带安全分级(read-only / write-intent)并在策略门控下运行;write-intent 工具产生的效果是确定性校验加一次事务写入(docs/decisions/ai-pi-runtime.zh.md)。
 - 根 `scripts/` 只做开发与多进程启动编排,不接触数据。
-- 其余业务域(问候 greeting、日程 schedule、手账 notes、待办 todo、记忆 memory、书库 library)逐个独立落地;每个域落地时才在 `docs/features/` 立契约文档,不预写。写入规矩一句话共享,不是共享模块。
+- 其余业务域(问候 greeting、日程 schedule、手账 notes、待办 todo、书库 library)逐个独立落地;每个域落地时才在 `docs/features/` 立契约文档,不预写。写入规矩一句话共享,不是共享模块。
 
 ## 仓库结构
 
@@ -97,7 +97,7 @@ sequenceDiagram
 - 显式 `false` 和数值 `0` 是有效数据,不能按缺失值处理。
 - server 做字段级修改:`NULL` 表示缺失,读取时省略;无关字段保持不变。
 - 多字段提交是一条数据库事务;失败或中断由数据库回滚。不提供用户历史,也不提供产品内 undo——刻意为之;恢复靠备份。
-- 每个域拥有自己的数据库 —— SQLite 方言为文件 `data/<域>.db`,MySQL 方言为 schema `toby_<域>`(见[数据库适配器决策](decisions/db-adapter.zh.md));跨域永不共享数据库。
+- 每个域拥有自己的数据库 —— SQLite 方言为文件 `data/<域>.db`,MySQL 方言为 schema `toby_<域>`(见[数据库适配器决策](decisions/db-adapter.zh.md));跨域永不共享数据库。记录在案的唯一例外:记忆域的存储是躲在仓库端口后面、格式严格的 `data/memory/MEMORY.md`([personal-agent-memory](decisions/personal-agent-memory.zh.md))。
 
 ## 安全与依赖方向
 

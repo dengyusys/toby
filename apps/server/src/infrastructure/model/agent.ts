@@ -139,6 +139,14 @@ export interface TobyAgentSpec {
   readonly rules?: readonly string[];
   /** Per-run values (today's date, weekday, ...), rendered last. */
   readonly context?: readonly string[];
+  /**
+   * Resolves the inner text of the `<memory>` prompt section per run
+   * (docs/decisions/personal-agent-memory.md) — rendered between <rules>
+   * and <context>, omitted when it comes back empty. A rejecting provider
+   * fails the run honestly: no silent skip. Callers that must survive a
+   * corrupt memory file wrap this provider themselves (chat does).
+   */
+  readonly memory?: () => Promise<string>;
   /** Prior exchanges replayed as plain text before the new prompt. */
   readonly history?: readonly TobyHistoryMessage[];
   readonly tools: readonly TobyTool[];
@@ -308,7 +316,10 @@ function createTobyAgent(
   }
   // Rendered once at assembly: preamble + generated <tools> + <rules> +
   // <context>. A prompt naming a tool in hand-written prose fails here.
-  const systemPrompt = buildSystemPrompt(spec);
+  // Specs with a memory provider rebuild the prompt per run (run() below)
+  // so the <memory> section always reflects the file's current state; the
+  // rest of the prompt is byte-identical either way.
+  const staticSystemPrompt = buildSystemPrompt(spec);
   const history = historyMessagesOf(spec.history ?? [], model);
 
   return {
@@ -316,9 +327,17 @@ function createTobyAgent(
       let turns = 0;
       let turnCapped = false;
 
+      // The <memory> section resolves per run; a rejecting provider fails
+      // the run honestly — no silent skip. Callers that must keep working
+      // with a corrupt memory file wrap this provider themselves (chat
+      // does; docs/decisions/personal-agent-memory.md).
+      const runSystemPrompt = spec.memory
+        ? buildSystemPrompt(spec, await spec.memory())
+        : staticSystemPrompt;
+
       const agent = new Agent({
         initialState: {
-          systemPrompt,
+          systemPrompt: runSystemPrompt,
           messages: history,
           model,
           tools: spec.tools.map((entry) => entry.tool),

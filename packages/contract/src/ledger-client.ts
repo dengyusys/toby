@@ -25,6 +25,11 @@ export interface LedgerReceiptView {
   transaction_ids: number[];
   entries: LedgerEntry[];
   created_at: string;
+  /**
+   * Rides only when the one-sentence run also wrote memory (silent
+   * learning); opaque passthrough rendered by the memory card path.
+   */
+  memory_receipts?: unknown[];
 }
 
 /** Result of a user-initiated delete (the sole non-card write). */
@@ -55,6 +60,8 @@ export interface LedgerUpdateResult {
   before: LedgerTransactionRow;
   after: LedgerTransactionRow;
   updated_at: string;
+  /** Opaque memory receipts from the same AI run (see LedgerReceiptView). */
+  memory_receipts?: unknown[];
 }
 
 export interface LedgerTransactionRow extends LedgerEntry {

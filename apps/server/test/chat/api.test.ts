@@ -15,13 +15,19 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
 import { chatPlugin } from "../../src/domains/chat/plugin.ts";
-import type { IntentClassifier } from "../../src/domains/chat/types.ts";
+import type {
+  ChatMemoryPort,
+  IntentClassifier,
+} from "../../src/domains/chat/types.ts";
 import type {
   LedgerDraft,
   LedgerExtractor,
 } from "../../src/domains/ledger/extraction.ts";
 import { createLedgerChatCapability } from "../../src/domains/ledger/chat-capability.ts";
 import { createLedgerDomain } from "../../src/domains/ledger/plugin.ts";
+import { createMemoryChatCapability } from "../../src/domains/memory/chat-capability.ts";
+import { createMemoryDomain } from "../../src/domains/memory/plugin.ts";
+import { createMemoryTools } from "../../src/domains/memory/tools.ts";
 import type {
   TobyAgentFactory,
   TobyAgentSpec,
@@ -54,6 +60,9 @@ const classifier: IntentClassifier = {
 };
 const classifierCalls: { text: string; history: unknown[] }[] = [];
 
+/** The session ids the memory port observed, one per served message. */
+const observeCalls: string[] = [];
+
 let extractorDraft: () => LedgerDraft = () => ({
   question: "这笔是支出还是收入?",
 });
@@ -69,6 +78,7 @@ async function buildChatOnlyApp(
   options: {
     classifierOverride?: IntentClassifier;
     rateLimit?: { limit?: number; windowMs?: number };
+    memory?: ChatMemoryPort;
   } = {},
 ): Promise<void> {
   caseCounter += 1;
@@ -88,6 +98,7 @@ async function buildChatOnlyApp(
               ? { classifier: options.classifierOverride }
               : {}),
             ...(options.rateLimit ? { rateLimit: options.rateLimit } : {}),
+            ...(options.memory ? { memory: options.memory } : {}),
           }),
         ),
     ],
@@ -127,9 +138,62 @@ async function buildLedgerBackedApp(
   app = await createTestApp({ config, domains: mounts });
 }
 
+/** Ledger + memory + chat, wired exactly like the composition root: the
+ * shared memory tool set feeds both the capability and (in production)
+ * the extractor; the memory port rides to the service and agent. */
+async function buildLedgerMemoryApp(
+  options: { agentFactory?: TobyAgentFactory } = {},
+): Promise<void> {
+  caseCounter += 1;
+  nowMs = BASE_MS;
+  const config = resolveConfig({
+    env: { TOBY_DATA_ROOT: path.join(baseDir, `case-${caseCounter}`) },
+  });
+  const ledgerDomain = createLedgerDomain({
+    config,
+    clock: () => nowMs,
+    extractor,
+  });
+  const memoryDomain = createMemoryDomain({ config, clock: () => nowMs });
+  const memoryTools = createMemoryTools({ service: memoryDomain.service });
+  const memoryPort: ChatMemoryPort = {
+    sectionForChat: async () => "",
+    sectionForClassifier: async () => "",
+    observeSession: observeCalls.push.bind(observeCalls),
+  };
+  const mounts: DomainMount[] = [
+    (instance) => instance.register(ledgerDomain.plugin),
+    (instance) => instance.register(memoryDomain.plugin),
+    (instance) =>
+      instance.register(
+        chatPlugin({
+          config,
+          clock: () => nowMs,
+          classifier,
+          ...(options.agentFactory
+            ? { agentFactory: options.agentFactory }
+            : {}),
+          memory: memoryPort,
+          capabilities: [
+            createLedgerChatCapability(ledgerDomain.service),
+            createMemoryChatCapability({
+              service: memoryDomain.service,
+              tools: memoryTools,
+              ...(options.agentFactory
+                ? { agentFactory: options.agentFactory }
+                : {}),
+            }),
+          ],
+        }),
+      ),
+  ];
+  app = await createTestApp({ config, domains: mounts });
+}
+
 beforeEach(async () => {
   classifications = [];
   classifierCalls.length = 0;
+  observeCalls.length = 0;
   extractorDraft = () => ({ question: "这笔是支出还是收入?" });
 });
 
@@ -502,6 +566,183 @@ describe("chat api: send and the item stream", () => {
     });
     expect(third.statusCode).toBe(200);
     expect(specs[2]!.history).toEqual([]);
+  });
+
+  it("every served message re-binds the memory session before routing", async () => {
+    await buildChatOnlyApp({
+      memory: {
+        sectionForChat: async () => "",
+        sectionForClassifier: async () => "",
+        observeSession: observeCalls.push.bind(observeCalls),
+      },
+    });
+    // No classifier configured: the send settles as the unconfigured
+    // notice — but the user turn still persisted and the session still
+    // had to be observed first (the off-record flag is scoped to it).
+    const response = await inject("POST", "/api/chat/messages", {
+      text: "你好",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().items.at(-1)).toMatchObject({ type: "notice" });
+    expect(observeCalls).toEqual([response.json().session_id]);
+
+    const second = await inject("POST", "/api/chat/messages", {
+      text: "再一句",
+    });
+    expect(observeCalls).toEqual([
+      response.json().session_id,
+      second.json().session_id,
+    ]);
+  });
+
+  it("a memory write the none agent executed mid-run lands as its own receipt card", async () => {
+    // A canned transcript: a ledger query (its inspect link is the only
+    // thing it produces — tool results carry no card of their own) plus a
+    // remember the model invoked through the shared memory tool set.
+    const memoryReceipt = {
+      action: "remembered",
+      type: "约定",
+      after: "- 咖啡只喝拿铁",
+      created_at: "2026-11-05T08:00:00.000Z",
+    };
+    const runMessages: Message[] = [
+      { role: "system", content: "你是 Toby", timestamp: 1 },
+      {
+        role: "user",
+        content: "这个月花了多少,另外记住我只喝拿铁",
+        timestamp: 2,
+      },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "c1",
+            name: "ledger_month_report",
+            arguments: { month: "2026-11" },
+          },
+        ],
+        model: "faux-1",
+        api: "faux",
+        provider: "faux",
+        usage: {
+          input: 1,
+          output: 1,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 2,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: "toolUse",
+        timestamp: 3,
+      },
+      {
+        role: "toolResult",
+        toolCallId: "c1",
+        toolName: "ledger_month_report",
+        content: [{ type: "text", text: "2026-11 月:支出 ¥120.00" }],
+        isError: false,
+        timestamp: 4,
+      },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "c2",
+            name: "remember",
+            arguments: { type: "约定", text: "咖啡只喝拿铁" },
+          },
+        ],
+        model: "faux-1",
+        api: "faux",
+        provider: "faux",
+        usage: {
+          input: 1,
+          output: 1,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 2,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: "toolUse",
+        timestamp: 5,
+      },
+      {
+        role: "toolResult",
+        toolCallId: "c2",
+        toolName: "remember",
+        content: [{ type: "text", text: "已记住：- 咖啡只喝拿铁" }],
+        details: { receipt: memoryReceipt },
+        isError: false,
+        timestamp: 6,
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "这个月花了 ¥120,拿铁记住了。" }],
+        model: "faux-1",
+        api: "faux",
+        provider: "faux",
+        usage: {
+          input: 1,
+          output: 1,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 2,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: "stop",
+        timestamp: 7,
+      },
+    ];
+    const agentFactory: TobyAgentFactory = () => ({
+      run: async () => ({
+        text: "这个月花了 ¥120,拿铁记住了。",
+        turns: 3,
+        turnCapped: false,
+        stopReason: "stop" as const,
+        messages: runMessages,
+        producedMessages: runMessages.slice(1),
+      }),
+    });
+    await buildLedgerMemoryApp({ agentFactory });
+    classifications = [
+      { intent: "none", sentence: "这个月花了多少,另外记住我只喝拿铁" },
+    ];
+
+    const response = await inject("POST", "/api/chat/messages", {
+      text: "这个月花了多少,另外记住我只喝拿铁",
+    });
+    expect(response.statusCode).toBe(200);
+    const turn = response.json();
+    expect(turn.intent).toBe("none");
+    const roles = turn.items.map(
+      (item: { type?: string; role?: string }) => item.role ?? item.type,
+    );
+    // Transcript first (assistant/toolResult verbatim), the ledger inspect
+    // link after it, the memory card closing the turn.
+    expect(roles).toEqual([
+      "user",
+      "assistant",
+      "toolResult",
+      "assistant",
+      "toolResult",
+      "assistant",
+      "inspect_link",
+      "proposal_card",
+    ]);
+    const cards = turn.items.filter(
+      (item: { type?: string }) => item.type === "proposal_card",
+    );
+    // Exactly one card: the memory write. The ledger tool result produced
+    // none — silent learning is a memory-write channel only.
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toEqual({
+      type: "proposal_card",
+      domain: "memory",
+      receipt: memoryReceipt,
+    });
+    expect(turn.items.at(-1)).toBe(cards[0]);
   });
 
   it("classification failure settles as an honest notice, never a 5xx", async () => {

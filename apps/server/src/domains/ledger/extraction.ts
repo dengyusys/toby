@@ -8,13 +8,17 @@
  * normalize* functions stay the trust boundary before any draft is
  * captured. The prompt pins today's local date for relative-date
  * resolution and defaults a date-less sentence to today; genuinely
- * uncertain fields surface as a question instead of a guess.
+ * uncertain fields surface as a question instead of a guess. With the
+ * memory port wired, the conversational memory tools ride along (silent
+ * learning during bookkeeping, docs/decisions/personal-agent-memory.md)
+ * and the landed memory receipts travel back on the draft.
  */
 
 import { z } from "zod";
 import {
   defineTool,
   type TobyAgentFactory,
+  type TobyTool,
 } from "../../infrastructure/model/agent.ts";
 import { AiError } from "../../infrastructure/model/errors.ts";
 import { localDayLabel } from "../../infrastructure/local-date.ts";
@@ -35,14 +39,65 @@ export interface LedgerFollowUp {
   readonly question: string;
 }
 
+/**
+ * The extraction draft: the landed entries or edit, optionally carrying
+ * the memory receipts that landed mid-run (silent learning — the
+ * conversational memory tools ride this agent; the receipts are opaque
+ * passthrough, the ledger never interprets them).
+ */
 export type LedgerDraft =
-  | { readonly entries: readonly LedgerEntry[] }
-  | { readonly edit: LedgerEditInstruction }
+  | {
+      readonly entries: readonly LedgerEntry[];
+      readonly memory_receipts?: readonly unknown[];
+    }
+  | {
+      readonly edit: LedgerEditInstruction;
+      readonly memory_receipts?: readonly unknown[];
+    }
   | LedgerFollowUp;
+
+/**
+ * The memory wiring port (docs/decisions/personal-agent-memory.md): the
+ * sentence-scoped `<memory>` section plus the shared conversational
+ * memory tools. A wiring port, not a domain import — the composition root
+ * binds the memory service to it.
+ */
+export interface LedgerMemoryPort {
+  sectionFor(sentence: string): Promise<string>;
+  readonly tools: readonly TobyTool[];
+}
 
 /** Runs one extraction against a prepared agent. Domains inject a factory. */
 export interface LedgerExtractor {
   extract(text: string, now: Date): Promise<LedgerDraft>;
+}
+
+/**
+ * Memory receipts off the run's own transcript: the remember/forget tool
+ * results' details.receipt, in call order. Opaque passthrough — the
+ * ledger copies them onto its write result; it never reads them.
+ */
+function memoryReceiptsOf(messages: readonly unknown[]): readonly unknown[] {
+  const receipts: unknown[] = [];
+  for (const message of messages) {
+    const record = message as Record<string, unknown>;
+    if (record.role !== "toolResult") {
+      continue;
+    }
+    if (record.toolName !== "remember" && record.toolName !== "forget") {
+      continue;
+    }
+    const details = record.details as { receipt?: unknown } | undefined;
+    if (
+      details !== null &&
+      typeof details === "object" &&
+      details.receipt !== undefined &&
+      details.receipt !== null
+    ) {
+      receipts.push(details.receipt);
+    }
+  }
+  return receipts;
 }
 
 // Bounded on purpose: 3 turns = first submit + one failed submit + one
@@ -54,8 +109,11 @@ const EXTRACTION_MAX_TOKENS = 2000;
 
 export function createLedgerExtractor(deps: {
   agentFactory: TobyAgentFactory;
+  /** The memory wiring port; absent memory leaves the agent unchanged. */
+  memory?: LedgerMemoryPort;
 }): LedgerExtractor {
   const { agentFactory } = deps;
+  const memory = deps.memory;
   return {
     async extract(text, now) {
       // The draft lands here only through the tools below; whatever the
@@ -143,6 +201,21 @@ export function createLedgerExtractor(deps: {
         },
       });
 
+      // The sentence-scoped `<memory>` section, resolved per run
+      // (docs/decisions/personal-agent-memory.md); a corrupt memory file
+      // degrades to one honest line instead of failing the extraction.
+      const memorySection =
+        memory === undefined
+          ? undefined
+          : async (): Promise<string> => {
+              const port = memory;
+              try {
+                return await port.sectionFor(text);
+              } catch {
+                return "（记忆文件当前无法读取）";
+              }
+            };
+
       const agent = agentFactory({
         name: "ledger-extraction",
         preamble: "你是记账助手。把用户的一句话变成记账条目。",
@@ -154,7 +227,8 @@ export function createLedgerExtractor(deps: {
           "除工具调用外不要输出正文。",
         ],
         context: [`今天是 ${localDayLabel(now)}。`],
-        tools: [submitEntries, submitEdit, askUser],
+        ...(memorySection === undefined ? {} : { memory: memorySection }),
+        tools: [submitEntries, submitEdit, askUser, ...(memory?.tools ?? [])],
         policy: {
           allowedKinds: ["read-only", "write-intent"],
           maxTurns: EXTRACTION_MAX_TURNS,
@@ -164,7 +238,14 @@ export function createLedgerExtractor(deps: {
 
       const result = await agent.run(text);
       if (draft) {
-        return draft;
+        // A follow-up question lands nothing, so it carries no receipts.
+        if ("question" in draft) {
+          return draft;
+        }
+        const memoryReceipts = memoryReceiptsOf(result.producedMessages);
+        return memoryReceipts.length > 0
+          ? { ...draft, memory_receipts: memoryReceipts }
+          : draft;
       }
       if (result.turnCapped) {
         throw new AiError(

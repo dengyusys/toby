@@ -1,8 +1,9 @@
 /**
  * The prompt builder's contract: section order (preamble, tools, rules,
- * context), the generated <tools> lines from tool metadata, omitted empty
- * sections, deduplicated lists, context last (the only section that changes
- * per run), and the rule that hand-written prose never names a tool.
+ * memory, context), the generated <tools> lines from tool metadata, omitted
+ * empty sections, deduplicated lists, context last (the only section that
+ * changes per run), and the rule that hand-written prose never names a tool
+ * — with the <memory> section the one deliberate exemption.
  */
 
 import { describe, expect, it } from "vitest";
@@ -103,5 +104,93 @@ describe("buildSystemPrompt", () => {
     expect(() => tool("alpha", " ")).toThrow(/must not be empty/);
     expect(() => tool("alpha", "two\nlines")).toThrow(/single line/);
     expect(() => tool("alpha", "ok", ["two\nlines"])).toThrow(/single line/);
+  });
+
+  it("renders the <memory> section between rules and context, multi-line intact", () => {
+    const memory = [
+      "## 约定",
+      "- 咖啡记「饮品」",
+      "",
+      "## 记忆索引 — 详情用 recall 工具查询",
+      "人物: 小王",
+    ].join("\n");
+    const prompt = buildSystemPrompt(
+      {
+        preamble: "sys",
+        tools: [tool("alpha", "does alpha")],
+        rules: ["be brief"],
+        context: ["today is 2026-11-06"],
+      },
+      memory,
+    );
+
+    expect(prompt).toBe(
+      [
+        "sys",
+        "",
+        "<tools>",
+        "- alpha：does alpha",
+        "</tools>",
+        "",
+        "<rules>",
+        "- be brief",
+        "</rules>",
+        "",
+        "<memory>",
+        "## 约定",
+        "- 咖啡记「饮品」",
+        "",
+        "## 记忆索引 — 详情用 recall 工具查询",
+        "人物: 小王",
+        "</memory>",
+        "",
+        "<context>",
+        "today is 2026-11-06",
+        "</context>",
+      ].join("\n"),
+    );
+  });
+
+  it("omits the <memory> section when absent or blank", () => {
+    const spec = { preamble: "sys", tools: [tool("alpha", "does alpha")] };
+    expect(buildSystemPrompt(spec)).not.toContain("<memory>");
+    expect(buildSystemPrompt(spec, "   \n  ")).not.toContain("<memory>");
+    // Surrounding whitespace around real content is trimmed, not dropped.
+    expect(buildSystemPrompt(spec, "  咖啡记「饮品」  ")).toBe(
+      [
+        "sys",
+        "",
+        "<tools>",
+        "- alpha：does alpha",
+        "</tools>",
+        "",
+        "<memory>",
+        "咖啡记「饮品」",
+        "</memory>",
+      ].join("\n"),
+    );
+  });
+
+  it("exempts the <memory> section from the tool-name check by design", () => {
+    // The index heading names recall on purpose
+    // (docs/decisions/personal-agent-memory.md): assembly must not throw.
+    expect(() =>
+      buildSystemPrompt(
+        {
+          preamble: "sys",
+          tools: [tool("recall", "翻查记忆条目")],
+          rules: ["先查再答"],
+        },
+        "## 记忆索引 — 详情用 recall 工具查询",
+      ),
+    ).not.toThrow();
+    // The same mention in hand-written prose stays a violation.
+    expect(() =>
+      buildSystemPrompt({
+        preamble: "sys",
+        tools: [tool("recall", "翻查记忆条目")],
+        rules: ["详情用 recall 工具查询"],
+      }),
+    ).toThrow(/names tool "recall"/);
   });
 });

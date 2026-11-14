@@ -2,9 +2,9 @@
  * Item synthesis: the one place chat constructs ChatItem values — the
  * minimal pi-ai shapes the service synthesizes itself (user text,
  * assistant text, notice), the card item from a capability's write
- * outcome, and the transcript/inspect items distilled from a none-agent
- * run. Shapes are the closed union in types.ts; reviewing how they can
- * legally be born happens here and nowhere else.
+ * outcome, and the transcript/inspect/memory-card items distilled from a
+ * none-agent run. Shapes are the closed union in types.ts; reviewing how
+ * they can legally be born happens here and nowhere else.
  */
 
 import type {
@@ -113,4 +113,36 @@ export function inspectLinksOf(
     }
   }
   return links;
+}
+
+/**
+ * Silent-learning cards: tool results whose details carry a receipt get
+ * one proposal_card per landed write, asked of the capabilities in
+ * registration order (tool names are the capability's own namespace,
+ * first match wins). These ride at the end of the turn's items — the
+ * transcript reads first, the receipt closes it.
+ */
+export function memoryCardItemsOf(
+  messages: readonly unknown[],
+  capabilities: ReadonlyMap<string, ChatDomainCapability>,
+): ChatItem[] {
+  const cards: ChatItem[] = [];
+  for (const message of messages) {
+    const record = message as Record<string, unknown>;
+    if (record.role !== "toolResult" || typeof record.toolName !== "string") {
+      continue;
+    }
+    for (const capability of capabilities.values()) {
+      const card = capability.cardFor?.(record.toolName, record.details);
+      if (card !== undefined) {
+        cards.push({
+          type: "proposal_card",
+          domain: capability.intent,
+          receipt: card.receipt,
+        });
+        break;
+      }
+    }
+  }
+  return cards;
 }

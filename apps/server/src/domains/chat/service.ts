@@ -21,6 +21,7 @@ import type {
   ChatHistoryMessage,
   ChatIntent,
   ChatItem,
+  ChatMemoryPort,
   ChatSessionView,
   ChatTurnPage,
   ChatTurnView,
@@ -36,6 +37,7 @@ import {
   assistantTextItem,
   cardItemOf,
   inspectLinksOf,
+  memoryCardItemsOf,
   noticeItem,
   transcriptItemsOf,
   userMessageItem,
@@ -66,6 +68,8 @@ export function createChatService(deps: {
   agent?: ChatAgent;
   /** The registered capabilities, keyed by intent id. */
   capabilities: ReadonlyMap<string, ChatDomainCapability>;
+  /** The memory wiring port; absent memory changes nothing. */
+  memory?: ChatMemoryPort;
   limiter: RateLimiter;
 }): ChatService {
   const { repository, clock, capabilities } = deps;
@@ -108,6 +112,9 @@ export function createChatService(deps: {
       const items = [
         ...transcriptItemsOf(run.producedMessages),
         ...inspectLinksOf(run.producedMessages, capabilities),
+        // Silent learning: a memory write the run executed lands as its
+        // own receipt card, after the transcript it belongs to.
+        ...memoryCardItemsOf(run.producedMessages, capabilities),
       ];
       // A run that produced nothing visible still answers honestly.
       return {
@@ -140,6 +147,9 @@ export function createChatService(deps: {
         );
       }
       const session = await repository.ensureSession();
+      // Every served message re-binds the memory session (the off-record
+      // flag is scoped to one session); absent memory, nothing happens.
+      deps.memory?.observeSession(session.id);
       // The user's words persist before any AI is called; the turn's
       // intent is provisional until routing settles.
       const userItem = userMessageItem(trimmed, clock());

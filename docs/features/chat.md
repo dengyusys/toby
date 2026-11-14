@@ -75,9 +75,11 @@ error.
   text — AI output is untrusted input. User messages and notices stay plain
   text.
 
-A turn takes one route, so a card and a tool loop never share a turn. The two
-live routes: a write turn carries the receipt (or one clarifying question), a
-read-only turn carries the tool loop.
+A turn takes one route, so a capability write and a tool loop never share a
+turn: a write turn carries the receipt (or one clarifying question), a
+none-agent turn carries the tool loop — and closes with memory cards when the
+agent remembered or forgot mid-conversation (silent learning,
+docs/features/memory.md).
 
 A read-only agent turn — thinking, tool calls, one corrected mistake, one
 truncated result, two inspect links:
@@ -108,10 +110,11 @@ proposal_card   receipt (what landed)
 
 ## Routing
 
-| Intent | Answered by               | Reply                                      |
-| ------ | ------------------------- | ------------------------------------------ |
-| ledger | ledger domain (immediate) | a receipt card, or one clarifying question |
-| none   | read-only agent           | transcript items plus inspect links        |
+| Intent | Answered by               | Reply                                                                                              |
+| ------ | ------------------------- | -------------------------------------------------------------------------------------------------- |
+| ledger | ledger domain (immediate) | a receipt card, or one clarifying question                                                         |
+| memory | memory domain (immediate) | a receipt card (one per landed change, or an overview list), or one clarifying question            |
+| none   | none agent                | transcript items plus inspect links — and memory cards when the agent remembered or forgot mid-run |
 
 The intent set is **registry-derived** (docs/decisions/chat-domain-capabilities.md):
 each registered domain capability contributes its id, one classifier prompt
@@ -134,9 +137,14 @@ read-only agent path, never an error.
 
 ## The agent path
 
-- Read-only tools only. The runtime gate blocks write-intent tools; prohibited
-  capabilities (shell, file system, database) are absent as tool definitions,
-  not merely blocked.
+- Read-only tools, plus the memory write tools (`remember` / `forget`,
+  docs/features/memory.md) — silent learning rides whichever agent is already
+  running. The runtime gate still blocks every other write-intent tool;
+  prohibited capabilities (shell, file system, database) are absent as tool
+  definitions, not merely blocked.
+- Memory rides along: each run carries a `<memory>` section (conventions in
+  full, plus a people/about index) resolved fresh per run; the classifier's
+  prompt carries the conventions the same way.
 - Bounded: at most 6 turns and 2,000 reply tokens per run; a run that cannot
   settle settles as a notice.
 - Context: today's date and weekday in the server's local timezone; a text-only
@@ -148,9 +156,10 @@ read-only agent path, never an error.
   inside the result.
 - Failures are honest: unconfigured, timeout, and provider errors become
   fixed-copy notices.
-- The toolset is registry-derived: the registered capabilities' read-only
-  tools, concatenated in registration order, with each capability's rule
-  snippets appended to the agent's base rules.
+- The toolset is registry-derived: the registered capabilities' tools,
+  concatenated in registration order (each domain's read-only tools, plus the
+  memory write tools), with each capability's rule snippets appended to the
+  agent's base rules.
 - Inspect links are deterministic: a read-only tool call with a known preview
   target becomes an `inspect_link`; the model never writes or annotates them.
   The mapping is the capability's own; today ledger maps `ledger_month_report`
@@ -170,6 +179,9 @@ read-only agent path, never an error.
   the same path too — a correction lands as a before/after receipt card.
 - A card embeds the receipt snapshot at creation time; restored cards keep
   their recorded snapshot.
+- In-run cards: a `remember` / `forget` executed inside a conversational agent
+  becomes its own `proposal_card` after the transcript (the capability's
+  `cardFor` maps the tool result); today only memory produces them.
 
 ## Sessions and history
 

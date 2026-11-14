@@ -1,0 +1,43 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`keeps the ledger card unchanged when the memory sidecar is absent 1`] = `
+<section
+  class="rounded-xl border bg-card p-5 shadow-sm"
+>
+  <h2
+    class="text-base font-medium"
+  >
+    已记入
+  </h2>
+  <ul
+    class="mt-3 divide-y"
+  >
+    <li
+      class="flex items-center justify-between gap-3 py-2.5"
+    >
+      <div>
+        <p
+          class="text-sm"
+        >
+          2026-11-14
+           · 
+          支出
+        </p>
+        <p
+          class="text-xs text-muted-foreground"
+        >
+          餐饮
+           · 午饭
+        </p>
+      </div>
+      <p
+        class="text-sm font-medium tabular-nums "
+      >
+        -
+        ¥
+        25.50
+      </p>
+    </li>
+  </ul>
+</section>
+`;

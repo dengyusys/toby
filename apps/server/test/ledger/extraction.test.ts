@@ -9,14 +9,21 @@
 
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import type { Message } from "@earendil-works/pi-ai";
 import {
   createLedgerExtractor,
   type LedgerDraft,
+  type LedgerMemoryPort,
 } from "../../src/domains/ledger/extraction.ts";
 import {
   LEDGER_EDIT_TOOL_SCHEMA,
   LEDGER_ENTRIES_TOOL_SCHEMA,
 } from "../../src/domains/ledger/schema.ts";
+import { createMemoryTools } from "../../src/domains/memory/tools.ts";
+import type {
+  MemoryService,
+  MemoryWriteResult,
+} from "../../src/domains/memory/types.ts";
 import { buildSystemPrompt } from "../../src/infrastructure/model/prompt.ts";
 import type {
   TobyAgent,
@@ -369,5 +376,279 @@ describe("createLedgerExtractor", () => {
     const { extractor } = makeExtractor([{ text: "我猜是 35 元" }]);
     const error = await caughtAiError(extractor.extract("35", NOW));
     expect(error.code).toBe("unparseable-output");
+  });
+});
+
+/**
+ * The memory wiring: the sentence-scoped `<memory>` section rides the
+ * extraction spec, the conversational memory tools ride the toolset, and
+ * a memory write the run executed travels back on the draft as
+ * memory_receipts (a follow-up question carries none — it lands nothing).
+ */
+describe("createLedgerExtractor with the memory port", () => {
+  const MEMORY_SECTION = "## 约定\n- 咖啡记「饮品」";
+
+  /** A minimal memory service: remember lands, everything else unused. */
+  function makeFakeMemoryService(): MemoryService {
+    return {
+      list: async () => ({ entries: [] }),
+      exportMarkdown: async () => "",
+      recall: async () => [],
+      remember: async (input): Promise<MemoryWriteResult> => ({
+        kind: "receipt",
+        receipt: {
+          action: "remembered",
+          type: input.type,
+          after: `- ${input.text}`,
+          created_at: "2026-10-20T08:00:00.000Z",
+        },
+      }),
+      forget: async () => {
+        throw new Error("unused");
+      },
+      replaceExact: async () => {
+        throw new Error("unused");
+      },
+      buildMemorySection: async () => MEMORY_SECTION,
+      observeSession: () => {},
+      isOffRecord: () => false,
+      getOffRecord: () => ({ sessionId: null, on: false }),
+      setOffRecord: () => {},
+    };
+  }
+
+  /**
+   * The fake loop for memory-aware runs: unlike the plain factory above,
+   * it replays the real transcript — assistant toolCall, the tool's real
+   * execute, the toolResult — so the receipt scan sees what it would see
+   * in production.
+   */
+  function makeMemoryAwareFactory(steps: readonly Step[]) {
+    const specs: TobyAgentSpec[] = [];
+    const factory: TobyAgentFactory = (spec) => {
+      specs.push(spec);
+      const toolsByName = new Map<string, TobyTool>(
+        spec.tools.map((entry) => [entry.tool.name, entry] as const),
+      );
+      const agent: TobyAgent = {
+        async run(prompt: string): Promise<TobyAgentRunResult> {
+          const messages: unknown[] = [
+            { role: "user", content: prompt, timestamp: 1 },
+          ];
+          let text = "";
+          let callIndex = 0;
+          for (const step of steps) {
+            if ("text" in step) {
+              text = step.text;
+              break;
+            }
+            const entry = toolsByName.get(step.tool);
+            if (!entry) {
+              throw new Error(`fake loop: unregistered tool ${step.tool}`);
+            }
+            callIndex += 1;
+            const id = `c${callIndex}`;
+            messages.push({
+              role: "assistant",
+              content: [
+                {
+                  type: "toolCall",
+                  id,
+                  name: entry.tool.name,
+                  arguments: step.args,
+                },
+              ],
+              model: "faux-1",
+              api: "faux",
+              provider: "faux",
+              usage: {
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 2,
+                cost: {
+                  input: 0,
+                  output: 0,
+                  cacheRead: 0,
+                  cacheWrite: 0,
+                  total: 0,
+                },
+              },
+              stopReason: "toolUse",
+              timestamp: 1 + callIndex,
+            });
+            const result = await entry.tool.execute(id, step.args as never);
+            messages.push({
+              role: "toolResult",
+              toolCallId: id,
+              toolName: entry.tool.name,
+              content: result.content,
+              details: result.details,
+              isError: result.isError === true,
+              timestamp: 1 + callIndex,
+            });
+          }
+          return {
+            text,
+            turns: steps.length,
+            turnCapped: false,
+            stopReason: "stop" as const,
+            messages: messages as Message[],
+            producedMessages: messages as Message[],
+          };
+        },
+      };
+      return agent;
+    };
+    return { factory, specs };
+  }
+
+  function makeMemoryExtractor(steps: readonly Step[]) {
+    const memoryTools = createMemoryTools({
+      service: makeFakeMemoryService(),
+    });
+    const sectionsFor: string[] = [];
+    const memory: LedgerMemoryPort = {
+      sectionFor: async (sentence) => {
+        sectionsFor.push(sentence);
+        return MEMORY_SECTION;
+      },
+      tools: [memoryTools.recall, memoryTools.remember, memoryTools.forget],
+    };
+    const { factory, specs } = makeMemoryAwareFactory(steps);
+    const extractor = createLedgerExtractor({ agentFactory: factory, memory });
+    return { extractor, specs, sectionsFor };
+  }
+
+  it("the extraction spec carries the memory tools and the sentence-scoped section", async () => {
+    const { extractor, specs, sectionsFor } = makeMemoryExtractor([
+      { text: "unused" },
+    ]);
+    await expect(extractor.extract("午饭 30", NOW)).rejects.toBeInstanceOf(
+      AiError,
+    );
+    const spec = specs[0]!;
+    // The conversational trio rides after the ledger's own tools.
+    expect(spec.tools.map((entry) => entry.tool.name)).toEqual([
+      "submit_entries",
+      "submit_edit",
+      "ask_user",
+      "recall",
+      "remember",
+      "forget",
+    ]);
+    expect(spec.memory).toBeTypeOf("function");
+    expect(await (spec.memory as () => Promise<string>)()).toBe(MEMORY_SECTION);
+    expect(sectionsFor).toEqual(["午饭 30"]);
+    // The section is exempt from the tool-name check: an index heading
+    // may name recall; assembly must not throw.
+    const prompt = buildSystemPrompt(spec, MEMORY_SECTION);
+    expect(prompt).toContain("<memory>\n## 约定\n- 咖啡记「饮品」\n</memory>");
+    const rulesEnd = prompt.indexOf("</rules>");
+    const memoryStart = prompt.indexOf("<memory>");
+    const contextStart = prompt.indexOf("<context>");
+    expect(rulesEnd).toBeLessThan(memoryStart);
+    expect(memoryStart).toBeLessThan(contextStart);
+  });
+
+  it("a corrupt memory file degrades the section to one honest line", async () => {
+    const memoryTools = createMemoryTools({
+      service: makeFakeMemoryService(),
+    });
+    const memory: LedgerMemoryPort = {
+      sectionFor: async () => {
+        throw new Error("MEMORY.md 第 3 行无法解析");
+      },
+      tools: [memoryTools.recall, memoryTools.remember, memoryTools.forget],
+    };
+    const { factory, specs } = makeMemoryAwareFactory([{ text: "unused" }]);
+    const extractor = createLedgerExtractor({ agentFactory: factory, memory });
+    await expect(extractor.extract("hi", NOW)).rejects.toBeInstanceOf(AiError);
+    expect(await (specs[0]!.memory as () => Promise<string>)()).toBe(
+      "（记忆文件当前无法读取）",
+    );
+  });
+
+  it("a memory write the run executed rides back on the entries draft", async () => {
+    const { extractor } = makeMemoryExtractor([
+      { tool: "remember", args: { type: "约定", text: "咖啡记「饮品」" } },
+      {
+        tool: "submit_entries",
+        args: {
+          entries: [
+            {
+              date: "2026-10-20",
+              type: "expense",
+              category: "餐饮",
+              amount: "30",
+            },
+          ],
+        },
+      },
+    ]);
+    const draft = await extractor.extract("午饭30,记住咖啡记饮品", NOW);
+    expect(draft).toEqual({
+      entries: [
+        {
+          date: "2026-10-20",
+          type: "expense",
+          category: "餐饮",
+          amount: 3000,
+          note: "",
+        },
+      ],
+      memory_receipts: [
+        {
+          action: "remembered",
+          type: "约定",
+          after: "- 咖啡记「饮品」",
+          created_at: "2026-10-20T08:00:00.000Z",
+        },
+      ],
+    });
+  });
+
+  it("a follow-up question carries no receipts — it has no channel", async () => {
+    const { extractor } = makeMemoryExtractor([
+      { tool: "remember", args: { type: "约定", text: "咖啡记「饮品」" } },
+      { tool: "ask_user", args: { question: "这笔是支出还是收入?" } },
+    ]);
+    const draft = await extractor.extract("book 25,记住咖啡记饮品", NOW);
+    // The memory write itself still landed (its card rides the tool
+    // result); the question draft stays bare.
+    expect(draft).toEqual({ question: "这笔是支出还是收入?" });
+    expect(draft).not.toHaveProperty("memory_receipts");
+  });
+
+  it("a run that wrote no memory returns the old draft shape, receipts absent", async () => {
+    const { extractor } = makeMemoryExtractor([
+      {
+        tool: "submit_entries",
+        args: {
+          entries: [
+            {
+              date: "2026-10-20",
+              type: "expense",
+              category: "餐饮",
+              amount: "30",
+            },
+          ],
+        },
+      },
+    ]);
+    const draft = await extractor.extract("午饭30", NOW);
+    expect(draft).toEqual({
+      entries: [
+        {
+          date: "2026-10-20",
+          type: "expense",
+          category: "餐饮",
+          amount: 3000,
+          note: "",
+        },
+      ],
+    });
+    expect(draft).not.toHaveProperty("memory_receipts");
   });
 });
