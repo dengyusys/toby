@@ -29,6 +29,12 @@ import { createMemoryChatCapability } from "../../src/domains/memory/chat-capabi
 import { createMemoryDomain } from "../../src/domains/memory/plugin.ts";
 import { createMemoryTools } from "../../src/domains/memory/tools.ts";
 import type {
+  ScheduleDraft,
+  ScheduleExtractor,
+} from "../../src/domains/schedule/extraction.ts";
+import { createScheduleChatCapability } from "../../src/domains/schedule/chat-capability.ts";
+import { createScheduleDomain } from "../../src/domains/schedule/plugin.ts";
+import type {
   TobyAgentFactory,
   TobyAgentSpec,
 } from "../../src/infrastructure/model/agent.ts";
@@ -69,6 +75,15 @@ let extractorDraft: () => LedgerDraft = () => ({
 
 const extractor: LedgerExtractor = {
   extract: async () => extractorDraft(),
+};
+
+/** The scripted schedule extraction draft, swapped per case. */
+let scheduleDraft: () => ScheduleDraft = () => ({
+  question: "没有找到这个事项,请先在界面里创建。",
+});
+
+const scheduleExtractor: ScheduleExtractor = {
+  extract: async () => scheduleDraft(),
 };
 
 type DomainMount = (app: FastifyInstance) => PromiseLike<unknown> | void;
@@ -132,6 +147,35 @@ async function buildLedgerBackedApp(
             ? { agentFactory: options.agentFactory }
             : {}),
           capabilities: [createLedgerChatCapability(ledgerDomain.service)],
+        }),
+      ),
+  ];
+  app = await createTestApp({ config, domains: mounts });
+}
+
+/** Chat + a real schedule domain, wired exactly like the composition
+ * root: the schedule capability registers, the fake extractor rides the
+ * service, and the scripted classifier routes the sentence. */
+async function buildScheduleBackedApp(): Promise<void> {
+  caseCounter += 1;
+  nowMs = BASE_MS;
+  const config = resolveConfig({
+    env: { TOBY_DATA_ROOT: path.join(baseDir, `case-${caseCounter}`) },
+  });
+  const scheduleDomain = createScheduleDomain({
+    config,
+    clock: () => nowMs,
+    extractor: scheduleExtractor,
+  });
+  const mounts: DomainMount[] = [
+    (instance) => instance.register(scheduleDomain.plugin),
+    (instance) =>
+      instance.register(
+        chatPlugin({
+          config,
+          clock: () => nowMs,
+          classifier,
+          capabilities: [createScheduleChatCapability(scheduleDomain.service)],
         }),
       ),
   ];
@@ -273,6 +317,118 @@ describe("chat api: send and the item stream", () => {
         (item: { type?: string }) => item.type === "proposal_card",
       ),
     ).toBe(false);
+  });
+
+  it("routes a schedule sentence into one receipt card covering three writes", async () => {
+    await buildScheduleBackedApp();
+    // Seed items through the schedule's own HTTP surface, like the UI does.
+    const items = await inject("POST", "/api/schedule/items", {
+      title: "早饭",
+      statuses: ["是", "否"],
+    });
+    const 早饭 = items.json().id;
+    const 中饭 = (
+      await inject("POST", "/api/schedule/items", {
+        title: "中饭",
+        statuses: ["是", "否"],
+      })
+    ).json().id;
+    const 晚饭 = (
+      await inject("POST", "/api/schedule/items", {
+        title: "晚饭",
+        statuses: ["是", "否"],
+      })
+    ).json().id;
+    scheduleDraft = () => ({
+      ops: [
+        { kind: "put", itemId: 早饭, date: "2026-11-05", status: "否" },
+        { kind: "put", itemId: 中饭, date: "2026-11-05", status: "否" },
+        { kind: "put", itemId: 晚饭, date: "2026-11-05", status: "是" },
+      ],
+    });
+    classifications = [
+      {
+        intent: "schedule",
+        sentence: "今天没有吃早饭,没有吃中饭,但是吃了晚饭",
+      },
+    ];
+
+    const response = await inject("POST", "/api/chat/messages", {
+      text: "今天没有吃早饭,没有吃中饭,但是吃了晚饭",
+    });
+    expect(response.statusCode).toBe(200);
+    const turn = response.json();
+    expect(turn.intent).toBe("schedule");
+    expect(turn.items).toHaveLength(3);
+    expect(turn.items[0]).toMatchObject({
+      role: "user",
+      content: "今天没有吃早饭,没有吃中饭,但是吃了晚饭",
+    });
+    expect(turn.items[1]).toMatchObject({
+      role: "assistant",
+      content: [{ type: "text", text: "已记录 3 项。" }],
+    });
+    // The card carries the schedule's own receipt, verbatim passthrough.
+    expect(turn.items[2]).toMatchObject({
+      type: "proposal_card",
+      domain: "schedule",
+      receipt: {
+        written: 3,
+        cleared: [],
+        createdAt: "2026-11-05T08:00:00.000Z",
+      },
+    });
+    // The writes have landed through the schedule domain.
+    const day = await inject(
+      "GET",
+      "/api/schedule?from=2026-11-05&to=2026-11-05",
+    );
+    expect(
+      day
+        .json()
+        .entries.map((entry: { title: string; status: string }) => [
+          entry.title,
+          entry.status,
+        ]),
+    ).toEqual([
+      ["早饭", "否"],
+      ["中饭", "否"],
+      ["晚饭", "是"],
+    ]);
+  });
+
+  it("a schedule question lands as an assistant message and nothing else", async () => {
+    await buildScheduleBackedApp();
+    scheduleDraft = () => ({
+      question: "没有找到 id 为 99 的事项。请在界面里确认事项名称后再说一次。",
+    });
+    classifications = [{ intent: "schedule", sentence: "晚饭没吃" }];
+
+    const response = await inject("POST", "/api/chat/messages", {
+      text: "晚饭没吃",
+    });
+    const turn = response.json();
+    expect(turn.intent).toBe("schedule");
+    expect(turn.items[1]).toMatchObject({
+      role: "assistant",
+      content: [
+        {
+          type: "text",
+          text: "没有找到 id 为 99 的事项。请在界面里确认事项名称后再说一次。",
+        },
+      ],
+    });
+    // No card, and nothing written.
+    expect(
+      turn.items.some(
+        (item: { type?: string }) => item.type === "proposal_card",
+      ),
+    ).toBe(false);
+    const day = await inject(
+      "GET",
+      "/api/schedule?from=2026-11-05&to=2026-11-05",
+    );
+    expect(day.json().entries).toEqual([]);
   });
 
   it("an intent the registry no longer knows degrades to none, never 404", async () => {

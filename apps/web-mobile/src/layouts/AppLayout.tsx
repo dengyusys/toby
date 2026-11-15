@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Brain,
   Calendar,
+  CalendarDays,
   LogOut,
   Menu,
   MessageSquare,
@@ -22,6 +23,7 @@ const DRAWER_TRANSITION_MS = 300;
 const NAV_ITEMS = [
   { to: "/", label: "对话", end: true, icon: MessageSquare },
   { to: "/ledger", label: "账单", end: false, icon: Calendar },
+  { to: "/schedule", label: "日程", end: false, icon: CalendarDays },
   { to: "/memory", label: "记忆", end: false, icon: Brain },
   { to: "/settings", label: "设置", end: false, icon: Settings },
 ] as const;

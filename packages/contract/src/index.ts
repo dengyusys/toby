@@ -25,6 +25,21 @@ export type {
   MemoryOffRecordState,
   MemoryReceipt,
 } from "./memory-client.ts";
+export { createScheduleClient } from "./schedule-client.ts";
+export type {
+  ScheduleClient,
+  ScheduleDeleteResult,
+  ScheduleEntryPutResult,
+  ScheduleEntryView,
+  ScheduleErrorCode,
+  ScheduleItem,
+  ScheduleItemPatch,
+  ScheduleItemRow,
+  ScheduleView,
+  ScheduleViewConfig,
+  ScheduleViewPatch,
+  ScheduleViewType,
+} from "./schedule-client.ts";
 export { createSettingsClient } from "./settings-client.ts";
 export type {
   AiCatalog,

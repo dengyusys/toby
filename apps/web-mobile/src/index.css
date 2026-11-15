@@ -38,6 +38,12 @@
   --foreground-faint: oklch(0.62 0.005 286);
   --accent-soft: color-mix(in srgb, var(--primary) 8%, var(--card));
   --radius: 0.625rem;
+  --status-good: oklch(0.4 0.1 150);
+  --status-middle: oklch(0.46 0.1 75);
+  --status-low: oklch(0.48 0.1 15);
+  --status-good-bg: oklch(0.96 0.025 150);
+  --status-middle-bg: oklch(0.97 0.03 85);
+  --status-low-bg: oklch(0.97 0.018 15);
 }
 
 .dark {
@@ -62,6 +68,12 @@
   --ring: oklch(0.552 0.015 286);
   --success: oklch(0.72 0.13 150);
   --foreground-faint: oklch(0.52 0.005 286);
+  --status-good: oklch(0.8 0.1 150);
+  --status-middle: oklch(0.83 0.1 80);
+  --status-low: oklch(0.81 0.08 15);
+  --status-good-bg: oklch(0.27 0.035 150);
+  --status-middle-bg: oklch(0.28 0.035 80);
+  --status-low-bg: oklch(0.27 0.025 15);
 }
 
 @theme inline {
@@ -94,6 +106,12 @@
   --color-faint: var(--foreground-faint);
   --color-success: var(--success);
   --color-accent-soft: var(--accent-soft);
+  --color-status-good: var(--status-good);
+  --color-status-middle: var(--status-middle);
+  --color-status-low: var(--status-low);
+  --color-status-good-bg: var(--status-good-bg);
+  --color-status-middle-bg: var(--status-middle-bg);
+  --color-status-low-bg: var(--status-low-bg);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

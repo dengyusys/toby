@@ -21,6 +21,8 @@ import { createLedgerDomain } from "./domains/ledger/plugin.ts";
 import { createMemoryChatCapability } from "./domains/memory/chat-capability.ts";
 import { createMemoryDomain } from "./domains/memory/plugin.ts";
 import { createMemoryTools } from "./domains/memory/tools.ts";
+import { createScheduleChatCapability } from "./domains/schedule/chat-capability.ts";
+import { createScheduleDomain } from "./domains/schedule/plugin.ts";
 import { systemPlugin } from "./domains/system/plugin.ts";
 import { createSettingsDomain } from "./domains/settings/plugin.ts";
 import { tracesPlugin } from "./domains/traces/plugin.ts";
@@ -139,6 +141,17 @@ export function productionDomains(options: {
   const memoryDomain = createMemoryDomain({ config, clock });
   const memoryTools = createMemoryTools({ service: memoryDomain.service });
   const memoryConversationTools = [memoryTools.remember, memoryTools.forget];
+  // The schedule domain rides the same shared agent factory and memory
+  // port as the ledger — one traced runtime, one silent-learning path.
+  const scheduleDomain = createScheduleDomain({
+    config,
+    clock,
+    agentFactory,
+    memory: {
+      tools: memoryConversationTools,
+      sectionFor: () => memoryDomain.service.buildMemorySection(),
+    },
+  });
   const ledgerDomain = createLedgerDomain({
     config,
     clock,
@@ -150,6 +163,7 @@ export function productionDomains(options: {
   });
   const chatCapabilities = [
     createLedgerChatCapability(ledgerDomain.service),
+    createScheduleChatCapability(scheduleDomain.service),
     createMemoryChatCapability({
       service: memoryDomain.service,
       tools: memoryTools,
@@ -166,6 +180,7 @@ export function productionDomains(options: {
     (app) => app.register(systemPlugin({ clock })),
     (app) => app.register(settingsDomain.plugin),
     (app) => app.register(ledgerDomain.plugin),
+    (app) => app.register(scheduleDomain.plugin),
     (app) => app.register(memoryDomain.plugin),
     (app) =>
       app.register(

@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router";
 import { ChatPage } from "@/features/chat/ChatPage.tsx";
 import { LedgerPage } from "@/features/ledger/LedgerPage.tsx";
 import { MemoryPage } from "@/features/memory/MemoryPage.tsx";
+import { SchedulePage } from "@/features/schedule/SchedulePage.tsx";
 import { LoginPage } from "@/features/auth/LoginPage.tsx";
 import { RequireAuth } from "@/features/auth/RequireAuth.tsx";
 import { HealthPage } from "@/features/system/HealthPage.tsx";
@@ -33,6 +34,7 @@ export function App() {
           <Route path="/" element={<ChatPage />} />
           <Route path="/ledger" element={<LedgerPage />} />
           <Route path="/memory" element={<MemoryPage />} />
+          <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/system" element={<HealthPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

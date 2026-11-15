@@ -108,13 +108,23 @@ assistant       text("已记入 1 笔。")
 proposal_card   receipt (what landed)
 ```
 
+A schedule write turn — several writes from one sentence; each op lands as
+its own validated transaction, after every op has resolved:
+
+```text
+user            "今天没有吃早饭,没有吃中饭,但是吃了晚饭"
+assistant       text("已记录 3 项。")
+proposal_card   receipt (the three landed rows)
+```
+
 ## Routing
 
-| Intent | Answered by               | Reply                                                                                              |
-| ------ | ------------------------- | -------------------------------------------------------------------------------------------------- |
-| ledger | ledger domain (immediate) | a receipt card, or one clarifying question                                                         |
-| memory | memory domain (immediate) | a receipt card (one per landed change, or an overview list), or one clarifying question            |
-| none   | none agent                | transcript items plus inspect links — and memory cards when the agent remembered or forgot mid-run |
+| Intent   | Answered by                 | Reply                                                                                              |
+| -------- | --------------------------- | -------------------------------------------------------------------------------------------------- |
+| ledger   | ledger domain (immediate)   | a receipt card, or one clarifying question                                                         |
+| schedule | schedule domain (immediate) | a receipt card covering the turn's writes (puts and clears), or one clarifying question            |
+| memory   | memory domain (immediate)   | a receipt card (one per landed change, or an overview list), or one clarifying question            |
+| none     | none agent                  | transcript items plus inspect links — and memory cards when the agent remembered or forgot mid-run |
 
 The intent set is **registry-derived** (docs/decisions/chat-domain-capabilities.md):
 each registered domain capability contributes its id, one classifier prompt
