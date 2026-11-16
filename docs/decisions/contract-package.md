@@ -26,6 +26,22 @@ The package has one hard rule: **zero JSX, zero CSS, zero DOM.**
 - Interfaces belong to each app (see the dual-app split): components and styles are presentation, and presentation forks by design
 - The rule keeps the package from becoming a junk drawer — stuff everything in, and the two apps get chained back together, making the split pointless
 
+## The admission test
+
+The pure-logic rule alone does not keep the package honest — a client-side
+constant is pure too. Every file here must mirror a server-defined
+surface, and all three of these must hold:
+
+- It mirrors something the server defines — a wire shape, an error code,
+  an endpoint — or derives directly from one
+- Copies that differ between the two apps would make an app _incorrect_,
+  not merely inconsistent
+- A server API change can force this file to change
+
+Any failure means the code belongs in each app; the dual-app split accepts
+that duplication by design. Client cache keys, view helpers, and
+format/parse utilities are the typical rejections.
+
 ## How it is consumed
 
 - A workspace package, depended on by both apps in the `apps → packages` direction
