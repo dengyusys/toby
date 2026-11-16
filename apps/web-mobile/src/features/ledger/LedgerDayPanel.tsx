@@ -40,7 +40,7 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
     update,
     saveEdit,
     savePending,
-  } = useLedgerDayWrites(date);
+  } = useLedgerDayWrites();
 
   const weekday = date ? weekdayOf(date) : "";
   const expense = transactions

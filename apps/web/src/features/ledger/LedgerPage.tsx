@@ -44,7 +44,11 @@ export function LedgerPage() {
               selectedDate={selectedDate}
               onSelect={select}
             />
+            {/* Keyed by the selected date: switching days remounts the
+                panel, folding any half-armed confirm, open edit, and stale
+                errors (the hook's state resets with the remount). */}
             <LedgerDayPanel
+              key={selectedDate ?? "none"}
               date={selectedDate}
               transactions={dayTransactions}
             />
