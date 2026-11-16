@@ -5,39 +5,18 @@
  * the expense/income footer totals. Each row carries an edit form (one
  * transactional PATCH — present fields change) and a delete button with
  * an inline two-step confirm — the two user-initiated direct writes —
- * owned here as mutations that invalidate the ledger queries. Sits
+ * now owned by the useLedgerDayWrites hook (src/features/ledger/ledger-hooks.ts). Sits
  * beside the month grid (sticky on wide viewports).
  */
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import type { LedgerEntryPatch, LedgerTransactionRow } from "@toby/contract";
-import { ledgerClient } from "@/lib/api.ts";
-import { describeError, formatCents, weekdayOf } from "./ledger-view.ts";
+import type { LedgerTransactionRow } from "@toby/contract";
+import { useLedgerDayWrites } from "./ledger-hooks.ts";
 import { Button } from "@/components/ui/button.tsx";
+import { formatCents, weekdayOf } from "./ledger-view.ts";
 
 interface LedgerDayPanelProps {
   date: string | null;
   transactions: LedgerTransactionRow[];
-}
-
-/** One editing row's draft: plain strings, checked on save. */
-interface EditDraft {
-  date: string;
-  type: string;
-  category: string;
-  amount: string;
-  note: string;
-}
-
-function draftOf(row: LedgerTransactionRow): EditDraft {
-  return {
-    date: row.date,
-    type: row.type,
-    category: row.category,
-    amount: formatCents(row.amount),
-    note: row.note,
-  };
 }
 
 const INPUT_CLASS =
@@ -45,94 +24,23 @@ const INPUT_CLASS =
 
 const LABEL_CLASS = "flex flex-col gap-1 text-xs text-faint";
 
-/** Same money shape the server accepts: non-negative, two decimals max. */
-const AMOUNT_INPUT_PATTERN = /^\d+(\.\d{1,2})?$/;
-
 export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
-  const queryClient = useQueryClient();
-  const [confirmingId, setConfirmingId] = useState<number | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [draft, setDraft] = useState<EditDraft | null>(null);
-  const [editError, setEditError] = useState<string | null>(null);
-
-  // Switching days folds any half-armed confirm, open edit, and stale errors.
-  useEffect(() => {
-    setConfirmingId(null);
-    setDeleteError(null);
-    setEditingId(null);
-    setDraft(null);
-    setEditError(null);
-  }, [date]);
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => ledgerClient.deleteTransaction(id),
-    onSuccess: () => {
-      setConfirmingId(null);
-      setDeleteError(null);
-      void queryClient.invalidateQueries({ queryKey: ["ledger"] });
-    },
-    onError: (error) => {
-      setConfirmingId(null);
-      setDeleteError(describeError(error));
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (input: { id: number; patch: LedgerEntryPatch }) =>
-      ledgerClient.updateTransaction(input.id, input.patch),
-    onSuccess: () => {
-      setEditingId(null);
-      setDraft(null);
-      setEditError(null);
-      void queryClient.invalidateQueries({ queryKey: ["ledger"] });
-    },
-    onError: (error) => {
-      setEditError(describeError(error));
-    },
-  });
-
-  function startEdit(row: LedgerTransactionRow) {
-    setConfirmingId(null);
-    setDeleteError(null);
-    setEditingId(row.id);
-    setDraft(draftOf(row));
-    setEditError(null);
-  }
-
-  function update<Field extends keyof EditDraft>(field: Field, value: string) {
-    setDraft((current) =>
-      current === null ? current : { ...current, [field]: value },
-    );
-  }
-
-  function saveEdit(id: number) {
-    if (draft === null) {
-      return;
-    }
-    const category = draft.category.trim();
-    const amount = draft.amount.trim();
-    if (draft.date === "") {
-      setEditError("日期不能为空");
-      return;
-    }
-    if (category === "") {
-      setEditError("分类不能为空");
-      return;
-    }
-    if (!AMOUNT_INPUT_PATTERN.test(amount)) {
-      setEditError("金额需为非负数字,最多两位小数");
-      return;
-    }
-    const patch: LedgerEntryPatch = {
-      date: draft.date,
-      type: draft.type === "income" ? "income" : "expense",
-      category,
-      amount,
-      note: draft.note.trim(),
-    };
-    updateMutation.mutate({ id, patch });
-  }
+  const {
+    confirmingId,
+    deleteError,
+    askDelete,
+    cancelDelete,
+    confirmDelete,
+    deletePending,
+    editingId,
+    draft,
+    editError,
+    startEdit,
+    cancelEdit,
+    update,
+    saveEdit,
+    savePending,
+  } = useLedgerDayWrites(date);
 
   const weekday = date ? weekdayOf(date) : "";
   const expense = transactions
@@ -228,11 +136,7 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                       type="button"
                       variant="ghost"
                       size="xs"
-                      onClick={() => {
-                        setEditingId(null);
-                        setDraft(null);
-                        setEditError(null);
-                      }}
+                      onClick={cancelEdit}
                       className="text-muted-foreground"
                     >
                       取消
@@ -240,10 +144,10 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                     <Button
                       type="button"
                       size="xs"
-                      disabled={updateMutation.isPending}
+                      disabled={savePending}
                       onClick={() => saveEdit(transaction.id)}
                     >
-                      {updateMutation.isPending ? "保存中…" : "保存"}
+                      {savePending ? "保存中…" : "保存"}
                     </Button>
                   </div>
                 </div>
@@ -270,16 +174,16 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                           type="button"
                           variant="destructive"
                           size="xs"
-                          disabled={deleteMutation.isPending}
-                          onClick={() => deleteMutation.mutate(transaction.id)}
+                          disabled={deletePending}
+                          onClick={() => confirmDelete(transaction.id)}
                         >
-                          {deleteMutation.isPending ? "删除中…" : "确认删除"}
+                          {deletePending ? "删除中…" : "确认删除"}
                         </Button>
                         <Button
                           type="button"
                           variant="ghost"
                           size="xs"
-                          onClick={() => setConfirmingId(null)}
+                          onClick={cancelDelete}
                           className="text-muted-foreground"
                         >
                           取消
@@ -302,11 +206,7 @@ export function LedgerDayPanel({ date, transactions }: LedgerDayPanelProps) {
                           variant="ghost"
                           size="xs"
                           aria-label={`删除 ${transaction.category} ¥${formatCents(transaction.amount)}`}
-                          onClick={() => {
-                            setEditingId(null);
-                            setDraft(null);
-                            setConfirmingId(transaction.id);
-                          }}
+                          onClick={() => askDelete(transaction.id)}
                           className="text-muted-foreground hover:text-danger"
                         >
                           删除

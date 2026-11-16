@@ -5,12 +5,13 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { ledgerQueryKeys } from "@/features/ledger/ledger-keys.ts";
 import { ledgerClient } from "@/lib/api.ts";
 import { formatCents } from "@/features/ledger/ledger-view.ts";
 
 export function LedgerMonthPreview({ month }: { month: string }) {
   const report = useQuery({
-    queryKey: ["ledger", "month", month],
+    queryKey: ledgerQueryKeys.month(month),
     queryFn: () => ledgerClient.monthReport(month),
   });
 
