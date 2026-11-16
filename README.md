@@ -39,8 +39,6 @@ One process: deterministic orchestration and execution on the sides, a tool-boun
 
 ## 🚀 Quick start
 
-Requirements: Node.js `22.23.2` (pinned exactly — other 22.x versions are rejected by `engine-strict`) and pnpm `11.18.0` (`corepack enable`). All commands run from the repo root.
-
 ```bash
 pnpm install
 

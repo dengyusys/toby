@@ -40,7 +40,7 @@ describe("createSystemClient", () => {
       JSON.stringify({
         name: "toby",
         version: "0.0.0",
-        node: "v22.23.2",
+        node: "v0.0.0",
         started_at: "2026-10-11T00:00:00.000Z",
         uptime_seconds: 3,
       }),

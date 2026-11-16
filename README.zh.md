@@ -39,8 +39,6 @@
 
 ## 🚀 快速开始
 
-环境要求:Node.js `22.23.2`(精确锁版——其他 22.x 版本会被 `engine-strict` 拒绝)、pnpm `11.18.0`(`corepack enable`),命令均在仓库根目录执行。
-
 ```bash
 pnpm install
 

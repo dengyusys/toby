@@ -32,7 +32,7 @@ Toby 是自托管个人助手(定位:像贴身书童,记录日程、笔记,管�
 
 ```
 toby/
-├── .gitattributes .gitignore .nvmrc(22.23.2) .editorconfig .env.example
+├── .gitattributes .gitignore .nvmrc .editorconfig .env.example
 ├── .prettierrc.json .prettierignore commitlint.config.js eslint.config.js
 ├── package.json                 # 根:scripts + simple-git-hooks + lint-staged
 ├── pnpm-workspace.yaml          # apps/* packages/* + allowBuilds(esbuild/better-sqlite3)

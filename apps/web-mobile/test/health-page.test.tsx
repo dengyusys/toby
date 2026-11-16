@@ -13,7 +13,7 @@ const HEALTH = { status: "ok" } as const;
 const INFO = {
   name: "toby",
   version: "0.0.0",
-  node: "v22.23.2",
+  node: "v0.0.0",
   started_at: "2026-10-13T00:00:00.000Z",
   uptime_seconds: 42,
 } as const;
@@ -56,7 +56,7 @@ it("renders the health status from the system endpoint", async () => {
 
   expect(await screen.findByText("ok")).toBeInTheDocument();
   expect(await screen.findByText("toby")).toBeInTheDocument();
-  expect(screen.getByText("v22.23.2")).toBeInTheDocument();
+  expect(screen.getByText("v0.0.0")).toBeInTheDocument();
 });
 
 it("renders the unreachable state when the endpoints fail", async () => {

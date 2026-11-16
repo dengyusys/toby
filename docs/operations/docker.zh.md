@@ -24,17 +24,17 @@ docker info
 
 ## 第 1 步 —— 基础镜像(国内网络)
 
-`FROM node:22.23.2-bookworm-slim` —— 与 `engines` 精确一致的版本,
+基础镜像 tag 与 `engines` 精确一致,
 因为 `engine-strict=true` 会拒绝其他 22.x。若 Docker Hub 不可达
 (`failed to fetch oauth token`),经镜像源拉取并重打标签:
 
 ```bash
-docker pull docker.m.daocloud.io/library/node:22.23.2-bookworm-slim
-docker tag  docker.m.daocloud.io/library/node:22.23.2-bookworm-slim node:22.23.2-bookworm-slim
+docker pull docker.m.daocloud.io/library/node:22.23.5-bookworm-slim
+docker tag  docker.m.daocloud.io/library/node:22.23.5-bookworm-slim node:22.23.5-bookworm-slim
 ```
 
 镜像源经常变动——这个不行就换其他公共 Docker Hub 镜像源。本地一旦
-存在 `node:22.23.2-bookworm-slim`,`docker build` 就不再需要
+存在该基础镜像,`docker build` 就不再需要
 Docker Hub。
 
 ## 第 2 步 —— 构建 toby 镜像

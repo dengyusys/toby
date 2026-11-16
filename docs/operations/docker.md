@@ -24,18 +24,18 @@ docker info
 
 ## Step 1 — base image (China network)
 
-`FROM node:22.23.2-bookworm-slim` — the exact `engines` version, since
+The base image tag mirrors the exact `engines` version, since
 `engine-strict=true` rejects any other 22.x. If Docker Hub is
 unreachable (`failed to fetch oauth token`), pull through a mirror and
 retag:
 
 ```bash
-docker pull docker.m.daocloud.io/library/node:22.23.2-bookworm-slim
-docker tag  docker.m.daocloud.io/library/node:22.23.2-bookworm-slim node:22.23.2-bookworm-slim
+docker pull docker.m.daocloud.io/library/node:22.23.5-bookworm-slim
+docker tag  docker.m.daocloud.io/library/node:22.23.5-bookworm-slim node:22.23.5-bookworm-slim
 ```
 
 Mirrors change often — if this one fails, substitute another public
-Docker Hub mirror. Once `node:22.23.2-bookworm-slim` exists locally,
+Docker Hub mirror. Once the base image exists locally,
 `docker build` no longer needs Docker Hub.
 
 ## Step 2 — build the image

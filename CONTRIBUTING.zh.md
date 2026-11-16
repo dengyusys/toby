@@ -6,7 +6,7 @@
 
 ## 开发环境
 
-- Node.js `22.23.2`(`.nvmrc` 已固定)
+- Node.js(版本由 `.nvmrc` 固定)
 - pnpm `11.18.0`(`corepack enable` 自动启用)
 - 命令均在仓库根目录执行
 

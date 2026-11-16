@@ -6,7 +6,7 @@ Thanks for contributing to Toby. This is a solo project — changes land on `mai
 
 ## Development environment
 
-- Node.js `22.23.2` (pinned in `.nvmrc`)
+- Node.js (version pinned in `.nvmrc`)
 - pnpm `11.18.0` (enabled automatically via `corepack`)
 - All commands run from the repo root
 

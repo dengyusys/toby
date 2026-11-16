@@ -12,7 +12,7 @@ Three documents, three layers: product scope is owned by the [Product Overview](
 
 | Layer    | Choice                                                                                                                                                     |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime  | Node 22.23.2; server built with `tsc`, webs with Vite                                                                                                      |
+| Runtime  | Node 22; server built with `tsc`, webs with Vite                                                                                                           |
 | Packages | pnpm 11.18.0 workspaces (`apps/*` + `packages/*`)                                                                                                          |
 | Server   | Fastify 5 + own db adapter port — "port" as in ports-and-adapters, not a network port — (SQLite default, MySQL optional) + zod (AI: pi-ai + pi-agent-core) |
 | Web      | React 19 + Vite 8 + Tailwind v4 + shadcn, two apps (PC `/`, mobile `/m/`)                                                                                  |

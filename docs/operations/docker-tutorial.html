@@ -646,7 +646,7 @@
             <span class="dft-fs-title">容器文件系统</span>
             <span class="dft-view-pill">简化视图</span>
             <span class="dft-img-chip"
-              ><i data-lucide="layers"></i>node:22.23.2-bookworm-slim</span
+              ><i data-lucide="layers"></i>node:22.23.5-bookworm-slim</span
             >
             <span class="dft-sys-add" id="dft-sys"></span>
           </div>
@@ -739,11 +739,11 @@
               paths: [],
               mark: "Stage 1 · 构建阶段 —— 从全新基础镜像开始",
               empty: "容器里还只有基础镜像,/app 尚未创建",
-              note: "基础镜像就位:Debian 12 + Node 22.23.2 工具链",
+              note: "基础镜像就位:Debian 12 + Node 工具链",
               sys: null,
-              code: '<span class="k">FROM</span> node:22.23.2-bookworm-slim <span class="k">AS</span> build',
+              code: '<span class="k">FROM</span> node:22.23.5-bookworm-slim <span class="k">AS</span> build',
               title: "第一阶段:构建镜像",
-              body: "多阶段构建的第一站。基础镜像把 Node 钉死在 22.23.2 —— 与根 package.json 的 engines 字段完全一致;镜像内的版本一致性由镜像 tag 直接保证。.npmrc 里的 engine-strict=true 只约束本地/CI 的安装:它在源码拷入时才进镜像,晚于 pnpm install,容器内并不生效。",
+              body: "多阶段构建的第一站。基础镜像把 Node 钉死在根 package.json 的 engines 字段指定的精确版本;镜像内的版本一致性由镜像 tag 直接保证。.npmrc 里的 engine-strict=true 只约束本地/CI 的安装:它在源码拷入时才进镜像,晚于 pnpm install,容器内并不生效。",
               bullets: [
                 "bookworm-slim 即 Debian 12 精简版。不用 Alpine,因为 better-sqlite3 只发布 glibc 预编译包",
                 "AS build 给阶段命名,后面用 COPY --from=build 引用它",
@@ -857,7 +857,7 @@
               empty: "全新镜像 —— /app 将重新组装",
               note: "回到空白镜像:Stage 1 的工具链、源码、依赖全部留在过去",
               sys: null,
-              code: '<span class="k">FROM</span> node:22.23.2-bookworm-slim <span class="k">AS</span> runtime',
+              code: '<span class="k">FROM</span> node:22.23.5-bookworm-slim <span class="k">AS</span> runtime',
               title: "第二阶段:全新镜像",
               body: "多阶段构建的核心:第二个 FROM 从干净的基础镜像重新开始 —— 没有被 COPY --from=build 显式搬运的内容(源码树、pnpm 下载缓存)一律不进最终镜像。但注意:本 Dockerfile 把 node_modules 整包拷入运行时,devDependencies 也随之进入;packages/contract 的源码同样会进入(见第 12 步)。",
               bullets: [
