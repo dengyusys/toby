@@ -3,7 +3,7 @@
 # the guarantee inside the build (.npmrc's engine-strict only guards
 # local and CI installs; .npmrc arrives after COPY . .). Bookworm
 # (glibc), not Alpine — better-sqlite3 ships glibc prebuilds only.
-FROM node:22.23.2-bookworm-slim AS build
+FROM node:22.23.5-bookworm-slim AS build
 WORKDIR /app
 RUN corepack enable
 
@@ -29,7 +29,7 @@ RUN pnpm run build
 # root by finding pnpm-workspace.yaml at startup, and the server reads
 # apps/server/package.json for its version. node_modules is copied
 # wholesale from the build stage, dev dependencies included.
-FROM node:22.23.2-bookworm-slim AS runtime
+FROM node:22.23.5-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
