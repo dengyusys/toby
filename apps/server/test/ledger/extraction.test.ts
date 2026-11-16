@@ -62,7 +62,6 @@ function makeFakeFactory(steps: readonly Step[]) {
         prompts.push(prompt);
         let turnCapped = false;
         for (const step of steps) {
-          turnCapped = false;
           if ("text" in step) {
             return {
               text: step.text,
