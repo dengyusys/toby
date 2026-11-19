@@ -32,7 +32,7 @@ flowchart LR
 - server 是唯一日常读写入口:查询走只读 API;新增、修改和删除一律是域仓库拥有的一次"先校验、后事务"的写入——没有提案、没有确认门;记账域已在使用。
 - AI 工具携带安全分级(read-only / write-intent)并在策略门控下运行;write-intent 工具产生的效果是确定性校验加一次事务写入(docs/decisions/ai-pi-runtime.zh.md)。
 - 根 `scripts/` 只做开发与多进程启动编排,不接触数据。
-- 其余业务域(问候 greeting、日程 schedule、手账 notes、待办 todo、书库 library)逐个独立落地;每个域落地时才在 `docs/features/` 立契约文档,不预写。写入规矩一句话共享,不是共享模块。
+- 其余业务域(问候 greeting、日程 schedule)逐个独立落地;每个域落地时才在 `docs/features/` 立契约文档,不预写。写入规矩一句话共享,不是共享模块。
 
 ## 仓库结构
 
@@ -147,4 +147,4 @@ flowchart TB
 | 模块化单体(modular monolith)       | 模块在代码层隔离,由单进程装配运行                                                                                       |
 | 错误体(error body)                 | 唯一错误形状:`{ statusCode, message, error }` 外加机器可读的 `errorCode`(净化后的 500 只保留 `statusCode` 与 `message`) |
 
-中文域名对照:记账=ledger、对话=chat、问候=greeting、日程=schedule、手账=notes、待办=todo、记忆=memory、书库=library。
+中文域名对照:记账=ledger、对话=chat、问候=greeting、日程=schedule、记忆=memory。

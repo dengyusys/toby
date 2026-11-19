@@ -4,7 +4,7 @@ English | [简体中文](product-overview.zh.md)
 
 ## What it is
 
-Toby is your personal agent: it remembers your schedule, todos, money, and notes — say one sentence and every write lands at once, validated and transactional.
+Toby is your personal agent: it remembers your schedule and money — say one sentence and every write lands at once, validated and transactional.
 
 It runs on your own machine, for you alone. No accounts, no cloud, no data leaving your computer.
 
@@ -28,10 +28,7 @@ Worried the AI might act on its own? It cannot read your files or run commands; 
 ## What it keeps track of
 
 - **Schedule** — the things to watch each day; ask and it tells you
-- **Todos** — one sentence onto the board; check them off when done
 - **Money** — several entries in one sentence, with monthly totals
-- **Notes** — your original words, as a monthly journal or topic notebooks
-- **Library** — import files; browse booklists and chapters anytime
 - Plus **greeting** and **memory**: it remembers your preferences and habits, and gets handier the longer you use it
 
 The foundation comes first; these abilities land one by one.

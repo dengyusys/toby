@@ -23,7 +23,7 @@ topic sections, all equal; the whole book rides in every agent's prompt.
   composition root without touching domain code.
 - Owns the memory tools (`remember` / `forget` / `off_record`), the `<memory>`
   prompt-section builder, the off-record conversation flag, and the page APIs.
-- **Does not own**: events (notes and chat history own events; memory holds only
+- **Does not own**: events (chat history owns events; memory holds only
   the stable background no domain claims), retrieval infrastructure (none — the
   book is always open, the model reads it in place), or any write outside the
   memory file.

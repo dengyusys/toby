@@ -32,7 +32,7 @@ flowchart LR
 - The server is the only daily read/write entry: queries go through read-only APIs; every create/update/delete is one validated, transactional repository write — no proposals, no confirmation gates (ledger is live on it).
 - AI tools carry a safety kind (read-only / write-intent) and run behind a policy gate; every write a tool produces is deterministic validation plus one transaction (docs/decisions/ai-pi-runtime.md).
 - Root `scripts/` only orchestrates dev and multi-process startup; it never touches data.
-- The remaining business domains (greeting, schedule, notes, todo, library) land one at a time; each writes its contract doc in `docs/features/` when it lands — not before. The write rule is one sentence shared by all of them, not a shared module.
+- The remaining business domains (greeting, schedule) land one at a time; each writes its contract doc in `docs/features/` when it lands — not before. The write rule is one sentence shared by all of them, not a shared module.
 
 ## Repository layout
 

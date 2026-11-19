@@ -4,7 +4,7 @@
 
 English | [简体中文](README.zh.md)
 
-Say one sentence — your money, schedule, and notes fall into place. The AI turns your words into a structured **write draft** (what to record, where, and with which values); the server validates it deterministically and performs one transactional write — append, rewrite, and delete all the same. An unclear sentence gets a clarifying question, never a guess. The AI has no write access of its own: it only ever proposes drafts, and validation is code.
+Say one sentence — your money and schedule fall into place. The AI turns your words into a structured **write draft** (what to record, where, and with which values); the server validates it deterministically and performs one transactional write — append, rewrite, and delete all the same. An unclear sentence gets a clarifying question, never a guess. The AI has no write access of its own: it only ever proposes drafts, and validation is code.
 
 ```text
       ┌─ You ──────────────────────────────────────────┐
@@ -33,7 +33,7 @@ One process: deterministic orchestration and execution on the sides, a tool-boun
 
 **On their way**
 
-- Schedule, notes, todos, and a personal library — each lands as a domain; its contract doc is written when it lands
+- Schedule — the day's watch list; it lands as a domain and its contract doc is written when it lands
 
 > **Current phase:** live domains are whatever sits in [`apps/server/src/domains/`](apps/server/src/domains/); `docs/features/` holds the live contracts of landed domains. Details in [AGENTS.md](AGENTS.md).
 
