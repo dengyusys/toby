@@ -60,6 +60,8 @@ If one change touches several rows, run all the checks those rows list.
 - `apps/web`, `apps/web-mobile`, `packages`: `.ts` runs on Node 22 with no build step — no `enum` / `namespace` / constructor parameter properties; use `import type` (`erasableSyntaxOnly` enforces this).
 - `apps/server`: plain Fastify, built with plain `tsc` — the same erasable-syntax rules as above (no decorators, no constructor parameter properties). Services are closure factories over explicit dependencies (config, clock, store, extractor…), not classes; each domain assembles itself in its `plugin.ts`, and the composition root `src/composition-root.ts` installs the session guard on every `/api` route by default (a route opts out with `config: { public: true }`). Tests drive the app through fastify's `inject`. Logging is pino to stdout — request lifecycle lines plus the error boundary's stack-only 500 report (docs/decisions/server-logging.md); `main.ts` bootstrap failures still print one plain stderr line.
 - No Python; introducing it requires an ADR first.
+- Comments: write what the code cannot say — why it exists, what callers can't guess, where the trap is. When writing or deleting one, follow docs/decisions/comment-practice.md. A comment contradicting the code is a defect; fix it in the same commit.
+- Naming: reach for the standard term. Pretrained words are free; coined metaphors cost a definition on every read (writing-for-agents, docs/reference/writing-for-agents.md).
 
 ## Git workflow
 
