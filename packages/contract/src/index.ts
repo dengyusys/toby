@@ -60,6 +60,8 @@ export type {
 export type {
   PiAssistantMessage,
   PiImageContent,
+  PiNestedToolCallRecord,
+  PiNestedToolCalls,
   PiStopReason,
   PiSystemMessage,
   PiTextContent,

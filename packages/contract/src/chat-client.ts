@@ -17,7 +17,6 @@ import { endpoint, requestJson } from "./request-json.ts";
  */
 export type ChatIntent = string;
 
-/** A transcript message, exactly as pi-ai produced it. */
 export type ChatMessageItem = PiTranscriptMessage;
 
 /** A write card: the receipt snapshot at creation time. */
@@ -42,7 +41,7 @@ export interface InspectLinkItem {
   readonly source_tool_call_id: string;
   /** Preview-panel target, e.g. "ledger:2026-11". */
   readonly target: string;
-  /** Chip label, e.g. "本月账单". */
+  /** Chip label, e.g. "2026 年 11 月账单". */
   readonly label: string;
 }
 
@@ -81,7 +80,6 @@ export interface ChatTurnPage {
 }
 
 export interface ChatClient {
-  /** One sentence in: intent routing; returns the turn's intent and items. */
   sendMessage(text: string): Promise<ChatTurnView>;
   listSessions(): Promise<readonly ChatSessionView[]>;
   listMessages(

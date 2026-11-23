@@ -1,10 +1,9 @@
 /**
- * System domain client: typed access to the walking-skeleton endpoints.
+ * System domain client: the liveness and build-info endpoints.
  */
 
 import { endpoint, requestJson } from "./request-json.ts";
 
-/** Liveness answer: the process is up and serving. */
 export interface SystemHealth {
   status: "ok";
 }

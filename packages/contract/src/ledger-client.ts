@@ -1,15 +1,15 @@
 /**
- * Ledger domain client: typed access to the direct write path and the
- * month views. Mirrors the server's response shapes — amounts are integer
- * cents, dates are "YYYY-MM-DD" strings. Recording lands at once as one
- * validated transaction; the returned receipt is what landed.
+ * Ledger domain client: the month views, plus update and delete of one
+ * stored transaction. Recording has no client method — POST
+ * /api/ledger/entries is reached through the chat card. Mirrors the
+ * server's response shapes — amounts are integer cents, dates are
+ * "YYYY-MM-DD" strings.
  */
 
 import { endpoint, requestJson } from "./request-json.ts";
 
 export type LedgerEntryType = "income" | "expense";
 
-/** One normalized transaction, ready to store. */
 export interface LedgerEntry {
   date: string;
   type: LedgerEntryType;
@@ -32,7 +32,7 @@ export interface LedgerReceiptView {
   memory_receipts?: unknown[];
 }
 
-/** Result of a user-initiated delete (the sole non-card write). */
+/** Result of a user-initiated delete. */
 export interface LedgerDeleteResult {
   transaction_id: number;
   action: "deleted";

@@ -19,10 +19,8 @@ import type {
   PiUserMessage,
 } from "./pi-messages.ts";
 
-/** Which AI path produced the run. */
 export type TraceRunKind = "agent" | "single-shot";
 
-/** A transcript message, exactly as pi-ai produced it. */
 export type TraceMessage =
   PiSystemMessage | PiUserMessage | PiAssistantMessage | PiToolResultMessage;
 

@@ -1,8 +1,9 @@
 /**
  * Settings domain client: the effective AI settings view, its one
  * transactional write, and the model catalog. Mirrors the server's
- * response shapes. Every failure throws ApiError whose `code` is one of
- * SettingsErrorCode.
+ * response shapes. Domain failures throw ApiError with a SettingsErrorCode;
+ * the shared error boundary adds framework codes (BAD_REQUEST,
+ * UNAUTHORIZED, PAYLOAD_TOO_LARGE, …) on its own.
  */
 
 import { endpoint, requestJson } from "./request-json.ts";
@@ -31,7 +32,6 @@ export interface AiSettingsView {
   providers: ProviderStatus[];
 }
 
-/** One provider's slice of the model catalog. */
 export interface AiCatalogProvider {
   id: string;
   models: string[];

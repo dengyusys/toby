@@ -91,8 +91,16 @@ const FINISHED = {
         usage: {
           input: 100,
           output: 50,
+          cacheRead: 0,
+          cacheWrite: 0,
           totalTokens: 150,
-          cost: { input: 0.00008, output: 0.000043, total: 0.000123 },
+          cost: {
+            input: 0.00008,
+            output: 0.000043,
+            cacheRead: 0,
+            cacheWrite: 0,
+            total: 0.000123,
+          },
         },
         stopReason: "toolUse",
         timestamp: 3,
@@ -111,8 +119,16 @@ const FINISHED = {
     usage: {
       input: 100,
       output: 50,
+      cacheRead: 0,
+      cacheWrite: 0,
       totalTokens: 150,
-      cost: { input: 0.00008, output: 0.000043, total: 0.000123 },
+      cost: {
+        input: 0.00008,
+        output: 0.000043,
+        cacheRead: 0,
+        cacheWrite: 0,
+        total: 0.000123,
+      },
     },
   },
 } as const;

@@ -1,10 +1,11 @@
 /**
- * Memory domain client: typed access to the read-only page surface — the
- * raw MEMORY.md read, the off-record toggle, and the human maintenance
- * reset. Mirrors the server's response shapes — the receipt type is kept
- * for the chat card sidecar, which renders receipts that ride on other
- * payloads. Every failure throws ApiError whose `code` is one of
- * MemoryErrorCode.
+ * Memory domain client: the page's raw MEMORY.md read plus its two
+ * actions, the off-record toggle and the human maintenance reset. Mirrors
+ * the server's response shapes — the receipt type is kept for the chat
+ * card sidecar, which renders receipts that ride on other payloads.
+ * Domain failures throw ApiError with a MemoryErrorCode; the shared error
+ * boundary adds framework codes (BAD_REQUEST, UNAUTHORIZED,
+ * PAYLOAD_TOO_LARGE, …) on its own.
  */
 
 import { endpoint, requestJson, requestText } from "./request-json.ts";
@@ -27,7 +28,6 @@ export interface MemoryReceipt {
   created_at: string;
 }
 
-/** The wire state of the off-record toggle. */
 export interface MemoryOffRecordState {
   on: boolean;
 }
