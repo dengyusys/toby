@@ -49,10 +49,11 @@ interface TurnRow {
   readonly created_at: string;
 }
 
-function isIntent(value: string): value is ChatIntent {
-  return ["ledger", "schedule", "memory", "notes", "todo", "none"].includes(
-    value,
-  );
+function isIntent(
+  value: string,
+  intents: ReadonlySet<string>,
+): value is ChatIntent {
+  return intents.has(value);
 }
 
 /** The excerpt of one session: its newest turn's user words. */
@@ -70,8 +71,10 @@ function excerptOf(items: readonly ChatItem[]): string {
 export function createChatRepository(deps: {
   db: ChatDb;
   clock: Clock;
+  /** The routable intent ids ("none" included), derived from the registry. */
+  intents: ReadonlySet<string>;
 }): ChatRepository {
-  const { db, clock } = deps;
+  const { db, clock, intents } = deps;
 
   async function itemsOfTurns(
     handle: DomainDb,
@@ -98,7 +101,8 @@ export function createChatRepository(deps: {
     return {
       turn_id: row.id,
       session_id: row.session_id,
-      intent: isIntent(row.intent) ? row.intent : "none",
+      // A stale row may name an intent this build no longer registers.
+      intent: isIntent(row.intent, intents) ? row.intent : "none",
       created_at: row.created_at,
       items,
     };

@@ -1,13 +1,9 @@
 /**
- * Chat domain assembly: the database (owning chat.db) and the
- * repository over it, the intent classifier (enum and prompt lines
- * derived from the registered capabilities) and the read-only agent
- * (toolset and rules likewise registered; built from the shared traced
- * factory when AI is configured; absent AI keeps both undefined and the
- * service answers with honest notices), the rate limiter, and the
- * routes. Capabilities are validated at assembly — duplicate ids, the
- * reserved "none", or an empty tools-plus-rules signature fail the boot,
- * not the first message.
+ * Chat domain assembly. The classifier and the agent are built from the
+ * shared traced factory, which always exists and throws at run time when
+ * nothing is configured. Capabilities are validated at assembly —
+ * duplicate ids, the reserved "none", or an empty tool signature fail the
+ * boot, not the first message.
  */
 
 import type { FastifyPluginAsync } from "fastify";
@@ -44,9 +40,9 @@ export interface ChatPluginOptions {
 
 /**
  * Assembly-time validation: the registry must be well-formed before the
- * first message, not at it. "none" is chat's own intent; a capability
- * with neither tools nor rules would silently contribute nothing to the
- * none-agent — both are boot failures.
+ * first message, not at it. "none" is chat's own intent; a capability that
+ * registers no tools would silently contribute nothing to the none-agent —
+ * that is a boot failure.
  */
 function validateCapabilities(
   capabilities: readonly ChatDomainCapability[],
@@ -78,7 +74,11 @@ export function chatPlugin(options: ChatPluginOptions): FastifyPluginAsync {
     capabilities.map((capability) => [capability.intent, capability]),
   );
   const db = createChatDb({ config: options.config });
-  const repository = createChatRepository({ db, clock });
+  const intents: ReadonlySet<string> = new Set([
+    "none",
+    ...capabilities.map((capability) => capability.intent),
+  ]);
+  const repository = createChatRepository({ db, clock, intents });
   const classifier =
     options.classifier ??
     (options.aiClient
