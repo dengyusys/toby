@@ -2,7 +2,7 @@
  * The session cookie's name and its readers. The header is parsed by hand,
  * so nothing depends on a cookie decorator being present.
  *
- * Two readers, one deliberate asymmetry kept from the first server: the
+ * Two readers, one deliberate asymmetry: the
  * session guard matches the raw header value (a quoted token is no token it
  * ever set, so it does not authenticate), while the session/logout routes
  * read the way cookie parsers always have (RFC 6265: a quoted value is the

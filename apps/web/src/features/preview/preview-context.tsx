@@ -1,9 +1,6 @@
 /**
- * The preview-panel context: chat inspect links and pushed preview cards
- * open domain previews in the layout's right panel by target id —
- * "ledger:YYYY-MM" today, one vocabulary per domain as domains land.
- * There is no persistent rail: a card is pushed only when something
- * became viewable, and opening (or dismissing) it removes it.
+ * The preview-panel context: inspect links and offer cards open domain
+ * previews by target id; no rail — a card exists only while viewable.
  */
 
 import { createContext, useContext, useMemo, useState } from "react";

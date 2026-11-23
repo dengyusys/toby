@@ -1,7 +1,7 @@
 /**
- * Ledger routes: a thin HTTP shell, one service call per handler. The
- * envelope-only body check happens here against schema.ts; everything
- * inside is the domain's call. Every route follows the session guard.
+ * Ledger routes: envelope shape is checked here against schema.ts,
+ * everything inside it is the domain's call. Every route follows the
+ * session guard.
  */
 
 import type { FastifyPluginAsync } from "fastify";

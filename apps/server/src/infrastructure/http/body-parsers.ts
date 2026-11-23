@@ -1,8 +1,8 @@
 /**
- * Request body parsers, matching what the API has always accepted:
+ * Request body parsers:
  * - JSON: Fastify's own parser (prototype-poisoning rejects, BOM handling,
  *   its 400 for undecodable JSON), except that a zero-length payload parses
- *   as `{}`, as the old body parser did.
+ *   as `{}`.
  * - URL-encoded forms: flat key/value pairs; a repeated key becomes an
  *   array.
  * - Any other content type: read within the body limit and dropped, so the
@@ -36,9 +36,8 @@ export function registerBodyParsers(app: FastifyInstance): void {
       const text = asText(body);
       if (text === "") {
         // A declared zero-length body (Content-Length: 0, or chunked with
-        // no chunks) parses as {}, like the old body parser; a request
-        // that declares no body at all leaves it undefined, so a route
-        // expecting one rejects it.
+        // no chunks) parses as {}; a request that declares no body at all
+        // leaves it undefined, so a route expecting one rejects it.
         const declared =
           request.headers["content-length"] !== undefined ||
           request.headers["transfer-encoding"] !== undefined;

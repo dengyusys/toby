@@ -1,4 +1,3 @@
-/** Duration formatting shared by the run list and the detail view. */
 export function formatDuration(ms: number): string {
   if (ms < 1000) {
     return `${ms}ms`;

@@ -1,10 +1,6 @@
 /**
- * The AI trace monitor panel: a console view over the session-level trace
- * stream (trace-stream.tsx), rendered as the layout's right drawer. The
- * list shows runs as they happen (newest first); picking one swaps to its
- * full record — prompt, transcript, outcome — with a way back. History
- * accrues in the provider across drawer toggles; a reload starts a blank
- * console, like a browser console.
+ * The AI trace monitor: a console over the session-level trace stream in the
+ * layout's right drawer. History lives in the provider; reload clears.
  */
 
 import { X } from "lucide-react";

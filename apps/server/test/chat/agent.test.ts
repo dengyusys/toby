@@ -1,12 +1,11 @@
 /**
  * The chat agent's prompt: the runtime renders it from the spec — preamble,
- * generated <tools> lines, base rules plus each registered capability's
- * rule snippets, then the per-run <context>. Tool names appear only in the
- * generated section; the hand-written parts carry behaviour, so a renamed
- * tool cannot leave a stale name in prose. Since the memory domain landed,
- * the policy widens to read-only + write-intent (the memory write tools),
- * the silent-learning rule joins the base rules, and the `<memory>`
- * section resolves per run through the wiring port.
+ * generated <tools> lines, base rules, then the per-run <context>. Tool
+ * names appear only in the generated section; the hand-written parts carry
+ * behaviour, so a renamed tool cannot leave a stale name in prose.
+ * Capabilities contribute tools only; the rules are chat's own. Chat's
+ * policy widens to read-only plus write-intent (the memory write tools),
+ * and the `<memory>` section resolves per run through the wiring port.
  */
 
 import { z } from "zod";

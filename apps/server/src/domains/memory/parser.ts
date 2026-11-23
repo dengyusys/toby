@@ -19,7 +19,7 @@ import type { MemoryEntry, ParsedMemory } from "./types.ts";
 /** Section names are short: the bound on a heading (and on entry.section). */
 export const MEMORY_SECTION_MAX_CHARS = 24;
 
-/** The expiry marker at end of line: one space, then ` (至 YYYY-MM-DD)`. */
+/** The expiry marker at end of line. */
 const UNTIL_MARKER_RE = /\s+\(至 (\d{4}-\d{2}-\d{2})\)\s*$/;
 const DATE_SHAPE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -64,8 +64,8 @@ function charLength(text: string): number {
 
 /**
  * The one rulebook for a section name, shared by the parser (a bad
- * heading rejects the file), the service (a bad name rejects the write
- * with INVALID_ENTRY) and the page's rename. Returns a human-readable
+ * heading rejects the file) and the service (a bad name rejects the write
+ * with INVALID_ENTRY). Returns a human-readable
  * problem, or null when the name is valid.
  */
 export function memorySectionNameProblem(name: string): string | null {
@@ -129,7 +129,6 @@ function invalid(lineNumber: number, detail: string): MemoryFileInvalidError {
   );
 }
 
-/** One entry from the text after `- `. */
 function entryFromLine(
   body: string,
   section: string,

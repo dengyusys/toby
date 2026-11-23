@@ -12,7 +12,7 @@ import type {
   LedgerTransactionRow,
 } from "./types.ts";
 
-/** The full row projection every read in this file returns. */
+/** The full row projection, reused by the before/after reads in an update. */
 const TRANSACTION_COLUMNS_SQL =
   "SELECT id, date, type, category, amount, note, created_at FROM transactions";
 

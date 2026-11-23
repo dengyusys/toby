@@ -29,8 +29,8 @@ export interface ParsedMemory {
 
 /**
  * The receipt of one landed change — the accountability card. before/after
- * are the rendered file lines (`- text (至 date)` for entries, `## name`
- * for a section rename), so the card quotes the file itself.
+ * are the rendered file lines (`- text (至 date)`), so the card quotes the
+ * file itself.
  */
 export interface MemoryReceipt {
   readonly action: "remembered" | "updated" | "forgot";

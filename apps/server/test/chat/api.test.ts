@@ -236,11 +236,8 @@ describe("chat api: send and the item stream", () => {
     const turn = response.json();
     expect(turn.intent).toBe("ledger");
     expect(turn.items).toHaveLength(3);
-    // ① the user's words as a verbatim user message…
     expect(turn.items[0]).toMatchObject({ role: "user", content: "午饭 30" });
-    // ② a short assistant confirmation…
     expect(turn.items[1].role).toBe("assistant");
-    // ③ …and the receipt card.
     expect(turn.items[2]).toMatchObject({
       type: "proposal_card",
       domain: "ledger",

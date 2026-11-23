@@ -128,7 +128,7 @@ export interface ChatAgentRun {
   readonly producedMessages: readonly unknown[];
 }
 
-/** The `none`-intent agent: read-only tools, bounded rounds, real data. */
+/** The `none`-intent agent: bounded rounds, real data. */
 export interface ChatAgent {
   run(
     prompt: string,

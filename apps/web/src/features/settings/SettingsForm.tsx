@@ -152,7 +152,8 @@ export function SettingsForm({
             setProvider(value);
             setApiKey("");
             setClearKey(false);
-            // Switching context does not change the saved model until a model is chosen.
+            // A provider switch resets the draft to the saved model; only an
+            // explicit model pick (or reset) changes it.
             setModel(effective.model.value ?? "");
             setResetModel(false);
           }}

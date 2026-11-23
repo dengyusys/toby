@@ -8,10 +8,8 @@
 /** Dialects the server can talk to; a new database joins by adding an adapter. */
 export type DbDialect = "sqlite" | "mysql";
 
-/** Parameter values accepted by positional `?` placeholders. */
 export type DbParam = string | number | bigint | boolean | null | Uint8Array;
 
-/** A row as drivers return it: string keys, unknown values. */
 export type DbRow = Record<string, unknown>;
 
 export interface DbRunResult {

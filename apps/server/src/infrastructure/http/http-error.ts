@@ -1,16 +1,16 @@
 /**
- * The server-wide error body: `{ statusCode, message, error }` — the one
- * shape the API has always answered — plus `errorCode`, the stable code
- * clients match on.
+ * The server-wide error body: `{ statusCode, message, error }` — the shape
+ * every deliberate error answers (the sanitized 500 keeps the bare
+ * `{ statusCode, message }` shape instead, see error-handler.ts) — plus
+ * `errorCode`, the stable code clients match on.
  */
 
 import { STATUS_CODES } from "node:http";
 
-/** Serialized body of every error the server writes. */
+/** Body of every deliberate error the server writes. */
 export interface ErrorBody {
   statusCode: number;
   message: string;
-  /** Reason phrase of `statusCode`. */
   error: string;
   /** Stable, client-matchable code from the throwing domain's closed union. */
   errorCode: string;
@@ -18,7 +18,7 @@ export interface ErrorBody {
 
 /**
  * Codes the HTTP shell itself answers with (unmatched routes, body parsing,
- * envelope validation, limits): the historic status names, with 404 always
+ * envelope validation, limits): the framework status names, with 404 always
  * PAGE_NOT_FOUND. Domain failures use their own closed unions in
  * `domains/<domain>/errors.ts`.
  */

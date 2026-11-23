@@ -1,9 +1,7 @@
 /**
- * The unified conversation (mobile copy; chat-box form): the persisted
- * item stream — restored on refresh — plus the bottom composer. One
- * sentence per send; the reply is an ordered stream of items
- * (docs/features/chat.md): transcript messages, the receipt card,
- * notices, and inspect chips. Nothing is shared with the PC app.
+ * The conversation (mobile copy — nothing is shared with the PC app): the
+ * persisted item stream — restored on refresh — plus the composer; each
+ * reply is an ordered stream of items (docs/features/chat.md).
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,12 +20,11 @@ import { describeError } from "@/features/ledger/ledger-view.ts";
 import { ItemView } from "./ItemView.tsx";
 import { Button } from "@/components/ui/button.tsx";
 
-/** The empty-conversation hero headline, centered until the first send. */
 const EMPTY_HEADLINE = "有什么我能帮你的吗？";
 
 const MAX_INPUT_HEIGHT = 120;
 
-/** Tool calls whose results this stream never delivered: in progress. */
+/** Tool calls whose results are not in the loaded message window: in progress. */
 function pendingToolCallIdsOf(turns: readonly ChatTurnView[]): Set<string> {
   const pending = new Set<string>();
   for (const turn of turns) {
@@ -78,7 +75,6 @@ export function ChatView() {
   );
   const pendingCalls = pendingToolCallIdsOf(allTurns);
 
-  // Keep the newest item in view.
   useEffect(() => {
     const list = listRef.current;
     if (list) {
@@ -109,7 +105,6 @@ export function ChatView() {
   });
   const sendPending = sendMutation.isPending;
 
-  // Composer textarea auto-grows to MAX_INPUT_HEIGHT.
   useEffect(() => {
     const element = textareaRef.current;
     if (!element) {
@@ -148,9 +143,8 @@ export function ChatView() {
   }
 
   return (
-    // Same flow language as the PC chat: items sit directly on the page
-    // background (user turns as bubbles, everything else as document
-    // content); only the composer is a card. The page provides the height.
+    // Items sit directly on the page background (user turns as bubbles,
+    // everything else as document content); only the composer is a card.
     <section aria-label="对话" className="flex min-h-0 flex-1 flex-col">
       <div
         ref={listRef}
@@ -212,7 +206,6 @@ export function ChatView() {
   );
 }
 
-/** A local user-only turn shown while the reply is being produced. */
 function optimisticUserTurn(text: string, id: number): ChatTurnView {
   return {
     turn_id: `optimistic-${id}`,

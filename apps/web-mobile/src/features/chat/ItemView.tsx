@@ -1,9 +1,6 @@
 /**
- * One chat item, in stream order (mobile copy): transcript messages
- * rendered from the pi-ai verbatim shapes (thinking collapsible, tool
- * calls paired to their results by toolCallId, honest 进行中 for
- * unpaired calls), the receipt card, notices, and inspect chips that
- * open the full-screen preview panel. Nothing is shared with the PC app.
+ * One chat item in stream order (mobile copy — nothing is shared with the PC
+ * app): verbatim transcript shapes, the receipt card, notices, and chips.
  */
 
 import type {
@@ -21,7 +18,6 @@ const MONO = "whitespace-pre-wrap break-all font-mono text-xs leading-relaxed";
 
 interface ItemViewProps {
   item: ChatItem;
-  /** Unpaired tool calls render as 进行中 (structural in-progress state). */
   pendingToolCallIds: ReadonlySet<string>;
 }
 
@@ -175,7 +171,6 @@ function InspectChip({
   );
 }
 
-/** A card whose domain this build cannot render: degrade, don't crash. */
 function UnsupportedCard() {
   return (
     <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">

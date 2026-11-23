@@ -1,10 +1,6 @@
 /**
- * Memory route ("/memory", mobile): a read-only raw view of MEMORY.md —
- * the Markdown source itself in a monospace block; no rendering, no
- * per-line buttons, no editors. Entries change through chat or by hand
- * editing the file. The header keeps the off-record toggle and a
- * two-step destructive reset. This mobile copy owns its layout; nothing
- * is imported from PC.
+ * Memory route (mobile): MEMORY.md's raw Markdown in a monospace block — no
+ * rendering, no editing; nothing is shared with the PC app.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,7 +10,6 @@ import { Button } from "@/components/ui/button.tsx";
 import { memoryClient } from "@/lib/api.ts";
 import { describeError } from "./memory-view.ts";
 
-/** An entry line is exactly a raw line that starts with "- ". */
 function countEntryLines(raw: string): number {
   return raw.split("\n").filter((line) => line.startsWith("- ")).length;
 }
@@ -43,8 +38,6 @@ export function MemoryPage() {
     mutationFn: () => memoryClient.reset(),
     onSuccess: () => {
       setConfirmingReset(false);
-      // Active queries under ["memory"] refetch: the cleared file shows
-      // immediately.
       void queryClient.invalidateQueries({ queryKey: ["memory"] });
     },
   });

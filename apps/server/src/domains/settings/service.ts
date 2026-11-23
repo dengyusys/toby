@@ -40,8 +40,7 @@ const MASKED_SHORT_KEY = "••••••";
 export interface SettingsServiceDeps {
   repository: SettingsRepository;
   /**
-   * Reserved: rows are stamped by the repository's own clock, and the
-   * view carries no timestamps today — kept for the day a receipt does.
+   * Reserved: no view field carries a timestamp yet.
    */
   clock: Clock;
   /** The environment fallback; absent = no env model, default timeout. */

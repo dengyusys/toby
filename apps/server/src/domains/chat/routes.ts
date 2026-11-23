@@ -1,7 +1,7 @@
 /**
- * Chat routes: a thin HTTP shell, one service call per handler. Body
- * envelopes are checked here with inline schemas; everything inside
- * is the domain's call. Every route follows the session guard.
+ * Chat routes: body envelopes are checked here with inline schemas,
+ * everything inside is the domain's call. Every route follows the session
+ * guard.
  */
 
 import type { FastifyPluginAsync } from "fastify";

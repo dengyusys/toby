@@ -1,9 +1,6 @@
 /**
- * Ledger route ("/ledger", mobile): the replicated ai-steward calendar
- * area — the month grid plus the day panel. Recording happens in the chat
- * on "/"; the calendar state now lives in the useLedgerCalendar hook
- * (src/features/ledger/ledger-hooks.ts). Mobile owns its own layout and styles — nothing
- * is shared with the PC app.
+ * Ledger route (mobile): the month grid plus the day panel; recording happens
+ * in the chat. Mobile owns its layout; nothing is shared with the PC app.
  */
 
 import { useLedgerCalendar } from "./ledger-hooks.ts";

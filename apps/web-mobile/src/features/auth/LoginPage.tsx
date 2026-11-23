@@ -1,7 +1,6 @@
 /**
- * Login page (mobile): single password field against the auth domain.
- * Mobile owns its own layout — nothing is shared with the PC app. Shows a
- * plain notice when the deployment has no password configured.
+ * Login page (mobile): one password field; mobile owns its layout, nothing is
+ * shared with the PC app. Password-less deployments show a notice instead.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

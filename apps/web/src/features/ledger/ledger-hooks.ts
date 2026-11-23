@@ -1,9 +1,6 @@
 /**
- * Ledger hooks — a per-app copy mirrored in the sibling app by design
- * (dual-app split); useLedgerCalendar owns the calendar state (shown month
- * follows arrived data, placeholder keeps the previous view),
- * useLedgerDayWrites owns the two user-initiated direct money writes
- * (PATCH/delete with inline two-step confirm).
+ * Ledger hooks, a per-app copy by design. useLedgerCalendar derives the shown
+ * month from arrived data; useLedgerDayWrites owns the two money writes.
  */
 
 import {

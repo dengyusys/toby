@@ -80,7 +80,7 @@ function summarize(rows: readonly LedgerTransactionRow[]): {
   };
 }
 
-/** Aggregate one month's rows into the report shape (pure function). */
+/** Aggregate one month's rows into the report shape. */
 export function buildMonthReport(
   month: string,
   rows: readonly LedgerTransactionRow[],
@@ -88,7 +88,6 @@ export function buildMonthReport(
   return { month, transactions: rows, ...summarize(rows) };
 }
 
-/** Aggregate one day's rows into the same shape (pure function). */
 export function buildDayReport(
   date: string,
   rows: readonly LedgerTransactionRow[],
@@ -99,9 +98,6 @@ export function buildDayReport(
 /** A landed receipt, a landed edit, or the AI asking one clarifying question. */
 export type LedgerWriteResult =
   LedgerReceiptView | LedgerUpdateResult | LedgerFollowUp;
-
-// The 501 copy: the one unconfigured message every AI path shares
-// (imported from the AI port's errors — no domain-local drift).
 
 function aiHttpError(error: AiError): LedgerRequestError {
   if (error.code === "unconfigured") {
@@ -136,7 +132,11 @@ export interface LedgerService {
 export function createLedgerService(deps: {
   repository: LedgerRepository;
   clock: Clock;
-  /** Absent while AI is unconfigured; the text path then answers 501. */
+  /**
+   * Undefined only for a standalone seam without an agent factory. With no
+   * AI configured it throws AiError("unconfigured") at run time and the
+   * text path answers 501.
+   */
   extractor?: LedgerExtractor;
 }): LedgerService {
   const { repository, clock, extractor } = deps;

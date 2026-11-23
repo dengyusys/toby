@@ -1,7 +1,6 @@
 /**
- * Memory receipt card: one landed change, or the routed batch that also
- * carries verbatim listed lines. Before/after are MEMORY.md's exact lines.
- * The compact form is reused for inline page and ledger confirmations.
+ * Memory receipt card: a landed change or batch; before/after are MEMORY.md's
+ * exact lines.
  */
 
 import type { MemoryReceipt } from "@toby/contract";
@@ -56,7 +55,6 @@ interface MemoryReceiptLinesProps {
   compact?: boolean;
 }
 
-/** Just the receipt lines, also used inside the ledger card's sidecar. */
 export function MemoryReceiptLines({
   receipts,
   compact = false,

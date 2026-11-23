@@ -2,11 +2,9 @@
 @import "tw-animate-css";
 
 /*
- * Toby PC theme tokens (Tailwind v4, OKLCH). This file is the single theme
- * source for this app only — the two web apps never share styles
- * (docs/decisions/web-split-dual-apps.md). The token set follows the shadcn
- * new-york naming so components from `shadcn add` style correctly as-is;
- * the palette is the shadcn zinc neutrals — black primary, no color cast.
+ * Theme tokens for this app only (Tailwind v4, OKLCH) — the two web apps
+ * never share styles. shadcn new-york naming over zinc neutrals, so
+ * `shadcn add` output styles correctly as-is.
  */
 
 @custom-variant dark (&:is(.dark *));
@@ -32,7 +30,7 @@
   --input: oklch(0.92 0.004 286);
   --ring: oklch(0.21 0.006 286);
   /* Ledger-view extras: income green and the faintest gray step, one notch
-     lighter than muted-foreground (subtle=foreground, faint=captions). */
+     lighter than muted-foreground (subtle is muted-foreground). */
   --success: oklch(0.55 0.13 150);
   --foreground-faint: oklch(0.62 0.005 286);
   --accent-soft: color-mix(in srgb, var(--primary) 8%, var(--card));

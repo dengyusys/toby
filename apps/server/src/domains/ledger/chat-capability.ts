@@ -1,12 +1,10 @@
 /**
- * The ledger chat capability: the write path (one-sentence direct
- * writes through the service) and the none-agent's read-only ledger
- * tools, together with their inspect-link mapping — everything chat
- * used to hard-code for ledger, now owned here
- * (docs/decisions/chat-domain-capabilities.md). Built from the ledger
- * service and ledger types; the capability contract
- * (src/chat-capability.ts) is satisfied structurally, never imported
- * beyond its types.
+ * The ledger chat capability: the write path (one-sentence direct writes
+ * through the service) and the none-agent's ledger tools, together with
+ * their inspect-link mapping. Built from the ledger service and ledger
+ * types; the capability contract (src/chat-capability.ts) is satisfied
+ * structurally, never imported beyond its types (docs/decisions/
+ * chat-domain-capabilities.md).
  */
 
 import { z } from "zod";
@@ -48,7 +46,6 @@ function formatCents(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
-/** One transaction line as both report tools render it. */
 function formatTransaction(t: LedgerTransactionRow): string {
   return `${t.date} ${t.type === "income" ? "收" : "支"} ¥${formatCents(t.amount)} ${t.category}${t.note ? `(${t.note})` : ""}`;
 }

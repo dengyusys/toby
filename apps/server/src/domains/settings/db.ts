@@ -1,8 +1,6 @@
-/**
- * The settings database's lifecycle: open lazily once per process, apply
- * the schema, close on shutdown, memoized per process. The SQL read/write
- * layer over it lives in repository.ts.
- */
+/** The settings database: `data/settings.db` on SQLite, `<prefix>settings`
+ * on MySQL. Opened lazily once per process, schema applied on every open;
+ * the SQL layer lives in repository.ts. */
 
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
 import { createDomainDb } from "../../infrastructure/db/create-db.ts";
@@ -47,7 +45,6 @@ export interface SettingsDb {
    * never a fresh handle nobody would close.
    */
   open(): Promise<DomainDb>;
-  /** Close, if it was ever opened; the database stays closed. */
   close(): Promise<void>;
 }
 

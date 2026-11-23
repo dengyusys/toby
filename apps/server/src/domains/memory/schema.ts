@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 
-/** POST /api/memory/off-record body: the page toggle. */
+/** POST /api/memory/off-record body. */
 export const MEMORY_OFF_RECORD_BODY_SCHEMA = z
   .object({
     on: z.boolean(),

@@ -1,8 +1,7 @@
 /**
- * Auth domain assembly: the service (with its session sweeper) and the
- * public auth routes. The plugin factory also hands the session guard to
- * the composition root, which installs it on every `/api` route not marked
- * public — cross-domain wiring never happens inside a domain.
+ * Auth assembly: the service with its sweeper and the public auth routes;
+ * the session guard is handed to the composition root, which installs it on
+ * every `/api` route not marked public.
  */
 
 import type { FastifyPluginAsync, preHandlerAsyncHookHandler } from "fastify";

@@ -4,7 +4,7 @@
  * rate-limit → persist the user turn (before any AI call) → classify →
  * route — a registered capability's write lands immediately through its
  * handleWrite (a receipt card is born), "none" and any intent the
- * registry no longer knows go to the read-only agent. Reply items are
+ * registry no longer knows go to the agent. Reply items are
  * synthesized in items.ts; the AI's view of past turns is shaped in
  * history.ts. Every AI failure settles as an honest notice — never a
  * 5xx, never silently dropped (docs/features/chat.md).

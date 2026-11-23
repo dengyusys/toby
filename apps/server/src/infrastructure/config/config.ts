@@ -67,7 +67,7 @@ export interface TobyConfig {
   server: ServerConfig;
   paths: PathConfig;
   db: DatabaseConfig;
-  /** Absent = AI paths disabled (the one-sentence ledger path answers 501). */
+  /** The environment's AI fallback; the settings database decides per request. */
   ai?: AiRuntimeConfig;
   /** Absent = serve the dist builds (production); set = dev redirects. */
   devWebRedirect?: WebRedirectConfig;
@@ -180,7 +180,8 @@ function resolveTimeout(
  * AI runtime: TOBY_AI_MODEL is pi-ai's "provider/model" pair (e.g.
  * "zai/glm-4.7"). Provider credentials live in pi-ai's per-provider
  * environment variables (e.g. DEEPSEEK_API_KEY) or its credential store — not
- * here. An unset model keeps the AI paths plainly unavailable. The spec
+ * here. An unset model leaves no environment fallback; the settings
+ * database still decides the effective config per request. The spec
  * pattern and timeout bounds live in infrastructure/model/validation.ts,
  * shared with the settings domain.
  */

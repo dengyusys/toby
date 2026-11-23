@@ -87,7 +87,8 @@ export function createMemoryService(deps: {
       // The honest file read behind the read-only page: raw bytes, never
       // re-serialized (a synced copy would become a second source of
       // truth) and never repaired — a corrupt file's bytes come back as
-      // they are; parsing is the caller's problem.
+      // they are; parsing is the caller's problem. A missing file answers
+      // the serialized empty book instead of null.
       const raw = await repository.readRaw();
       return raw ?? serializeMemoryMarkdown({ entries: [] });
     },

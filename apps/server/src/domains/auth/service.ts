@@ -18,7 +18,6 @@ import {
 } from "./sessions.ts";
 import type { AuthLoginSuccess, AuthSessionInfo } from "./types.ts";
 
-/** A freshly created session handle. */
 type SessionGrant = SessionHandle;
 
 /** Session pruning cadence; lazy expiry already covers correctness. */
@@ -37,9 +36,7 @@ export interface AuthService {
    * disabled.
    */
   requireSession(token: string | undefined): void;
-  /** Starts the session sweeper timer. */
   start(): void;
-  /** Stops the sweeper timer. */
   stop(): void;
 }
 

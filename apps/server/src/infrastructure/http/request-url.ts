@@ -1,11 +1,10 @@
 /**
- * The one pre-routing URL rewrite, keeping what the first server's two
- * static layers each did on their own:
+ * The one pre-routing URL rewrite:
  * - `/api/*` paths lose one trailing slash (`/api/x/` matches `/api/x`);
  *   everything else about them — dot segments included — stays as sent, so
  *   path noise keeps missing the route.
- * - Every other path is collapsed the way the site-root file handler
- *   collapsed it (`/assets/../index.html` serves `/index.html`), never
+ * - Every other path is collapsed the way a static file handler collapses
+ *   it (`/assets/../index.html` serves `/index.html`), never
  *   crossing the site root and never collapsing INTO an `/api/` route.
  *   A nested mount (`/m`) adds one rule on top: when the request's own
  *   dot segments climb OUT of the mount (`/m/../m/index.html`), its

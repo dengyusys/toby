@@ -1,10 +1,4 @@
-/**
- * Pure view helpers shared by the ledger feature components of the mobile
- * app: date and month math, money and countdown formatting, receipt-error
- * wording, and the mobile card button class strings. Per
- * docs/decisions/web-split-dual-apps.md the PC app keeps its own copy of
- * this module; nothing is shared across the two apps from here.
- */
+/** Ledger view helpers (per-app copy): date/month math, money, error copy. */
 
 import { ApiError } from "@toby/contract";
 

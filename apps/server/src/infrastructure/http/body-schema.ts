@@ -17,7 +17,6 @@ function formatIssue(issue: { path: PropertyKey[]; message: string }): string {
     : issue.message;
 }
 
-/** Parses `request.body` against the route's schema. */
 export function parseBody<T>(schema: ZodType<T>, request: FastifyRequest): T {
   const result = schema.safeParse(request.body);
   if (!result.success) {

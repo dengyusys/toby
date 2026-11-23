@@ -1,12 +1,7 @@
 /**
- * Renders assistant text as Markdown (GFM, mobile copy — nothing is shared
- * with the PC app). AI output is untrusted input: react-markdown emits React
- * elements only — raw HTML is never rendered, URL schemes are sanitized by
- * its defaults, and images degrade to their alt text — so no innerHTML and
- * no sanitizer are involved. remark-breaks keeps single newlines as breaks,
- * so plain-text turns look exactly as they did under whitespace-pre-wrap.
- * Styling stays on semantic tokens (docs/design/principles.md): no new
- * shadows, block code reuses the tool-call box language.
+ * Assistant text as Markdown (GFM, mobile copy — nothing is shared with the
+ * PC app). AI output is untrusted: rely on react-markdown emitting elements
+ * only (no raw HTML, sanitized URLs, images as alt text).
  */
 
 import type { ReactNode } from "react";
@@ -81,8 +76,7 @@ const MARKDOWN_COMPONENTS: Components = {
   img: ({ alt }) => <>{alt}</>,
 };
 
-/** Chat assistant text is Markdown; `className` adapts the wrapper spacing
- * per call site (chat pads with px-1, the trace monitor does not). */
+/** Chat assistant text is Markdown; `className` lands on the wrapper only. */
 export function Markdown({
   text,
   className = "",

@@ -39,7 +39,7 @@ export function createMemoryChatCapability(deps: {
    * none agent never needs it).
    */
   tools: MemoryTools;
-  /** Test seam / absent when AI is unconfigured. */
+  /** Test seam: the composition root always passes the shared factory. */
   agentFactory?: TobyAgentFactory;
 }): ChatDomainCapability {
   const { service, tools } = deps;

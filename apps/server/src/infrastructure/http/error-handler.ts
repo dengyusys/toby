@@ -67,8 +67,8 @@ export function errorHandler(
   }
 
   // A Content-Type that is not even type/subtype never reaches the
-  // catch-all body parser; the first server dropped such requests and let
-  // the envelope answer, so Fastify's 415 maps back to that 400.
+  // catch-all body parser, so there is no route to answer Fastify's 415:
+  // the envelope answers 400 like every other malformed request.
   if (
     (error as FastifyError | null)?.code === "FST_ERR_CTP_INVALID_MEDIA_TYPE"
   ) {
@@ -103,7 +103,7 @@ export function errorHandler(
   // Unexpected: one line in the request log, correlated with the request
   // lines by the request id — the stack only, never the error object
   // (driver errors carry SQL text, hosts and users in their properties and
-  // causes). The sanitized body deliberately keeps the historic
+  // causes). The sanitized body deliberately keeps the bare
   // `{ statusCode, message }` shape without `error` / `errorCode`; it is
   // part of the wire contract, do not unify it.
   request.log.error(

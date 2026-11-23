@@ -1,7 +1,6 @@
 /**
- * The preview panel chrome: the layout's right panel that inspect links
- * and the activity rail open. One target id resolves to one preview —
- * the vocabulary grows as domains land.
+ * The preview panel: a right-hand drawer opened by inspect links and offer
+ * cards; one target id resolves to one preview.
  */
 
 import type { ReactNode } from "react";

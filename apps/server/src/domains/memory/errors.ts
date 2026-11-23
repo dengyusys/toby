@@ -15,7 +15,12 @@ export type MemoryErrorCode =
   | "MEMORY_FILE_INVALID"
   | "LIMIT_REACHED";
 
-/** Use-case failure (missing entry, ambiguity, duplicates, full memory). */
+/**
+ * A thrown use-case failure: ENTRY_NOT_FOUND (the entry vanished inside
+ * the write cycle) or LIMIT_REACHED. Ambiguity and duplicates are result
+ * values, not throws; shape rejections use MemoryInputError, file
+ * failures MemoryFileInvalidError.
+ */
 export class MemoryRequestError extends DomainHttpError {
   constructor(code: MemoryErrorCode, status: number, message: string) {
     super(status, code, message);

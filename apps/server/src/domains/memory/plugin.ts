@@ -1,7 +1,7 @@
 /**
- * Memory domain assembly: the storage file and the repository over it,
- * the service and the routes. No background lifecycle — the file is
- * opened per operation, so there is nothing to close.
+ * Memory assembly: the file-backed repository, the service and the routes.
+ * The storage file is opened per operation, so there is no lifecycle to
+ * close.
  */
 
 import type { FastifyPluginAsync } from "fastify";

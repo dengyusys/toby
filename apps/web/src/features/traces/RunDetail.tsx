@@ -1,9 +1,6 @@
 /**
- * The selected run's full record: summary header, the prompt, the message
- * transcript in pi-ai verbatim shapes (system prompt with tool
- * declarations, user inputs, assistant content blocks — thinking, tool
- * calls, text — and tool results), the outcome, and the raw event JSON
- * for anything the pretty views do not cover.
+ * The selected run's full record: summary, prompt, the verbatim message
+ * transcript, the outcome, and the raw event JSON.
  */
 
 import type { ReactNode } from "react";
@@ -27,7 +24,6 @@ const MONO = "whitespace-pre-wrap break-all font-mono text-xs leading-relaxed";
 
 type ContentBlock = PiTextContent | PiImageContent;
 
-/** Flatten a verbatim content value to display text ("[图片]" for images). */
 function flattenText(content: string | readonly ContentBlock[]): string {
   if (typeof content === "string") {
     return content;
@@ -231,8 +227,8 @@ function UserView({ message }: { message: PiUserMessage }) {
 }
 
 function AssistantView({ message }: { message: PiAssistantMessage }) {
-  // Content blocks render in order: thinking, tool calls, text — exactly
-  // the order the model produced them.
+  // Regrouped by type — all thinking, then all tool calls, then all text —
+  // not the model's original block order.
   const thinking = message.content.filter(
     (block): block is PiThinkingContent => block.type === "thinking",
   );

@@ -1,7 +1,6 @@
 /**
- * The preview panel (mobile): a full-screen overlay the chat's inspect
- * chips open — one target id resolves to one preview, the vocabulary
- * grows as domains land. Nothing is shared with the PC app.
+ * The preview panel (mobile): a full-screen overlay opened by chat inspect
+ * chips. Nothing is shared with the PC app.
  */
 
 import type { ReactNode } from "react";

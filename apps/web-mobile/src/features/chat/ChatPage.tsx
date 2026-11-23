@@ -1,9 +1,6 @@
 /**
- * Chat route (primary, "/"): the unified conversation fills the viewport
- * below the header (the nav drawer lives in the layout) — one sentence
- * in, an ordered item stream out (docs/features/chat.md). The ledger
- * calendar lives on its own /ledger route; inspect links open the
- * full-screen preview panel instead of navigating.
+ * Chat route ("/"): the conversation fills the space below the layout's top
+ * bar; inspect chips open the full-screen preview panel.
  */
 
 import { ChatView } from "./ChatView.tsx";

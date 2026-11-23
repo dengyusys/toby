@@ -1,8 +1,6 @@
 /**
- * Receipt card (回执卡): a write that has already landed — the batch was
- * recorded the moment the sentence was sent. Shows the entries with the
- * multi-entry total. An update receipt (AI correction) renders as the
- * before→after diff of what changed. Recovery is writing again or backup.
+ * Receipt card: entries with the multi-entry total, or an update receipt as a
+ * before→after diff.
  */
 
 import type {
@@ -19,7 +17,6 @@ interface ReceiptCardProps {
   receipt: LedgerReceiptView | LedgerUpdateResult;
 }
 
-/** One field as card copy: dates as-is, cents as money, blanks as —. */
 function fieldValue(entry: LedgerEntry, field: keyof LedgerEntry): string {
   if (field === "amount") {
     return `¥${formatCents(entry.amount)}`;
@@ -47,7 +44,6 @@ const FIELD_LABELS: Record<keyof LedgerEntry, string> = {
   note: "备注",
 };
 
-/** Optional memory sidecar on the AI write path; absent adds no DOM. */
 function MemorySidecar({ receipt }: ReceiptCardProps) {
   const memoryReceipts: MemoryReceipt[] = (
     receipt.memory_receipts ?? []
@@ -96,9 +92,8 @@ function UpdatedCard({ result }: { result: LedgerUpdateResult }) {
 }
 
 /**
- * Narrow on the action verb, not on key presence: history from the
- * proposal era carries status: "committed" receipts with entries — those
- * render as plain recorded cards instead of crashing the tree as update
+ * Narrow on the action verb, not on key presence: some stored receipts also
+ * carry entries, and a key-presence check would misread them as update
  * results.
  */
 function isUpdateResult(

@@ -1,6 +1,6 @@
 /**
  * Deterministic entry validation and normalization — the trust boundary.
- * Everything that enters the ledger — the structured path today, the AI
+ * Everything that enters the ledger — the structured path and the AI
  * extraction agent's tool calls — passes through here: untrusted input in,
  * a fully normalized LedgerEntry out, or a rejected request with zero
  * writes.
@@ -48,7 +48,6 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// Shape gate: the shared draft schema, with the first violation reported.
 function requireDraftShape(raw: unknown, label: string): LedgerEntryDraft {
   const parsed = LEDGER_ENTRY_DRAFT_SCHEMA.safeParse(raw);
   if (!parsed.success) {
@@ -61,7 +60,6 @@ function requireDraftShape(raw: unknown, label: string): LedgerEntryDraft {
   return parsed.data;
 }
 
-// Shape gate for patches: the shared patch schema, same reporting.
 function requirePatchShape(raw: unknown): LedgerEntryPatchDraft {
   const parsed = LEDGER_ENTRY_PATCH_SCHEMA.safeParse(raw);
   if (!parsed.success) {

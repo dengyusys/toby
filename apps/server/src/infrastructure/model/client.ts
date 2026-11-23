@@ -2,11 +2,10 @@
  * Single-shot AI transport over pi-ai's unified API: one `complete()` call
  * per request, with the app-level JSON protocol (tolerant parsing, one
  * correction retry) kept on this side per docs/decisions/ai-pi-runtime.md.
- * It currently has no production caller — kept for the upcoming chat
- * domain (docs/features/chat.md), whose intent classification is its
- * expected first consumer. pi-ai never rejects — provider failures
- * arrive as the assistant message's stopReason/errorMessage and are mapped
- * onto the closed AiError union here. No business logic lives in this file.
+ * Production caller: chat's intent classification (docs/features/chat.md).
+ * pi-ai never rejects — provider failures arrive as the assistant message's
+ * stopReason/errorMessage and are mapped onto the closed AiError union here.
+ * No business logic lives in this file.
  *
  * Timeout note: the timeout applies per request; a json() retry may span
  * two windows. The agent path (agent.ts) caps its whole run instead.
@@ -76,8 +75,9 @@ function toContext(
     .filter((message) => message.role !== "system")
     .map((message): Message => {
       if (message.role === "assistant") {
-        // History replay only: the request path never sends assistant
-        // turns today, so a minimal well-formed message is enough.
+        // Replayed history and intent classification assemble assistant
+        // turns without real usage: a minimal well-formed message (zero
+        // usage, stopReason stop) is enough.
         return {
           role: "assistant",
           content: [{ type: "text", text: message.content }],
@@ -169,8 +169,8 @@ export function createPiAiClient(
       messages.map((message): Message => {
         const timestamp = Date.now();
         if (message.role === "assistant") {
-          // History replay only: the request path never sends assistant
-          // turns today, so a minimal well-formed message is enough.
+          // No real usage exists for a replayed or classifier-assembled
+          // assistant turn: a minimal well-formed message is enough.
           return {
             role: "assistant",
             content: [{ type: "text", text: message.content }],

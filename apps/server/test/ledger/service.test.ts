@@ -349,7 +349,6 @@ describe("ledger service one-sentence path", () => {
     }));
     const result = await service.write({ text: "book 25" });
     expect(result).toEqual({ question: "这笔是支出还是收入?" });
-    // A question writes nothing — the user retries with more detail.
     expect(calls).toHaveLength(0);
   });
 

@@ -1,9 +1,8 @@
 /**
- * Settings routes: a thin HTTP shell, one service call per handler. The
- * PUT envelope — and the POST /test body, which accepts the exact same
- * shape — is checked here against schema.ts and answers the domain's own
- * SETTINGS_BODY_INVALID (clients match codes, never framework ones).
- * Every route follows the session guard.
+ * Settings routes: the PUT envelope — and the POST /test body, which
+ * accepts the exact same shape — is checked here against schema.ts and
+ * answers the domain's own SETTINGS_BODY_INVALID (clients match codes, never
+ * framework ones). Every route follows the session guard.
  */
 
 import type { FastifyPluginAsync } from "fastify";

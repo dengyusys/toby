@@ -154,7 +154,6 @@ describe("settings api: effective view", () => {
       { id: "faux", source: "stored", maskedKey: "sk-…9876" },
     ]);
 
-    // Clearing the row falls back to the environment.
     const cleared = await inject("PUT", "/api/settings/ai", {
       credentials: [{ provider: "faux", clear: true }],
     });
@@ -287,7 +286,6 @@ describe("settings api: AI test (POST /test)", () => {
     });
     expect(stored.statusCode).toBe(200);
 
-    // Omitted model: the db row is effective.
     const omitted = await inject("POST", "/api/settings/ai/test", {});
     expect(omitted.statusCode).toBe(200);
     expect(omitted.json()).toMatchObject({
@@ -296,7 +294,6 @@ describe("settings api: AI test (POST /test)", () => {
       reply: "OK",
     });
 
-    // null model: PUT would delete the row, so the env fallback answers.
     const cleared = await inject("POST", "/api/settings/ai/test", {
       model: null,
     });

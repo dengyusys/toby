@@ -1,9 +1,8 @@
 /**
  * Server entry point: resolve the config, assemble the application, listen,
- * and close cleanly on a termination signal. Running this module starts the
- * server — tests import `composition-root.ts` instead. Config failures surface as a plain
- * startup error. The application logs through pino (see `composition-root.ts`); only
- * these bootstrap-time failures still print one plain stderr line.
+ * and close cleanly on a termination signal. Tests import
+ * `composition-root.ts` instead. The application logs through pino; only
+ * these bootstrap-time failures print a plain stderr line.
  */
 
 import { createApp } from "./composition-root.ts";

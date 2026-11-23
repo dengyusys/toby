@@ -22,7 +22,7 @@ const CHAT_AGENT_MAX_TOKENS = 2000;
 
 export interface ChatAgentDeps {
   agentFactory: TobyAgentFactory;
-  /** The registered capabilities; their tools and rules feed the agent. */
+  /** The registered capabilities; their tools feed the agent. */
   capabilities: readonly ChatDomainCapability[];
   /** The memory wiring port; its section feeds the prompt per run. */
   memory?: ChatMemoryPort;

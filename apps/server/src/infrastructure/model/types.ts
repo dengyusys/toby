@@ -41,8 +41,9 @@ export interface AiClient {
 }
 
 /**
- * AI runtime configuration resolved from TOBY_AI_* environment variables.
- * `model` is pi-ai's "provider/model" pair (e.g. "zai/glm-4.7"); provider
+ * AI runtime configuration as the AI paths resolve it per request: the
+ * settings database first, the environment as fallback. `model` is pi-ai's
+ * "provider/model" pair (e.g. "zai/glm-4.7"); provider
  * credentials live in pi-ai's per-provider environment variables (e.g.
  * DEEPSEEK_API_KEY) or its credential store — never in this config.
  */

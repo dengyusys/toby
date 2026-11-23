@@ -1,9 +1,6 @@
 /**
- * Memory route ("/memory"): MEMORY.md shown raw — the file's Markdown
- * source in a monospace block, in file order, with no rendering and no
- * editing. All changes happen through chat sentences or hand-editing the
- * file. The header keeps exactly two controls: the off-record toggle and
- * a two-step destructive reset that clears every entry.
+ * Memory route: MEMORY.md's raw Markdown in a monospace block — no rendering,
+ * no editing; changes go through chat or the file.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,7 +10,6 @@ import { Button } from "@/components/ui/button.tsx";
 import { memoryClient } from "@/lib/api.ts";
 import { describeError, isMemoryFileInvalid } from "./memory-view.ts";
 
-/** Entries to clear: the file's own "- " lines, counted client-side. */
 function countEntries(markdown: string): number {
   return markdown.split("\n").filter((line) => line.startsWith("- ")).length;
 }

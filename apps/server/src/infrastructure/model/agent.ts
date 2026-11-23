@@ -183,7 +183,6 @@ export interface TobyAgentRunResult {
   readonly producedMessages: readonly Message[];
 }
 
-/** A prepared agent: one prompt in, a settled outcome out. */
 export interface TobyAgent {
   run(prompt: string): Promise<TobyAgentRunResult>;
 }

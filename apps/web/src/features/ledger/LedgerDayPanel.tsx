@@ -1,12 +1,6 @@
 /**
- * Selected-day panel (replicated from the ai-steward design, plus toby
- * write affordances): the mono date heading with its weekday chip, the
- * day's transaction list (category, signed amount), and
- * the expense/income footer totals. Each row carries an edit form (one
- * transactional PATCH — present fields change) and a delete button with
- * an inline two-step confirm — the two user-initiated direct writes —
- * now owned by the useLedgerDayWrites hook (src/features/ledger/ledger-hooks.ts). Sits
- * beside the month grid (sticky on wide viewports).
+ * Selected-day panel: per-row edit (one transactional PATCH) and delete
+ * (inline two-step confirm), owned by useLedgerDayWrites.
  */
 
 import type { LedgerTransactionRow } from "@toby/contract";

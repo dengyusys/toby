@@ -1,10 +1,6 @@
 /**
- * Month ledger grid (replicated from the ai-steward design): the ‹ ›
- * month pager with the running expense/income/count summary, the
- * Sunday-first weekday header, and the day grid with per-day 支/收
- * subtotals. Cells are buttons with arrow-key navigation; the target
- * month is only reachable while it has records (months list). Month and
- * selection state live in LedgerPage and arrive as props.
+ * Month ledger grid: pager, weekday header, day cells with subtotals. Only
+ * months with records are reachable; state arrives from LedgerPage.
  */
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -49,8 +45,7 @@ export function MonthLedger({
   const previousMonth = monthShift(-1);
   const nextMonth = monthShift(1);
 
-  // Per-day totals aggregated from the month's transactions (integer
-  // cents, no float drift).
+  // Per-day totals in integer cents, so no float drift.
   const dailyTotals = useMemo(() => {
     const map = new Map<string, DayTotals>();
     for (const transaction of data?.transactions ?? []) {
@@ -65,7 +60,6 @@ export function MonthLedger({
     return map;
   }, [data]);
 
-  // Grid geometry: first weekday, days in month, rows padded to full weeks.
   const [year = 0, monthNumber = 0] = currentMonth.split("-").map(Number);
   const firstWeekday = new Date(year, monthNumber - 1, 1).getDay();
   const daysInMonth = new Date(year, monthNumber, 0).getDate();
@@ -195,7 +189,6 @@ export function MonthLedger({
       className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface"
       aria-label="月度账单"
     >
-      {/* Header: the month pager plus the running month summary. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface-hover px-4 py-2.5 max-[767px]:px-3.5">
         <div className="flex items-center gap-1" aria-label="月份导航">
           <Button
@@ -244,7 +237,6 @@ export function MonthLedger({
         </p>
       ) : (
         <>
-          {/* Weekday row: the weekend columns carry the primary color. */}
           <div
             className="grid grid-cols-7 border-b border-border text-center text-xs font-semibold text-faint [&>span:first-child]:text-primary [&>span:last-child]:text-primary"
             aria-hidden="true"

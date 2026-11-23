@@ -8,7 +8,6 @@ const DOT_COLORS: Record<StatusDotState, string> = {
   pending: "bg-muted-foreground",
 };
 
-/** Small status indicator shared by pages that poll server state. */
 export function StatusDot({
   state,
   className,

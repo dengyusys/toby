@@ -1,8 +1,6 @@
 /**
- * The trace stream's shared context: the TraceRun/TraceStream shapes and the
- * useTraceStream hook live here, apart from the provider component in
- * trace-stream.tsx, so that file exports only a component and stays
- * Fast-Refresh-clean — edits hot-swap without a full page reload.
+ * The trace stream's shared context. Split from the provider so
+ * trace-stream.tsx exports only a component and stays Fast-Refresh-clean.
  */
 
 import { createContext, useContext } from "react";
@@ -16,7 +14,6 @@ export type TraceRun =
 export interface TraceStream {
   runs: TraceRun[];
   connected: boolean;
-  /** Clear the local history (the server keeps nothing to clear). */
   clear: () => void;
 }
 

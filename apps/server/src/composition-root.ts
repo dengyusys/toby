@@ -113,8 +113,8 @@ export function productionDomains(options: {
     }
     return { model: runtime.model, timeoutMs: runtime.timeoutMs };
   };
-  // Both AI transports now always exist; with nothing configured they
-  // throw AiError("unconfigured") at run time instead of staying unwired.
+  // Both transports always exist; with nothing configured they throw
+  // AiError("unconfigured") at run time instead of staying unwired.
   // Both receive the SAME store-attached Models instance: a credential
   // saved on the settings page must reach every runtime provider call,
   // not just the settings page's own statuses.

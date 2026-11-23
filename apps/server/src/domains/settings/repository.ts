@@ -24,7 +24,6 @@ export interface SettingsChanges {
 export interface SettingsRepository {
   /** One stored settings value, or null when the key is absent. */
   get(key: string): Promise<string | null>;
-  /** Every change in one transaction: all land, or nothing does. */
   apply(changes: SettingsChanges): Promise<void>;
   /** The raw credential JSON stored for one provider, or null. */
   readCredential(providerId: string): Promise<string | null>;

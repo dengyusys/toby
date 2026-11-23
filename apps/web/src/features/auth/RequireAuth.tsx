@@ -1,11 +1,8 @@
 /**
- * Session gate for every route except /login: the auth session is checked
- * before any page renders, so an unauthenticated visit lands on the login
- * page instead of the chat page (which fires no request of its own until
- * the user acts, so the 401 redirect never triggers on entry). Deployments
- * without a password render straight through; rendering is held while the
- * session answer is still on its way so a stale cache never flashes the
- * page.
+ * Session gate for every route except /login: pages mount only inside the
+ * gate's outlet, so an unauthenticated visitor never mounts chat or its
+ * requests (main.tsx's 401 redirect is only the fallback). Rendering waits
+ * for the session answer so a stale cache never flashes.
  */
 
 import { useQuery } from "@tanstack/react-query";

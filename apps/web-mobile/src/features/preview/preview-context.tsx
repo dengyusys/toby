@@ -1,8 +1,6 @@
 /**
- * The preview-panel context (mobile copy): chat inspect links open
- * domain previews as a full-screen panel by target id — "ledger:YYYY-MM"
- * today, one vocabulary per domain as domains land. Nothing is shared
- * with the PC app.
+ * The preview-panel context (mobile copy — nothing is shared with the PC
+ * app): inspect links open previews full-screen by target id.
  */
 
 import { createContext, useContext, useMemo, useState } from "react";

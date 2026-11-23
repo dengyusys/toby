@@ -1,9 +1,11 @@
 /**
  * Ledger domain assembly: the database and the repository over it, the
- * service and the routes. AI disabled (no TOBY_AI_MODEL) keeps the
- * extractor undefined: the service then answers the one-sentence path
- * with 501. A shared agentFactory (traced, from the composition root)
- * takes precedence over the locally built one.
+ * service and the routes. The composition root always passes an
+ * agentFactory, so the extractor always exists there; only a standalone
+ * seam without one leaves it undefined. With no AI configured the runtime
+ * throws AiError("unconfigured") and the one-sentence path answers 501. A
+ * shared agentFactory (traced, from the composition root) takes precedence
+ * over the locally built one.
  */
 
 import type { FastifyPluginAsync } from "fastify";

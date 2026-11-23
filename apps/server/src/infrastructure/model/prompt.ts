@@ -36,7 +36,7 @@ export interface TobyPromptSpec {
   readonly tools: readonly TobyTool[];
   /** The domain's own rules (behaviour, tone, boundaries). */
   readonly rules?: readonly string[];
-  /** Per-run values (today's date, weekday, timezone, later memories). */
+  /** Per-run values (today's date, weekday, timezone). */
   readonly context?: readonly string[];
 }
 

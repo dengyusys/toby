@@ -1,8 +1,6 @@
-/**
- * The chat database's lifecycle (data/chat.db on SQLite, toby_chat on
- * MySQL): open lazily once per process, apply the schema, close on
- * shutdown. The SQL read/write layer over it lives in repository.ts.
- */
+/** The chat database: `data/chat.db` on SQLite, `<prefix>chat` on MySQL.
+ * Opened lazily once per process, schema applied on every open; the SQL
+ * read/write layer lives in repository.ts. */
 
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
 import { createDomainDb } from "../../infrastructure/db/create-db.ts";
@@ -61,7 +59,6 @@ export interface ChatDb {
    * a transient failure retries instead of bricking the domain.
    */
   open(): Promise<DomainDb>;
-  /** Close, if it was ever opened; the database stays closed. */
   close(): Promise<void>;
 }
 

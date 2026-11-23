@@ -1,10 +1,6 @@
 /**
- * Settings domain assembly: the database and the repository over it, the
- * credential-store adapter over the repository, and the service and the
- * routes. The catalog comes from the injected `createModels` factory (the
- * composition root attaches this domain's credential store to it), so one
- * Models instance serves the catalog, the auth statuses and every AI
- * request; tests inject a factory over a faux-provider collection.
+ * Settings assembly: one Models instance (this domain's credential store
+ * attached) serves the catalog, the auth statuses and every AI request.
  */
 
 import type { FastifyPluginAsync } from "fastify";
@@ -58,16 +54,12 @@ export function createSettingsDomain(
   const db = createSettingsDb({ config: options.config });
   const repository = createSettingsRepository({ db, clock });
 
-  // The credential store comes first: the catalog factory attaches it, so
-  // the one Models instance serves this domain's catalog and statuses AND
-  // carries the stored credentials into every request.
+  // Built once: the catalog factory attaches it to the one Models instance.
   const credentialStore = createSettingsCredentialStore({
     persistence: repository,
   });
   const models = options.createModels?.({ credentialStore }) ?? builtinModels();
 
-  // Catalog view + known providers, derived once from the chat models:
-  // provider ids deduped, model ids grouped per provider, all sorted.
   const catalogMap = new Map<string, Set<string>>();
   for (const model of models.getModels()) {
     const ids = catalogMap.get(model.provider) ?? new Set<string>();
@@ -91,9 +83,8 @@ export function createSettingsDomain(
       }
     });
 
-  // The probe behind POST /test shares this domain's Models (the same
-  // catalog every AI request sees) and its credential store; the overlay
-  // for a body's unsaved keys lives only inside the probe. Tests fake it.
+  // The probe shares this domain's Models and credential store; a body's
+  // unsaved keys live only inside the probe's overlay.
   const testProbe =
     options.testProbe ?? createAiTestProbe({ models, credentialStore });
 

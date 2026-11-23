@@ -1,8 +1,4 @@
-/**
- * The ledger database's lifecycle: open lazily once per process, apply
- * the schema, close on shutdown, memoized per process. The SQL read/write
- * layer over it lives in repository.ts.
- */
+/** The ledger database: `data/ledger.db` on SQLite, `<prefix>ledger` on MySQL. */
 
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
 import { createDomainDb } from "../../infrastructure/db/create-db.ts";
@@ -48,7 +44,6 @@ export interface LedgerDb {
    * never a fresh handle nobody would close.
    */
   open(): Promise<DomainDb>;
-  /** Close, if it was ever opened; the database stays closed. */
   close(): Promise<void>;
 }
 

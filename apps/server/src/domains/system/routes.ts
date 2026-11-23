@@ -1,7 +1,6 @@
 /**
- * System routes: a pure HTTP shell over the service. Health is public (the
- * Docker healthcheck must answer without a session); info follows the
- * session guard like any business endpoint.
+ * System routes: health is public (the Docker healthcheck must answer
+ * without a session); info follows the session guard.
  */
 
 import type { FastifyPluginAsync } from "fastify";

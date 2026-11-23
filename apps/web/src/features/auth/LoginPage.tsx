@@ -1,8 +1,4 @@
-/**
- * Login page: single password field against the auth domain. Shows a plain
- * notice when the deployment has no password configured (local dev); any
- * 401 elsewhere in the app routes here through the query caches.
- */
+/** Login page: one password field; 401s elsewhere route here via query caches. */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";

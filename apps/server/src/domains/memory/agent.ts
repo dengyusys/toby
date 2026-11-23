@@ -25,7 +25,6 @@ export interface MemoryAgentRun {
   readonly receipts: readonly MemoryReceipt[];
 }
 
-/** The explicit-sentence agent: one sentence in, its outcome out. */
 export interface MemoryAgent {
   run(sentence: string): Promise<MemoryAgentRun>;
 }

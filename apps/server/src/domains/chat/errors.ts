@@ -9,7 +9,10 @@ export type ChatErrorCode =
   | "AI_REQUEST_FAILED"
   | "RATE_LIMITED";
 
-/** Use-case failure (bad input, unknown session, AI transport trouble). */
+/**
+ * Use-case failure: bad input, rate limit, unknown session. Never AI
+ * transport — chat degrades those to an honest notice.
+ */
 export class ChatRequestError extends DomainHttpError {
   constructor(code: ChatErrorCode, status: number, message: string) {
     super(status, code, message);

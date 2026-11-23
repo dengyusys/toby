@@ -1,7 +1,6 @@
 /**
- * The pushed preview cards: when a chat turn makes something viewable, a
- * card floats top-right offering to open the preview drawer — nothing
- * persistent, nothing pre-declared; opening (or dismissing) removes it.
+ * Pushed preview cards: a viewable turn floats one top-right until it is
+ * opened or dismissed.
  */
 
 import { ExternalLink, X } from "lucide-react";

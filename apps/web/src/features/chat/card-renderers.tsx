@@ -1,10 +1,6 @@
 /**
- * Card renderers keyed by the card item's domain id
- * (docs/decisions/chat-domain-capabilities.md): the receipt is opaque on
- * the wire, and each registered renderer narrows it with its domain's own
- * client types. A domain landing adds one row here — chat-client types
- * never change. An unknown domain id renders the neutral shell below, so
- * an older build against a newer server degrades instead of crashing.
+ * Card renderers keyed by the card item's domain id; an unknown id falls back
+ * to the neutral shell in chat/ItemView.tsx. The receipt is opaque on the wire.
  */
 
 import type { ReactNode } from "react";

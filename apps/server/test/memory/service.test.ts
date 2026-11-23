@@ -92,7 +92,6 @@ describe("memory service: remember", () => {
 
   it("normalizes and validates input like a parsed line", async () => {
     const { service, file } = buildService();
-    // Whitespace settles; the receipt quotes the stored line.
     const result = await service.remember({
       section: " 人物 ",
       text: " 小王: 房东 ",
@@ -115,7 +114,6 @@ describe("memory service: remember", () => {
         statusCode: 400,
       });
     }
-    // Rejected writes changed nothing.
     expect(await service.buildMemorySection()).toBe("## 人物\n- 小王: 房东");
     void file;
   });
@@ -175,7 +173,6 @@ describe("memory service: remember", () => {
       kind: "ambiguous",
       candidates: ["- 咖啡记「饮品」", "- 咖啡只喝美式"],
     });
-    // The refusal changed nothing.
     expect(await service.readFile()).toBe(
       "## 约定\n\n- 咖啡记「饮品」\n\n## 关于我\n\n- 咖啡只喝美式\n",
     );
@@ -209,7 +206,6 @@ describe("memory service: remember", () => {
     if (result.kind !== "receipt") {
       throw new Error(`expected a receipt, got ${result.kind}`);
     }
-    // The expired 约定 was invisible to the search; the 关于我 line moved.
     expect(result.receipt.before).toBe("- 咖啡只喝美式");
     expect(await service.readFile()).toBe(
       "## 约定\n\n- 咖啡记「饮品」 (至 2026-11-13)\n\n## 关于我\n\n- 咖啡都喝美式\n",
@@ -253,7 +249,6 @@ describe("memory service: forget", () => {
         created_at: BASE_ISO,
       },
     });
-    // Case-insensitive, across sections.
     const second = await service.forget("coffee");
     expect(second).toEqual({
       kind: "receipt",
@@ -263,7 +258,6 @@ describe("memory service: forget", () => {
         before: "- Coffee 只喝美式",
       }),
     });
-    // Expired entries never match, whatever the keyword.
     expect(await service.forget("咖啡记")).toEqual({ kind: "nothing-matched" });
     // Headings and 至 markers never match.
     expect(await service.forget("约定")).toEqual({ kind: "nothing-matched" });
@@ -286,7 +280,6 @@ describe("memory service: forget", () => {
     expect(await service.forget("不存在的词")).toEqual({
       kind: "nothing-matched",
     });
-    // The ambiguous refusal and the miss changed nothing.
     expect(await service.readFile()).toBe(
       "## 约定\n\n- 咖啡记「饮品」\n\n## 关于我\n\n- 咖啡只喝美式\n",
     );
@@ -312,7 +305,6 @@ describe("memory service: resetMemory", () => {
       { section: "人物", text: "小王: 房东" },
     ]);
     expect(await service.resetMemory()).toEqual({ reset_at: BASE_ISO });
-    // The file is the empty book, and it parses as the empty book.
     expect(await service.readFile()).toBe("");
     expect(await service.buildMemorySection()).toBe("");
     void file;
@@ -335,7 +327,6 @@ describe("memory service: resetMemory", () => {
     expect(await service.readFile()).toBe("");
     expect(await service.buildMemorySection()).toBe("");
 
-    // And the book takes writes again.
     const result = await service.remember({
       section: "约定",
       text: "重新开始",
@@ -413,11 +404,9 @@ describe("memory service: off-record gate", () => {
     expect(service.isOffRecord()).toBe(false);
     expect(service.isOffRecord("s2")).toBe(false);
 
-    // Same session observing again changes nothing.
     service.observeSession("s1");
     expect(service.isOffRecord("s1")).toBe(true);
 
-    // A different session resets the flag.
     service.observeSession("s2");
     expect(service.getOffRecord()).toEqual({ sessionId: "s2", on: false });
     expect(service.isOffRecord("s2")).toBe(false);

@@ -33,7 +33,7 @@ export type ChatWriteOutcome =
   | { readonly kind: "question"; readonly text: string }
   | { readonly kind: "notice"; readonly text: string };
 
-/** One routable domain as chat sees it: identity, write path, read tools. */
+/** One routable domain as chat sees it: identity, write path, tools. */
 export interface ChatDomainCapability {
   /** The routing intent id, e.g. "ledger"; "none" is chat's own. */
   readonly intent: string;
@@ -46,7 +46,10 @@ export interface ChatDomainCapability {
    * transactional write.
    */
   handleWrite(sentence: string): Promise<ChatWriteOutcome>;
-  /** Read-only tools for the none-agent; kind-gated by the shared factory. */
+  /**
+   * The none-agent's tools; the shared factory gates each by its safety
+   * kind (read-only and write-intent both allowed for chat).
+   */
   readonly tools: readonly TobyTool[];
   /** A toolCall → preview-panel target ("ledger:2026-11"); none = no chip. */
   inspectTarget(

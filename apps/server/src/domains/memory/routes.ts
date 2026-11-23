@@ -1,8 +1,7 @@
 /**
- * Memory routes: a thin HTTP shell over the service. The page is a
- * read-only raw view of MEMORY.md, so the only writes left here are the
- * off-record toggle and the human maintenance reset. Every route follows
- * the session guard.
+ * Memory routes: the page's read-only raw view of MEMORY.md, the off-record
+ * toggle and the human maintenance reset. Every route follows the session
+ * guard.
  */
 
 import type { FastifyPluginAsync } from "fastify";
@@ -18,8 +17,6 @@ export const memoryRoutes: FastifyPluginAsync<MemoryRoutesOptions> = async (
   app,
   { service },
 ) => {
-  // The page's raw view of MEMORY.md: the file's exact bytes, never a
-  // re-serialization and never a repair of a corrupt file.
   app.get("/api/memory/file", async (_request, reply) => {
     const markdown = await service.readFile();
     void reply.type("text/markdown; charset=utf-8");

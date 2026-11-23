@@ -1,9 +1,7 @@
 /**
- * Traces domain assembly: mounts the SSE stream endpoint over the shared
- * trace bus. The bus is created once in the composition root and handed to
- * both the AI runtime (which reports into it) and this domain (which
- * streams it out) — the cross-domain wiring the boundary rules reserve to
- * the composition root. Stateless: nothing to store, nothing to close.
+ * Traces assembly: mounts the SSE stream endpoint over the shared trace bus,
+ * which the composition root creates once for both the AI runtime and this
+ * domain to share. Stateless: nothing to store, nothing to close.
  */
 
 import type { FastifyPluginAsync } from "fastify";

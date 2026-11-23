@@ -1,8 +1,4 @@
-/**
- * Memory view helpers shared by the chat cards and the raw page: the
- * receipt shape guard and plain Chinese error copy keyed by the domain's
- * closed error-code union.
- */
+/** Memory view helpers: receipt shape guard and error copy by error-code union. */
 
 import { ApiError } from "@toby/contract";
 import type { MemoryReceipt } from "@toby/contract";

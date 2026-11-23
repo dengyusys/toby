@@ -144,15 +144,14 @@ export const LEDGER_EDIT_TOOL_SCHEMA = z
 
 export type LedgerEditToolArgs = z.infer<typeof LEDGER_EDIT_TOOL_SCHEMA>;
 
-/**
- * POST /api/ledger/entries body: one of the two intake paths. Only the
- * envelope is checked at the route — `validation.ts` checks an entry against
- * the same schema the tool hands the model.
- */
-
 /** A value that must be present; the domain decides what it may be. */
 const present = z.custom<unknown>((value) => value !== undefined);
 
+/**
+ * POST /api/ledger/entries body: exactly one intake path. Only the envelope
+ * is checked at the route — `validation.ts` checks an entry against the same
+ * schema the tool hands the model.
+ */
 export const ENTRY_BODY_SCHEMA = z.union(
   [
     z.object({ text: z.string() }).strict(),

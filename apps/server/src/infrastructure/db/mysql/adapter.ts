@@ -131,8 +131,8 @@ export async function createMySqlDomainDb(
     await bootstrap.end();
   }
 
-  // connectionLimit 2 per domain: nine domains stay far under any server's
-  // connection budget.
+  // connectionLimit 2 per domain: the few per-domain pools stay far under
+  // any server's connection budget.
   const pool = createPool({
     ...connectionOptions,
     database,

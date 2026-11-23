@@ -1,7 +1,6 @@
 /**
- * The ledger month preview panel: one month's report — totals, category
- * subtotals, and the transaction list — fed by the same month endpoint
- * the calendar page uses.
+ * One ledger month's report — totals, subtotals, transactions — from the
+ * calendar's month endpoint.
  */
 
 import { useQuery } from "@tanstack/react-query";

@@ -15,10 +15,9 @@ import { PreviewPanel } from "@/features/preview/PreviewPanel.tsx";
 import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button.tsx";
 
-/** Drawer slide transition length; keeps the unmount timer in sync. */
+/** Must match the drawer transition's 300ms. */
 const DRAWER_TRANSITION_MS = 300;
 
-/** Primary-route nav entries: icon + label, rendered as drawer pills. */
 const NAV_ITEMS = [
   { to: "/", label: "对话", end: true, icon: MessageSquare },
   { to: "/ledger", label: "账单", end: false, icon: Calendar },
@@ -52,12 +51,9 @@ function NavPills({ onNavigate }: { onNavigate: () => void }) {
 }
 
 /**
- * Route shell (mobile): a compact top bar whose hamburger button opens the
- * nav drawer — nearly full-screen, sliding in from the left (doubao-style);
- * a narrow scrim strip stays tappable on the right to close, as does a nav
- * pick. The logout button sits at the drawer's bottom. There is no close
- * button by design. Each page owns its scrolling — the chat fills the
- * viewport, the ledger page scrolls its column.
+ * Route shell (mobile): a top bar whose hamburger opens a nearly full-screen
+ * nav drawer; the scrim closes it (no header close icon). Each page owns its
+ * scrolling.
  */
 export function AppLayout() {
   // The drawer keeps its DOM node mounted while the exit transition plays:

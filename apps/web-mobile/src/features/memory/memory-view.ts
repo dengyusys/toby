@@ -1,8 +1,4 @@
-/**
- * Memory page view helpers: the receipt wire-shape guard reused by the
- * chat card table and the ledger sidecar, plus plain Chinese error copy
- * keyed by the domain's closed error-code union.
- */
+/** Memory view helpers: receipt shape guard and error copy by error-code union. */
 
 import { ApiError } from "@toby/contract";
 import type { MemoryReceipt } from "@toby/contract";

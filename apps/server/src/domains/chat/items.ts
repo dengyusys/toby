@@ -1,10 +1,6 @@
 /**
- * Item synthesis: the one place chat constructs ChatItem values — the
- * minimal pi-ai shapes the service synthesizes itself (user text,
- * assistant text, notice), the card item from a capability's write
- * outcome, and the transcript/inspect/memory-card items distilled from a
- * none-agent run. Shapes are the closed union in types.ts; reviewing how
- * they can legally be born happens here and nowhere else.
+ * Item synthesis: the one place chat constructs ChatItem values, so every
+ * shape a turn can carry is born in one reviewed spot.
  */
 
 import type {
@@ -13,12 +9,10 @@ import type {
 } from "../../chat-capability.ts";
 import type { ChatItem } from "./types.ts";
 
-/** The minimal well-formed pi-ai user message. */
 export function userMessageItem(text: string, timestamp: number): ChatItem {
   return { role: "user", content: text, timestamp };
 }
 
-/** The minimal well-formed pi-ai assistant text message (zero usage). */
 export function assistantTextItem(text: string, timestamp: number): ChatItem {
   return {
     role: "assistant",
@@ -38,7 +32,6 @@ export function noticeItem(text: string): ChatItem {
   return { type: "notice", text };
 }
 
-/** A write card from a capability's receipt outcome. */
 export function cardItemOf(
   domain: string,
   outcome: Extract<ChatWriteOutcome, { kind: "receipt" }>,
@@ -50,7 +43,7 @@ export function cardItemOf(
   };
 }
 
-/** Transcript items from an agent run: assistant/toolResult verbatim, system dropped. */
+/** Transcript items from an agent run: assistant/toolResult verbatim. */
 export function transcriptItemsOf(messages: readonly unknown[]): ChatItem[] {
   return messages.flatMap((message) => {
     const role = (message as { role?: unknown }).role;

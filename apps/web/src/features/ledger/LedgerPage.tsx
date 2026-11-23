@@ -1,9 +1,6 @@
 /**
- * Ledger route ("/ledger"): the replicated ai-steward calendar area — the
- * month grid plus the day panel. Recording happens in the chat on "/"; the
- * calendar state (shown month follows arrived data, placeholder data keeps
- * the previous view) lives in the useLedgerCalendar hook
- * (src/features/ledger/ledger-hooks.ts).
+ * Ledger route: the month grid plus the day panel; recording happens in the
+ * chat. Calendar state lives in useLedgerCalendar.
  */
 
 import { LedgerDayPanel } from "./LedgerDayPanel.tsx";

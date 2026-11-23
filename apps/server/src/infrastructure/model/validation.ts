@@ -11,7 +11,10 @@ export const AI_MODEL_PATTERN = /^([a-z0-9][a-z0-9_-]*)\/(\S+)$/;
 /** Inclusive bounds for the AI request timeout, in milliseconds. */
 export const AI_TIMEOUT_BOUNDS = { min: 1_000, max: 120_000 };
 
-/** The timeout in force when neither the database nor the environment says one. */
+/**
+ * The timeout in force when the environment says none; timeouts are not
+ * settings-configurable.
+ */
 export const DEFAULT_AI_TIMEOUT_MS = 30_000;
 
 /**

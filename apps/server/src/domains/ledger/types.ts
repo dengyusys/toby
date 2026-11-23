@@ -99,7 +99,7 @@ export interface LedgerUpdateResult {
   readonly memory_receipts?: readonly unknown[];
 }
 
-/** Category subtotal inside a month report. */
+/** A category subtotal inside a report (month or day). */
 export interface LedgerCategorySummary {
   readonly type: LedgerEntryType;
   readonly category: string;

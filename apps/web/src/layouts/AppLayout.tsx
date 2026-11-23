@@ -17,7 +17,6 @@ import { MonitorPanel } from "@/features/traces/MonitorPanel.tsx";
 import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button.tsx";
 
-/** Primary-route nav entries: icon + label, rendered as sidebar pills. */
 const NAV_ITEMS = [
   { to: "/", label: "对话", end: true, icon: MessageSquare },
   { to: "/ledger", label: "账单", end: false, icon: Calendar },
@@ -26,13 +25,9 @@ const NAV_ITEMS = [
 ] as const;
 
 /**
- * Route shell (yuanbao-style): a fixed left sidebar — brand block on top,
- * pill nav below with the active item on a flat accent fill, logout
- * pinned to the bottom — and the route outlet filling the rest, flanked
- * by the activity rail and the preview panel (inspect links open it,
- * splitting the main area like the monitor drawer does). Each page owns
- * its scrolling: the chat fills the viewport, the ledger page scrolls
- * its column.
+ * Route shell: a fixed left sidebar plus the route outlet filling the rest;
+ * a floating activity button toggles the monitor drawer, and chat inspect
+ * chips / offer cards open the preview panel. Each page owns its scrolling.
  */
 export function AppLayout() {
   const [monitorOpen, setMonitorOpen] = useState(false);
