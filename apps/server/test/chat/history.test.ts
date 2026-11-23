@@ -1,21 +1,23 @@
 /**
- * The memory shapers as pure units: the agent's staleness window and text
- * caps, the classifier's window, and the HistoryTurn extraction (settled
- * turns only; notice text stands in as the reply when there is no
- * assistant text). These were previously observable only through the
+ * The memory shapers as pure units: the agent's conversation window and
+ * size cap, the classifier's window, and the HistoryTurn extraction
+ * (settled turns only; notice text stands in as the reply when there is
+ * no assistant text). These were previously observable only through the
  * heavyweight HTTP flow.
  */
 
 import { describe, expect, it } from "vitest";
 import {
   agentHistoryOf,
+  AGENT_HISTORY_FETCH_LIMIT,
   classifierHistoryOf,
+  CLASSIFIER_FETCH_LIMIT,
   historyTurnsOf,
-  HISTORY_FETCH_LIMIT,
 } from "../../src/domains/chat/history.ts";
 import type { ChatTurnView } from "../../src/domains/chat/types.ts";
 
 const BASE_MS = Date.parse("2026-11-05T08:00:00.000Z");
+const HOUR_MS = 60 * 60 * 1000;
 
 function turn(
   id: string,
@@ -75,10 +77,12 @@ describe("historyTurnsOf", () => {
     expect(turns[0]!.assistant_text).toBe("这笔是支出还是收入?");
   });
 
-  it("fetches one turn more than the replay window", () => {
-    // The just-persisted turn sits in the fetched page and is filtered
-    // out, so the window needs the fetch to over-read by one.
-    expect(HISTORY_FETCH_LIMIT).toBe(5);
+  it("the fetch limits cover their windows plus the unreadable tail", () => {
+    // Classifier: the window plus the just-persisted turn and one
+    // interrupted turn, both reply-less and filtered out below the window.
+    expect(CLASSIFIER_FETCH_LIMIT).toBe(5);
+    // Agent: the bound on database work, far above a day's conversation.
+    expect(AGENT_HISTORY_FETCH_LIMIT).toBe(200);
   });
 });
 
@@ -107,33 +111,77 @@ describe("agentHistoryOf", () => {
     created_at: new Date(BASE_MS).toISOString(),
   };
 
-  it("replays a fresh turn", () => {
-    const view = agentHistoryOf([settled], BASE_MS + 1000);
-    expect(view).toEqual([
-      { role: "user", text: "这个月花了多少", timestamp: BASE_MS },
-      { role: "assistant", text: "花了 ¥120。", timestamp: BASE_MS },
-    ]);
-  });
-
-  it("drops turns past the six-hour staleness window", () => {
-    const justInside = agentHistoryOf([settled], BASE_MS + 6 * 60 * 60 * 1000);
-    expect(justInside).toHaveLength(2);
-    const justOutside = agentHistoryOf(
-      [settled],
-      BASE_MS + 6 * 60 * 60 * 1000 + 1,
-    );
-    expect(justOutside).toEqual([]);
-  });
-
-  it("caps each replayed text at 500 characters", () => {
+  it("replays a fresh exchange verbatim, with no per-text cap", () => {
     const long = {
       user: "长".repeat(600),
       reply: "",
       assistant_text: "",
       created_at: new Date(BASE_MS).toISOString(),
     };
-    const [entry] = agentHistoryOf([long], BASE_MS);
-    expect(entry!.text).toHaveLength(501); // 500 chars + the ellipsis
-    expect(entry!.text.endsWith("…")).toBe(true);
+    const view = agentHistoryOf([long], BASE_MS, 24 * HOUR_MS);
+    expect(view).toEqual([
+      { role: "user", text: "长".repeat(600), timestamp: BASE_MS },
+    ]);
+  });
+
+  it("keeps a turn exactly at the window edge, drops one past it", () => {
+    const justInside = agentHistoryOf(
+      [settled],
+      BASE_MS + 6 * HOUR_MS,
+      6 * HOUR_MS,
+    );
+    expect(justInside).toHaveLength(2);
+    const justOutside = agentHistoryOf(
+      [settled],
+      BASE_MS + 6 * HOUR_MS + 1,
+      6 * HOUR_MS,
+    );
+    expect(justOutside).toEqual([]);
+  });
+
+  it("replays an exchange hours old when the window allows it", () => {
+    // The behavior this window exists for: this morning's thread is still
+    // this evening's context.
+    const view = agentHistoryOf(
+      [settled],
+      BASE_MS + 10 * HOUR_MS,
+      24 * HOUR_MS,
+    );
+    expect(view).toHaveLength(2);
+  });
+
+  it("drops the oldest exchanges first once the size cap is hit", () => {
+    const exchange = (id: string, hoursAgo: number) => ({
+      user: `${id}${"字".repeat(12_000)}`,
+      reply: "",
+      assistant_text: "",
+      created_at: new Date(BASE_MS - hoursAgo * HOUR_MS).toISOString(),
+    });
+    // Each exchange is 12k+ chars; three exceed the 30k cap, so only the
+    // newest two ride.
+    const view = agentHistoryOf(
+      [
+        exchange("旧1", 3),
+        exchange("旧2", 2),
+        exchange("新1", 1),
+        exchange("新2", 0),
+      ],
+      BASE_MS,
+      24 * HOUR_MS,
+    );
+    expect(view.map((entry) => entry.text.slice(0, 2))).toEqual(["新1", "新2"]);
+  });
+
+  it("always keeps the newest exchange whole, even past the cap", () => {
+    const oversized = {
+      user: "巨".repeat(40_000),
+      reply: "",
+      assistant_text: "",
+      created_at: new Date(BASE_MS).toISOString(),
+    };
+    const view = agentHistoryOf([oversized], BASE_MS, 24 * HOUR_MS);
+    expect(view).toEqual([
+      { role: "user", text: "巨".repeat(40_000), timestamp: BASE_MS },
+    ]);
   });
 });

@@ -19,6 +19,8 @@ import type { ChatAgent, ChatMemoryPort } from "./types.ts";
 // means the model is wandering.
 const CHAT_AGENT_MAX_TURNS = 6;
 const CHAT_AGENT_MAX_TOKENS = 2000;
+/** Below this the gap line is noise; above it the pause must be visible. */
+const GAP_CONTEXT_MIN_MS = 5 * 60_000;
 
 export interface ChatAgentDeps {
   agentFactory: TobyAgentFactory;
@@ -38,6 +40,18 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
   return {
     async run(prompt, history) {
       const now = new Date(clock());
+      const context = [`今天是 ${localDayLabel(now)}。`];
+      // The window spans hours; without the gap stated, a reply after a
+      // long pause reads as one continuous sitting.
+      const last = history.at(-1);
+      if (last && now.getTime() - last.timestamp >= GAP_CONTEXT_MIN_MS) {
+        const minutes = Math.round((now.getTime() - last.timestamp) / 60_000);
+        context.push(
+          minutes < 60
+            ? `距上一句对话约 ${minutes} 分钟。`
+            : `距上一句对话约 ${Math.round(minutes / 60)} 小时。`,
+        );
+      }
       const agent = agentFactory({
         name: "chat-agent",
         preamble: "你是 Toby,一个私人助手,负责回答问题、查询数据和小聊。",
@@ -47,7 +61,7 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
           "回答用简洁的中文。",
           "需要列表、表格或代码时用 Markdown 表达,不要输出 HTML。",
         ],
-        context: [`今天是 ${localDayLabel(now)}。`],
+        context,
         // Wrapped: chat keeps working with a corrupt memory file — the
         // section degrades to one honest line instead of failing the run.
         ...(deps.memory

@@ -55,6 +55,20 @@ export interface DatabaseConfig {
   mysql: MySqlConfig;
 }
 
+export interface ChatConfig {
+  /**
+   * How far back, counted from now, the conversation agent replays settled
+   * exchanges — the environment fallback; the settings database wins per
+   * send.
+   */
+  historyWindowMs: number;
+}
+
+/** Bounds and default of the conversation window, shared with the settings domain. */
+export const CHAT_HISTORY_HOURS_MIN = 1;
+export const CHAT_HISTORY_HOURS_MAX = 8760;
+export const DEFAULT_CHAT_HISTORY_HOURS = 24;
+
 export interface AuthConfig {
   /** A configured password hash enables authentication. */
   enabled: boolean;
@@ -67,6 +81,7 @@ export interface TobyConfig {
   server: ServerConfig;
   paths: PathConfig;
   db: DatabaseConfig;
+  chat: ChatConfig;
   /** The environment's AI fallback; the settings database decides per request. */
   ai?: AiRuntimeConfig;
   /** Absent = serve the dist builds (production); set = dev redirects. */
@@ -202,6 +217,26 @@ function resolveAiConfig(env: Env): AiRuntimeConfig | undefined {
   return { model: validateModelSpec(rawModel), timeoutMs };
 }
 
+/**
+ * The conversation window's environment fallback, resolved once at startup;
+ * a stored settings row wins per send.
+ */
+function resolveChatConfig(env: Env): ChatConfig {
+  const hours = Number(
+    env.TOBY_CHAT_HISTORY_HOURS ?? String(DEFAULT_CHAT_HISTORY_HOURS),
+  );
+  if (
+    !Number.isInteger(hours) ||
+    hours < CHAT_HISTORY_HOURS_MIN ||
+    hours > CHAT_HISTORY_HOURS_MAX
+  ) {
+    throw new Error(
+      `TOBY_CHAT_HISTORY_HOURS must be an integer between ${CHAT_HISTORY_HOURS_MIN} and ${CHAT_HISTORY_HOURS_MAX}`,
+    );
+  }
+  return { historyWindowMs: hours * 3_600_000 };
+}
+
 // The generator (scripts/hash-password.js) fixes the scrypt parameters;
 // pinning them here rejects malformed hashes at startup instead of at
 // login time.
@@ -295,6 +330,7 @@ export function resolveConfig(options: { env?: Env } = {}): TobyConfig {
       mobileWebRoot: path.resolve(repositoryRoot, "apps/web-mobile/dist"),
     },
     db: resolveDatabaseConfig(env),
+    chat: resolveChatConfig(env),
     ai: resolveAiConfig(env),
     devWebRedirect: resolveDevWebRedirect(env),
     auth: resolveAuthConfig(env),

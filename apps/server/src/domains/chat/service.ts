@@ -32,8 +32,9 @@ import type {
 } from "./types.ts";
 import {
   agentHistoryOf,
+  AGENT_HISTORY_FETCH_LIMIT,
   classifierHistoryOf,
-  HISTORY_FETCH_LIMIT,
+  CLASSIFIER_FETCH_LIMIT,
   historyTurnsOf,
 } from "./history.ts";
 import {
@@ -67,6 +68,8 @@ export interface ChatService {
 export function createChatService(deps: {
   repository: ChatRepository;
   clock: Clock;
+  /** The conversation window per send: how far back the replay reaches. */
+  resolveHistoryWindowMs: () => Promise<number>;
   classifier?: IntentClassifier;
   agent?: ChatAgent;
   /** The registered capabilities, keyed by intent id. */
@@ -165,18 +168,23 @@ export function createChatService(deps: {
         try {
           // History holds only settled turns (the just-persisted one has
           // no reply items yet, so it never folds onto itself).
-          const page = await repository.listTurns(session.id, {
-            limit: HISTORY_FETCH_LIMIT,
+          const classifierPage = await repository.listTurns(session.id, {
+            limit: CLASSIFIER_FETCH_LIMIT,
           });
-          const turns = historyTurnsOf(page.turns);
           const classification = await deps.classifier.classify(
             trimmed,
-            classifierHistoryOf(turns),
+            classifierHistoryOf(historyTurnsOf(classifierPage.turns)),
           );
+          const now = clock();
+          const windowMs = await deps.resolveHistoryWindowMs();
+          const windowPage = await repository.listRecentTurns(session.id, {
+            since: new Date(now - windowMs).toISOString(),
+            limit: AGENT_HISTORY_FETCH_LIMIT,
+          });
           routed = await route(
             classification.intent,
             classification.sentence,
-            agentHistoryOf(turns, clock()),
+            agentHistoryOf(historyTurnsOf(windowPage.turns), now, windowMs),
           );
         } catch (error) {
           if (error instanceof AiError && error.code === "unconfigured") {

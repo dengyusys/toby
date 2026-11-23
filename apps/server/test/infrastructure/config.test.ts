@@ -130,6 +130,24 @@ describe("resolveConfig", () => {
     );
   });
 
+  it("chat defaults: a 24-hour conversation window", () => {
+    expect(resolveConfig({ env: {} }).chat).toEqual({
+      historyWindowMs: 24 * 3_600_000,
+    });
+  });
+
+  it("TOBY_CHAT_HISTORY_HOURS is honored and validated", () => {
+    expect(
+      resolveConfig({ env: { TOBY_CHAT_HISTORY_HOURS: "2" } }).chat
+        .historyWindowMs,
+    ).toBe(7_200_000);
+    for (const bad of ["0", "abc", "8761"]) {
+      expect(() =>
+        resolveConfig({ env: { TOBY_CHAT_HISTORY_HOURS: bad } }),
+      ).toThrow(/TOBY_CHAT_HISTORY_HOURS/);
+    }
+  });
+
   it("auth defaults: disabled, 7-day sessions", () => {
     const config = resolveConfig({ env: {} });
     expect(config.auth).toEqual({

@@ -1,33 +1,35 @@
 /**
  * Conversation memory: shaping stored turns into what the two AI
  * consumers read — pure projection, no store access (the service fetches
- * a turn page and hands it over). The classifier gets a compact view
- * (last few exchanges as {user, reply} pairs); the none-agent gets a
- * text-only replay (user words plus assistant text, capped, and only
- * turns fresh enough to matter). Both views share the HistoryTurn
- * extraction below — the one seam the two consumers have in common.
+ * turn pages and hands them over). The classifier gets a compact view
+ * (the last few exchanges as {user, reply} pairs); the none-agent gets a
+ * text-only replay of every exchange inside the conversation window (user
+ * words plus assistant text, verbatim), bounded only by the size cap
+ * below. Both views share the HistoryTurn extraction below — the one seam
+ * the two consumers have in common.
  */
 
 import type { ChatHistoryMessage, ChatTurnView } from "./types.ts";
 
 /** Prior turns the classifier folds a fragment against. */
 const CLASSIFIER_TURNS = 3;
-/** Prior turns replayed to the agent; more loses the thread, less forgets it. */
-const AGENT_HISTORY_TURNS = 4;
 /**
- * A turn older than this is stale for the agent: after a long gap the user
- * is starting a new thread, and replaying yesterday's reply only confuses it.
+ * Turns one send fetches for the classifier: its window plus the turn
+ * just persisted and one interrupted turn (both reply-less, filtered out
+ * below), so neither shrinks the window.
  */
-const AGENT_HISTORY_MAX_AGE_MS = 6 * 60 * 60 * 1000;
-/** One text's cap in replayed history — a long report must not eat the budget. */
-const HISTORY_TEXT_MAX_CHARS = 500;
-
+export const CLASSIFIER_FETCH_LIMIT = CLASSIFIER_TURNS + 2;
 /**
- * How many turns to fetch for one send: the replay window plus one — the
- * just-persisted turn sits in the page without a reply yet and is filtered
- * out below, so it never folds onto itself.
+ * The most turns one send reads for the agent's window — the bound on
+ * database work; past it the oldest drop.
  */
-export const HISTORY_FETCH_LIMIT = AGENT_HISTORY_TURNS + 1;
+export const AGENT_HISTORY_FETCH_LIMIT = 200;
+/**
+ * The agent's replay size cap, in characters: a time window does not
+ * bound the size, and a replay too large for the model fails the request
+ * outright. The newest exchanges ride first, so the cap drops the oldest.
+ */
+const AGENT_HISTORY_MAX_CHARS = 30_000;
 
 /** One settled exchange, in both the classifier's and the agent's view. */
 export interface HistoryTurn {
@@ -39,11 +41,10 @@ export interface HistoryTurn {
   readonly created_at: string;
 }
 
-/** Settled turns only (a reply exists), newest window last. */
+/** Settled turns only (a reply exists), in page order. */
 export function historyTurnsOf(turns: readonly ChatTurnView[]): HistoryTurn[] {
   return turns
     .filter((turn) => turn.items.length > 1)
-    .slice(-AGENT_HISTORY_TURNS)
     .map((turn) => ({
       user: excerptOfTurn(turn),
       reply: replyTextOfTurn(turn),
@@ -52,50 +53,62 @@ export function historyTurnsOf(turns: readonly ChatTurnView[]): HistoryTurn[] {
     }));
 }
 
-/** The classifier's compact history: the last few exchanges. */
+/** The classifier's compact history: the last few exchanges, verbatim. */
 export function classifierHistoryOf(turns: readonly HistoryTurn[]): {
   user: string;
   reply: string;
 }[] {
-  return turns.slice(-CLASSIFIER_TURNS).map((turn) => ({
-    user: clipHistoryText(turn.user),
-    reply: clipHistoryText(turn.reply),
-  }));
+  return turns
+    .slice(-CLASSIFIER_TURNS)
+    .map((turn) => ({ user: turn.user, reply: turn.reply }));
 }
 
 /**
- * The agent's replay: text only, oldest first, each text capped, and only
- * turns from the last six hours — a longer gap starts a new thread.
- * `now` is passed in, not clocked here: pure projection stays testable.
+ * The agent's replay: text only, oldest first, every settled exchange
+ * inside the window `windowMs` back from `now` — and never past the size
+ * cap, the oldest dropping first. The newest exchange always rides whole,
+ * so an oversized one cannot empty the replay. `now` and the window are
+ * passed in, not clocked here: pure projection stays testable.
  */
 export function agentHistoryOf(
   turns: readonly HistoryTurn[],
   now: number,
+  windowMs: number,
 ): ChatHistoryMessage[] {
-  const messages: ChatHistoryMessage[] = [];
+  const fresh: { turn: HistoryTurn; timestamp: number }[] = [];
   for (const turn of turns) {
     const parsed = Date.parse(turn.created_at);
     const timestamp = Number.isNaN(parsed) ? now : parsed;
-    if (now - timestamp > AGENT_HISTORY_MAX_AGE_MS) {
-      continue;
+    if (now - timestamp <= windowMs) {
+      fresh.push({ turn, timestamp });
     }
-    const user = clipHistoryText(turn.user);
-    if (user.length > 0) {
-      messages.push({ role: "user", text: user, timestamp });
+  }
+  const kept: { turn: HistoryTurn; timestamp: number }[] = [];
+  let size = 0;
+  for (let index = fresh.length - 1; index >= 0; index -= 1) {
+    const entry = fresh[index]!;
+    const exchangeSize =
+      entry.turn.user.length + entry.turn.assistant_text.length;
+    if (kept.length > 0 && size + exchangeSize > AGENT_HISTORY_MAX_CHARS) {
+      break;
     }
-    const reply = clipHistoryText(turn.assistant_text);
-    if (reply.length > 0) {
-      messages.push({ role: "assistant", text: reply, timestamp });
+    kept.push(entry);
+    size += exchangeSize;
+  }
+  const messages: ChatHistoryMessage[] = [];
+  for (const { turn, timestamp } of kept.reverse()) {
+    if (turn.user.length > 0) {
+      messages.push({ role: "user", text: turn.user, timestamp });
+    }
+    if (turn.assistant_text.length > 0) {
+      messages.push({
+        role: "assistant",
+        text: turn.assistant_text,
+        timestamp,
+      });
     }
   }
   return messages;
-}
-
-/** A replayed text's cap: history is context, not a transcript copy. */
-function clipHistoryText(text: string): string {
-  return text.length <= HISTORY_TEXT_MAX_CHARS
-    ? text
-    : `${text.slice(0, HISTORY_TEXT_MAX_CHARS)}…`;
 }
 
 /** The assistant text items of one turn joined, in order; no notices/cards. */

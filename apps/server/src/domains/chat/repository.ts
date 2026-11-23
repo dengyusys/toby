@@ -37,6 +37,15 @@ export interface ChatRepository {
     sessionId: string,
     options: { limit: number },
   ): Promise<ChatTurnPage>;
+  /**
+   * Turns created at or after `since` (UTC ISO string), oldest → newest,
+   * at most `limit` — the agent's conversation-window read. Settled and
+   * unsettled alike: the caller filters.
+   */
+  listRecentTurns(
+    sessionId: string,
+    options: { since: string; limit: number },
+  ): Promise<ChatTurnPage>;
   /** Sessions newest first, excerpt derived from each one's latest turn. */
   listSessions(): Promise<readonly ChatSessionView[]>;
 }
@@ -166,6 +175,25 @@ export function createChatRepository(deps: {
         `SELECT seq, id, session_id, intent, created_at FROM chat_turns
          WHERE session_id = ? ORDER BY seq DESC LIMIT ?`,
         [sessionId, options.limit],
+      );
+      const ascending = [...descending].reverse();
+      const byTurn = await itemsOfTurns(
+        handle,
+        ascending.map((row) => row.id),
+      );
+      return {
+        turns: ascending.map((row) => toView(row, byTurn.get(row.id) ?? [])),
+      };
+    },
+
+    async listRecentTurns(sessionId, options) {
+      // created_at is UTC ISO text, so the string comparison is a date
+      // comparison; the window is time-based and reads by date, not count.
+      const handle = await db.open();
+      const descending = await handle.query<TurnRow>(
+        `SELECT seq, id, session_id, intent, created_at FROM chat_turns
+         WHERE session_id = ? AND created_at >= ? ORDER BY seq DESC LIMIT ?`,
+        [sessionId, options.since, options.limit],
       );
       const ascending = [...descending].reverse();
       const byTurn = await itemsOfTurns(

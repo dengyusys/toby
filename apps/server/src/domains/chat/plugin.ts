@@ -34,6 +34,12 @@ export interface ChatPluginOptions {
   memory?: ChatMemoryPort;
   /** Test seam: a fake classifier in place of the real AI one. */
   classifier?: IntentClassifier;
+  /**
+   * The conversation window per send, in ms. Defaults to the boot config
+   * (TOBY_CHAT_HISTORY_HOURS → 24h); the composition root passes the
+   * settings resolver so a saved change lands on the next message.
+   */
+  resolveHistoryWindowMs?: () => Promise<number>;
   /** Test seam: limiter knobs instead of the doc defaults. */
   rateLimit?: { limit?: number; windowMs?: number };
 }
@@ -99,6 +105,9 @@ export function chatPlugin(options: ChatPluginOptions): FastifyPluginAsync {
   const service = createChatService({
     repository,
     clock,
+    resolveHistoryWindowMs:
+      options.resolveHistoryWindowMs ??
+      (() => Promise.resolve(options.config.chat.historyWindowMs)),
     ...(classifier ? { classifier } : {}),
     ...(agent ? { agent } : {}),
     ...(options.memory ? { memory: options.memory } : {}),

@@ -553,9 +553,9 @@ describe("chat api: send and the item stream", () => {
       text: "昨天花了 ¥30。",
     });
 
-    // Six hours later the thread is stale: both settled turns are dropped,
-    // so the agent starts a new conversation instead of replaying old news.
-    nowMs = BASE_MS + 6 * 60 * 60 * 1000 + 1;
+    // A day later the window has slid past both settled turns: the agent
+    // starts a new conversation instead of replaying old news.
+    nowMs = BASE_MS + 24 * 60 * 60 * 1000 + 1;
     classifications = [{ intent: "none", sentence: "还在吗" }];
     const third = await inject("POST", "/api/chat/messages", {
       text: "还在吗",
