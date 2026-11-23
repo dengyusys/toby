@@ -14,6 +14,7 @@ import type { Errors } from "./save-errors.ts";
 import { ProviderField } from "./ProviderField.tsx";
 import { ModelField } from "./ModelField.tsx";
 import { ApiKeyField } from "./ApiKeyField.tsx";
+import { ChatHistoryField } from "./ChatHistoryField.tsx";
 import { describeTestResult } from "./test-result.ts";
 
 export function SettingsForm({
@@ -37,9 +38,10 @@ export function SettingsForm({
     initial.model.value?.split("/")[0] ?? "",
   );
   const [model, setModel] = useState(initial.model.value ?? "");
-  const [resetModel, setResetModel] = useState(false);
   const [apiKey, setApiKey] = useState("");
-  const [clearKey, setClearKey] = useState(false);
+  const [historyHours, setHistoryHours] = useState(
+    String(initial.chatHistoryHours.value),
+  );
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -56,13 +58,16 @@ export function SettingsForm({
       ...(provider ? [provider] : []),
     ]),
   ];
-  const modelChanged = resetModel || model !== (effective.model.value ?? "");
-  const dirty = modelChanged || !!apiKey || clearKey;
+  const modelChanged = model !== (effective.model.value ?? "");
+  const historyChanged =
+    historyHours.trim() !== String(effective.chatHistoryHours.value);
+  const dirty = modelChanged || !!apiKey || historyChanged;
   const catalogReady = !!catalog && !catalogFailed;
-  const selectedModel =
-    !resetModel && entry?.models.some((name) => `${provider}/${name}` === model)
-      ? model
-      : "";
+  const selectedModel = entry?.models.some(
+    (name) => `${provider}/${name}` === model,
+  )
+    ? model
+    : "";
 
   function edit() {
     setErrors({});
@@ -75,18 +80,16 @@ export function SettingsForm({
     const nextErrors: Errors = {};
     if (
       modelChanged &&
-      !resetModel &&
       !catalog?.providers.some((item) =>
         item.models.some((name) => `${item.id}/${name}` === model),
       )
     )
       nextErrors.model = "请选择模型。";
-    if ((apiKey || clearKey) && !provider)
-      nextErrors.credentials = "请先选择供应商。";
+    if (apiKey && !provider) nextErrors.credentials = "请先选择供应商。";
     const body: AiSettingsUpdate = {};
-    if (modelChanged) body.model = resetModel ? null : model;
+    if (modelChanged) body.model = model;
+    if (historyChanged) body.chatHistoryHours = Number(historyHours);
     if (apiKey) body.credentials = [{ provider, apiKey }];
-    else if (clearKey) body.credentials = [{ provider, clear: true }];
     return { body, errors: nextErrors };
   }
 
@@ -124,8 +127,7 @@ export function SettingsForm({
       queryClient.setQueryData(["settings", "ai"], result);
       setEffective(result);
       setModel(result.model.value ?? "");
-      setResetModel(false);
-      setClearKey(false);
+      setHistoryHours(String(result.chatHistoryHours.value));
       setSaved(true);
     } catch (error) {
       setErrors(describeSaveError(error));
@@ -142,7 +144,7 @@ export function SettingsForm({
       className="rounded-xl border bg-card shadow-sm"
     >
       <fieldset disabled={busy} className="min-w-0 space-y-6 p-5 sm:p-7">
-        <legend className="sr-only">模型与密钥</legend>
+        <legend className="sr-only">模型、密钥与对话记忆</legend>
         <ProviderField
           provider={provider}
           providers={providers}
@@ -151,11 +153,9 @@ export function SettingsForm({
             edit();
             setProvider(value);
             setApiKey("");
-            setClearKey(false);
             // A provider switch resets the draft to the saved model; only an
-            // explicit model pick (or reset) changes it.
+            // explicit model pick changes it.
             setModel(effective.model.value ?? "");
-            setResetModel(false);
           }}
         />
         <ModelField
@@ -163,7 +163,6 @@ export function SettingsForm({
           provider={provider}
           entry={entry}
           selectedModel={selectedModel}
-          resetModel={resetModel}
           modelChanged={modelChanged}
           saving={busy}
           catalogReady={catalogReady}
@@ -172,32 +171,35 @@ export function SettingsForm({
           catalogFetching={catalogFetching}
           retryCatalog={retryCatalog}
           error={errors.model ?? testErrors.model}
-          onReset={() => {
-            edit();
-            setResetModel(!resetModel);
-            setModel(effective.model.value ?? "");
-          }}
           onChange={(value) => {
             edit();
             setModel(value);
-            setResetModel(false);
           }}
         />
         <ApiKeyField
           provider={provider}
           credential={credential}
           apiKey={apiKey}
-          clearKey={clearKey}
+          testing={testing}
+          testDisabled={busy || !catalogReady}
+          onTest={() => void test()}
           error={errors.credentials ?? testErrors.credentials}
-          onClear={() => {
-            edit();
-            setClearKey(!clearKey);
-            setApiKey("");
-          }}
           onChange={(value) => {
             edit();
             setApiKey(value);
-            setClearKey(false);
+          }}
+        />
+        {(testing || testStatus) && (
+          <p aria-live="polite" className="text-xs text-muted-foreground">
+            {testing ? "正在测试…" : testStatus}
+          </p>
+        )}
+        <FieldError id="test-error" message={testErrors.form} />
+        <ChatHistoryField
+          value={historyHours}
+          onChange={(value) => {
+            edit();
+            setHistoryHours(value);
           }}
         />
       </fieldset>
@@ -211,20 +213,8 @@ export function SettingsForm({
                 ? "更改尚未保存"
                 : ""}
           <FieldError id="form-error" message={errors.form} />
-          <FieldError id="test-error" message={testErrors.form} />
-          {(testing || testStatus) && (
-            <p className="mt-1">{testing ? "正在测试…" : testStatus}</p>
-          )}
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy || !catalogReady}
-            onClick={() => void test()}
-          >
-            测试
-          </Button>
           <Button type="submit" disabled={busy || !dirty}>
             {saving ? "保存中…" : "保存"}
           </Button>

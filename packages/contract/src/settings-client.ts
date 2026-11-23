@@ -30,6 +30,8 @@ export interface ProviderStatus {
 export interface AiSettingsView {
   model: { value: string | null; source: AiSettingsSource | null };
   providers: ProviderStatus[];
+  /** The conversation window in whole hours; "env" = server config/default. */
+  chatHistoryHours: { value: number; source: AiSettingsSource };
 }
 
 export interface AiCatalogProvider {
@@ -46,6 +48,8 @@ export interface AiCatalog {
 export interface AiSettingsUpdate {
   model?: string | null;
   credentials?: { provider: string; apiKey?: string; clear?: boolean }[];
+  /** Whole hours (1–8760), or null to clear the stored row. */
+  chatHistoryHours?: number | null;
 }
 
 /**

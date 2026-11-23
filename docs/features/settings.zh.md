@@ -1,4 +1,4 @@
-# Settings 域：运行时可配置的 AI
+# Settings 域：运行时可配置的服务器设置
 
 [English](settings.md) | 简体中文
 
@@ -7,15 +7,18 @@
 
 ## 职责与边界
 
-settings 域拥有运行时可编辑的 AI 配置：用哪个模型应答、各供应商的
-API key——持久化在它自己的按域数据库（`data/settings.db`），在网页
-设置页（PC 与移动端）编辑，下一次 AI 请求即生效。
+settings 域拥有运行时可编辑的服务器设置：用哪个模型应答、各供应商的
+API key、以及对话记忆窗口——持久化在它自己的按域数据库
+（`data/settings.db`），在网页设置页（PC 与移动端）编辑，下一次
+AI 请求或对话发送即生效。
 
 - **拥有**：`/api/settings/ai`（读/写）与 `/api/settings/ai/catalog`；
-  `settings` 与 `provider_credentials` 两张表；已存凭证的掩码视图；
-  AI 客户端与 agent 工厂消费的运行时配置解析器。
+  `settings` 与 `provider_credentials` 两张表（键 `ai.model`、
+  `chat.historyWindowHours`）；已存凭证的掩码视图；AI 客户端与
+  agent 工厂消费的运行时配置解析器，以及对话域消费的窗口解析器。
 - **不拥有**：模型传输或目录内容（pi-ai 内置目录，共享实例）、AI
-  请求路径本身、或其他任何域的配置。
+  请求路径本身、或消费方如何使用它的值（对话域每次发送重新读取
+  窗口）。
 
 ## 核心概念
 
@@ -23,6 +26,11 @@ API key——持久化在它自己的按域数据库（`data/settings.db`），�
   路径保持 501）。视图报告 `source`：`"db"`、`"env"` 或 `null`。
   请求超时刻意不是设置项——`TOBY_AI_TIMEOUT_MS`（默认 30 秒）仍是
   唯一的运维旋钮。
+- **对话记忆窗口**：`chatHistoryHours`，整数小时 1–8760——对话
+  智能体回放多久之内的对话。与模型同一条链：数据库行 →
+  `TOBY_CHAT_HISTORY_HOURS` 环境变量 → 默认 24，每次发送重新解析，
+  保存后下一条消息即生效。视图报告 `{value, source}`，来源词汇与
+  模型字段相同（"env" 涵盖环境变量和默认值）。
 - **凭证就是 pi-ai 凭证**：`provider_credentials` 表存 pi-ai 的
   `Credential` JSON（v1：`{"type":"api_key","key":…}`），并经 pi-ai
   自身的 `CredentialStore` 端口暴露——已存储的 key 优先于该供应商
@@ -51,8 +59,8 @@ API key——持久化在它自己的按域数据库（`data/settings.db`），�
 
 | 方法与路径                     | 用途                                                                                                                                                                                                      |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/settings/ai`         | 有效视图：`model`（`{value, source}`）、`providers`（仅已配置项：`{id, source: "stored"\|"env", maskedKey}`）                                                                                             |
-| `PUT /api/settings/ai`         | 请求体 `{model?: string\|null, credentials?: [{provider, apiKey?, clear?}]}`；省略 = 不变，`null`/`clear` 删除（环境变量兜底回归）；应答为新的有效视图                                                    |
+| `GET /api/settings/ai`         | 有效视图：`model`（`{value, source}`）、`providers`（仅已配置项：`{id, source: "stored"\|"env", maskedKey}`）、`chatHistoryHours`（`{value, source}`）                                                    |
+| `PUT /api/settings/ai`         | 请求体 `{model?: string\|null, credentials?: [{provider, apiKey?, clear?}], chatHistoryHours?: number\|null}`；省略 = 不变，`null`/`clear` 删除（环境变量兜底回归）；应答为新的有效视图                   |
 | `GET /api/settings/ai/catalog` | pi-ai 内置目录按供应商分组：`{providers: [{id, models: […]]}]}`                                                                                                                                           |
 | `POST /api/settings/ai/test`   | 用与 PUT 同形的请求体探测保存后将生效的配置；不落库。恒为 200，应答 `{stage, model, latencyMs, reply, message}`——`stage`：`ok` / `unconfigured` / `invalid-model` / `auth` / `timeout` / `request-failed` |
 

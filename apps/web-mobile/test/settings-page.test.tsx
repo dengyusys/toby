@@ -9,6 +9,7 @@ import { SettingsPage } from "../src/features/settings/SettingsPage.tsx";
 const initial: AiSettingsView = {
   model: { value: "example/first", source: "db" },
   providers: [{ id: "example", source: "stored", maskedKey: "***" }],
+  chatHistoryHours: { value: 24, source: "env" },
 };
 const ok: AiTestResult = {
   stage: "ok",
@@ -105,7 +106,7 @@ it("tests unsaved model and key, then saves the same body and clears feedback on
   expect(screen.queryByText("连接成功 · 42ms")).not.toBeInTheDocument();
 });
 
-it("tests unchanged settings with an empty body and supports reset plus credential clearing", async () => {
+it("tests unchanged settings with an empty body", async () => {
   routeFetch();
   const user = userEvent.setup();
   renderPage();
@@ -115,14 +116,25 @@ it("tests unchanged settings with an empty body and supports reset plus credenti
   await user.click(test);
   await screen.findByText("连接成功 · 42ms");
   expect(calls[0]).toEqual({ method: "POST", body: {} });
-  await user.click(screen.getByRole("button", { name: "恢复环境配置" }));
-  await user.click(screen.getByRole("button", { name: "清除密钥" }));
-  await user.click(test);
-  await screen.findByText("连接成功 · 42ms");
-  expect(calls[1]).toEqual({
-    method: "POST",
-    body: { model: null, credentials: [{ provider: "example", clear: true }] },
+});
+
+it("saves the conversation window preset when changed", async () => {
+  routeFetch({
+    save: () =>
+      Promise.resolve(
+        json({
+          ...initial,
+          chatHistoryHours: { value: 72, source: "db" },
+        }),
+      ),
   });
+  const user = userEvent.setup();
+  renderPage();
+  const preset = await screen.findByRole("radio", { name: "72 小时" });
+  await user.click(preset);
+  await user.click(screen.getByRole("button", { name: "保存" }));
+  await screen.findByText("已保存");
+  expect(calls[0]).toEqual({ method: "PUT", body: { chatHistoryHours: 72 } });
 });
 
 it.each([

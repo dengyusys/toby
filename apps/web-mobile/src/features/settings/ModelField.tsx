@@ -4,15 +4,12 @@ interface ModelFieldProps {
   provider: string;
   models?: string[];
   value: string;
-  reset: boolean;
-  canReset: boolean;
   status: string;
   pending: boolean;
   failed: boolean;
   fetching: boolean;
   error?: string;
   onChange: (value: string) => void;
-  onReset: () => void;
   onRetry: () => void;
 }
 
@@ -20,15 +17,12 @@ export function ModelField({
   provider,
   models,
   value,
-  reset,
-  canReset,
   status,
   pending,
   failed,
   fetching,
   error,
   onChange,
-  onReset,
   onRetry,
 }: ModelFieldProps) {
   return (
@@ -37,15 +31,6 @@ export function ModelField({
         <label htmlFor="settings-model" className="text-sm font-medium">
           模型
         </label>
-        {canReset && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="min-h-11 px-1 text-xs text-muted-foreground active:text-foreground focus-visible:underline"
-          >
-            {reset ? "取消恢复" : "恢复环境配置"}
-          </button>
-        )}
       </div>
       <select
         id="settings-model"
@@ -57,11 +42,7 @@ export function ModelField({
         className="h-12 w-full min-w-0 rounded-xl border bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:opacity-50"
       >
         <option value="" disabled>
-          {reset
-            ? "保存后使用环境配置"
-            : provider
-              ? "选择模型"
-              : "先选择供应商"}
+          {provider ? "选择模型" : "先选择供应商"}
         </option>
         {!failed &&
           models?.map((name) => (

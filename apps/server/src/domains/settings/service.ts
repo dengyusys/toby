@@ -10,6 +10,11 @@
 
 import type { Clock } from "../../infrastructure/clock.ts";
 import {
+  CHAT_HISTORY_HOURS_MAX,
+  CHAT_HISTORY_HOURS_MIN,
+  DEFAULT_CHAT_HISTORY_HOURS,
+} from "../../infrastructure/config/config.ts";
+import {
   DEFAULT_AI_TIMEOUT_MS,
   validateModelSpec,
 } from "../../infrastructure/model/validation.ts";
@@ -17,6 +22,7 @@ import { SettingsRequestError } from "./errors.ts";
 import type { SettingsRepository } from "./repository.ts";
 import {
   AI_MODEL_KEY,
+  CHAT_HISTORY_HOURS_KEY,
   type AiCatalog,
   type AiCredentialChange,
   type AiModelField,
@@ -25,6 +31,7 @@ import {
   type AiSettingsView,
   type AiTestProbe,
   type AiTestResult,
+  type ChatHistoryHoursField,
   type ProviderStatus,
 } from "./types.ts";
 
@@ -45,6 +52,8 @@ export interface SettingsServiceDeps {
   clock: Clock;
   /** The environment fallback; absent = no env model, default timeout. */
   envAi?: EnvAiSettings;
+  /** The conversation window's environment fallback, in whole hours. */
+  envChatHistoryHours?: number;
   /** Provider ids the catalog knows; credential writes are gated on it. */
   knownProviders: ReadonlySet<string>;
   /** Side-effect-free configured check per provider id (pi-ai checkAuth upstream). */
@@ -71,6 +80,12 @@ export interface SettingsService {
    * auth probes.
    */
   resolveRuntimeConfig(): Promise<AiRuntimeValues>;
+  /**
+   * The conversation window the chat agent replays, in ms, resolved per
+   * send: database row → environment. A saved change lands on the next
+   * message.
+   */
+  resolveChatHistoryWindowMs(): Promise<number>;
   getCatalog(): AiCatalog;
   /** Validate, then land the whole change in one transactional write. */
   updateAiSettings(body: AiSettingsUpdate): Promise<AiSettingsView>;
@@ -93,6 +108,7 @@ export function createSettingsService(
   const {
     repository,
     envAi,
+    envChatHistoryHours,
     knownProviders,
     authProbe,
     catalogView,
@@ -133,6 +149,28 @@ export function createSettingsService(
       return { value: envAi.model, source: "env" };
     }
     return { value: null, source: null };
+  }
+
+  /**
+   * A stale row that no longer parses within the bounds degrades to the
+   * fallback — the window never breaks chat.
+   */
+  async function resolveChatHistoryHours(): Promise<ChatHistoryHoursField> {
+    const stored = await repository.get(CHAT_HISTORY_HOURS_KEY);
+    if (stored !== null) {
+      const hours = Number(stored);
+      if (
+        Number.isInteger(hours) &&
+        hours >= CHAT_HISTORY_HOURS_MIN &&
+        hours <= CHAT_HISTORY_HOURS_MAX
+      ) {
+        return { value: hours, source: "db" };
+      }
+    }
+    return {
+      value: envChatHistoryHours ?? DEFAULT_CHAT_HISTORY_HOURS,
+      source: "env",
+    };
   }
 
   /** Same spec validation PUT answers: a bad pair is a 400, verbatim copy. */
@@ -230,11 +268,12 @@ export function createSettingsService(
   }
 
   async function getAiSettings(): Promise<AiSettingsView> {
-    const [model, providers] = await Promise.all([
+    const [model, providers, chatHistoryHours] = await Promise.all([
       resolveModel(),
       getProviderStatuses(),
+      resolveChatHistoryHours(),
     ]);
-    return { model, providers };
+    return { model, providers, chatHistoryHours };
   }
 
   return {
@@ -243,6 +282,10 @@ export function createSettingsService(
     getProviderStatuses,
 
     resolveRuntimeConfig,
+
+    async resolveChatHistoryWindowMs() {
+      return (await resolveChatHistoryHours()).value * 3_600_000;
+    },
 
     getCatalog() {
       return { providers: catalogView };
@@ -262,6 +305,18 @@ export function createSettingsService(
           setSettings.push({
             key: AI_MODEL_KEY,
             value: validatedModelSpec(body.model),
+          });
+        }
+      }
+
+      if (body.chatHistoryHours !== undefined) {
+        if (body.chatHistoryHours === null) {
+          deleteSettings.push(CHAT_HISTORY_HOURS_KEY);
+        } else {
+          // Bounds already hold: the route's schema rejected anything else.
+          setSettings.push({
+            key: CHAT_HISTORY_HOURS_KEY,
+            value: String(body.chatHistoryHours),
           });
         }
       }

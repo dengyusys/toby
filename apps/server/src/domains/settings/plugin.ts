@@ -95,6 +95,7 @@ export function createSettingsDomain(
     authProbe,
     catalogView,
     testProbe,
+    envChatHistoryHours: options.config.chat.historyWindowMs / 3_600_000,
     ...(options.config.ai
       ? {
           envAi: {

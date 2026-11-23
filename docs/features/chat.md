@@ -148,10 +148,14 @@ read-only agent path, never an error.
 - Bounded: at most 6 turns and 2,000 reply tokens per run; a run that cannot
   settle settles as a notice.
 - Context: today's date and weekday in the server's local timezone; a text-only
-  replay of the last four settled exchanges (the user's words plus Toby's final
-  text — never tool calls, tool results or cards), each text capped at 500
-  characters, and only within the last six hours. A longer gap starts a new
-  thread.
+  replay of every settled exchange inside the conversation window — the
+  settings page's window (`TOBY_CHAT_HISTORY_HOURS` env, then 24 hours, as
+  the fallback) back from now; the user's words plus Toby's final text —
+  never tool calls, tool results or cards — with no per-text cap. A size cap
+  bounds the replay, dropping the oldest exchanges first; the replayed
+  messages carry timestamps, and the prompt states how long ago the last
+  exchange was, so a gap inside the window does not read as one continuous
+  sitting.
 - Real data only: answers come from tool results; a truncated result says so
   inside the result.
 - Failures are honest: unconfigured, timeout, and provider errors become
@@ -247,4 +251,5 @@ standard body.
   SSE stream and no cancellation.
 - **Session switching UI**: there is a single ongoing conversation; the webs
   never switch or manage sessions.
-- **Context compaction**: history is bounded by turns and time, not summarized.
+- **Context compaction**: history is bounded by the time window and a size
+  cap, not summarized.

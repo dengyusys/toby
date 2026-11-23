@@ -174,6 +174,10 @@ export function productionDomains(options: {
           clock,
           agentFactory,
           aiClient,
+          // The conversation window follows the settings database: a saved
+          // change lands on the next message (env var → 24h as fallback).
+          resolveHistoryWindowMs: () =>
+            settingsDomain.service.resolveChatHistoryWindowMs(),
           memory: {
             sectionFor: () => memoryDomain.service.buildMemorySection(),
             observeSession: (sessionId) =>

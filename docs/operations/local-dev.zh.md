@@ -45,6 +45,7 @@
 | `TOBY_AI_MODEL`                 | _(空)_        | pi-ai 的 `provider/model` 组合(如 `deepseek/deepseek-flash`);留空则一句话 AI 路径返回 501;也可在设置页运行时配置(设置库优先) |
 | `DEEPSEEK_API_KEY`              | _(空)_        | pi-ai 读取的供应商密钥(各供应商各自的变量,不用 TOBY_ 前缀);也可经设置页存储(已存储凭证优先)                                  |
 | `TOBY_AI_TIMEOUT_MS`            | `30000`       | AI 请求超时(1000–120000 毫秒)                                                                                                |
+| `TOBY_CHAT_HISTORY_HOURS`       | `24`          | 对话智能体回放的对话窗口(从现在往回算;1–8760 小时);设置页的值优先                                                            |
 | `TOBY_DEV_PC_ORIGIN`            | _(空)_        | 仅开发期:`/` 的重定向目标;`pnpm run dev` 设为 `http://localhost:8630`。与 `TOBY_DEV_MOBILE_ORIGIN` 成对                      |
 | `TOBY_DEV_MOBILE_ORIGIN`        | _(空)_        | 仅开发期:`/m/` 的重定向目标;`pnpm run dev` 设为 `http://localhost:8631/m`。与 `TOBY_DEV_PC_ORIGIN` 成对                      |
 | `TOBY_AUTH_PASSWORD_HASH`       | _(空)_        | `scripts/hash-password.js` 生成的 scrypt 哈希(生成:`node scripts/hash-password.js "你的密码"`);设置即启用登录                |

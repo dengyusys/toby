@@ -1,4 +1,4 @@
-# Settings Domain: Runtime-Configurable AI
+# Settings Domain: Runtime-Configurable Server Settings
 
 English | [简体中文](settings.zh.md)
 
@@ -7,18 +7,22 @@ English | [简体中文](settings.zh.md)
 
 ## Responsibilities and boundaries
 
-The settings domain owns the runtime-editable AI configuration: which
-model answers and the per-provider API keys — persisted in its own
-per-domain database (`data/settings.db`), editable from the web settings
-pages (PC and mobile), effective on the very next AI request.
+The settings domain owns the runtime-editable server settings: which
+model answers, the per-provider API keys, and the conversation window —
+persisted in its own per-domain database (`data/settings.db`), editable
+from the web settings pages (PC and mobile), effective on the very next
+AI request or chat send.
 
 - **Owns**: `/api/settings/ai` (read/write) and
   `/api/settings/ai/catalog`; the `settings` and `provider_credentials`
-  tables; the masked view of stored credentials; the runtime config
-  resolver the AI clients and agent factory consume.
+  tables (keys `ai.model`, `chat.historyWindowHours`); the masked view of
+  stored credentials; the runtime config resolver the AI clients and
+  agent factory consume, and the conversation-window resolver the chat
+  domain consumes.
 - **Does not own**: model transport or catalog contents (pi-ai's builtin
-  catalog, shared instance), the AI request paths themselves, or any
-  other domain's configuration.
+  catalog, shared instance), the AI request paths themselves, or how a
+  consumer applies its value (the chat domain re-reads the window per
+  send).
 
 ## Core concepts
 
@@ -26,6 +30,12 @@ pages (PC and mobile), effective on the very next AI request.
   everywhere = the AI paths stay at 501). The view reports the `source`:
   `"db"`, `"env"`, or `null`. The request timeout is deliberately not a
   setting — `TOBY_AI_TIMEOUT_MS` (default 30s) remains the ops knob.
+- **Conversation window**: `chatHistoryHours`, whole hours 1–8760 — how
+  far back the chat agent replays the conversation. Same chain as the
+  model: database row → `TOBY_CHAT_HISTORY_HOURS` env → default 24,
+  re-resolved on every send, so a saved change lands on the next message.
+  The view reports `{value, source}` with the model field's source
+  vocabulary ("env" covers the env var and the default).
 - **Credentials are pi-ai credentials**: the `provider_credentials`
   table stores pi-ai `Credential` JSON (v1: `{"type":"api_key","key":…}`)
   and is exposed to pi-ai through its own `CredentialStore` port, so a
@@ -57,8 +67,8 @@ use the server's one error body with these codes:
 
 | Method and path                | Purpose                                                                                                                                                                                                                                                 |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/settings/ai`         | Effective view: `model` (`{value, source}`), `providers` (configured ones only: `{id, source: "stored"\|"env", maskedKey}`)                                                                                                                             |
-| `PUT /api/settings/ai`         | Body `{model?: string\|null, credentials?: [{provider, apiKey?, clear?}]}`; omitted = unchanged, `null`/`clear` removes (env fallback returns); answers with the new effective view                                                                     |
+| `GET /api/settings/ai`         | Effective view: `model` (`{value, source}`), `providers` (configured ones only: `{id, source: "stored"\|"env", maskedKey}`), `chatHistoryHours` (`{value, source}`)                                                                                     |
+| `PUT /api/settings/ai`         | Body `{model?: string\|null, credentials?: [{provider, apiKey?, clear?}], chatHistoryHours?: number\|null}`; omitted = unchanged, `null`/`clear` removes (env fallback returns); answers with the new effective view                                    |
 | `GET /api/settings/ai/catalog` | pi-ai's builtin catalog grouped by provider: `{providers: [{id, models: […]]}]`                                                                                                                                                                         |
 | `POST /api/settings/ai/test`   | One-prompt probe of what WOULD be effective after saving the same-shaped body; persists nothing. Always 200 with `{stage, model, latencyMs, reply, message}` — `stage`: `ok` / `unconfigured` / `invalid-model` / `auth` / `timeout` / `request-failed` |
 

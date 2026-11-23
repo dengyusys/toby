@@ -12,6 +12,7 @@ import { settingsClient } from "@/lib/api.ts";
 import { ProviderField } from "./ProviderField.tsx";
 import { ModelField } from "./ModelField.tsx";
 import { ApiKeyField } from "./ApiKeyField.tsx";
+import { ChatHistoryField } from "./ChatHistoryField.tsx";
 import { FieldError } from "./FieldError.tsx";
 import { describeSaveError } from "./save-errors.ts";
 import type { SettingsErrors } from "./save-errors.ts";
@@ -40,9 +41,10 @@ export function SettingsForm({
     initial.model.value?.split("/")[0] ?? "",
   );
   const [model, setModel] = useState(initial.model.value ?? "");
-  const [reset, setReset] = useState(false);
   const [apiKey, setApiKey] = useState("");
-  const [clear, setClear] = useState(false);
+  const [historyHours, setHistoryHours] = useState(
+    String(initial.chatHistoryHours.value),
+  );
   const [errors, setErrors] = useState<SettingsErrors>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -58,23 +60,24 @@ export function SettingsForm({
       ...(provider ? [provider] : []),
     ]),
   ];
-  const modelChanged = reset || model !== (effective.model.value ?? "");
-  const dirty = modelChanged || !!apiKey || clear;
-  const selectedModel =
-    !reset && entry?.models.some((name) => `${provider}/${name}` === model)
-      ? model
-      : "";
-  const status = reset
-    ? "保存后恢复环境变量中的模型。"
-    : modelChanged
-      ? "待保存"
-      : effective.model.source === "env"
-        ? "来自环境变量"
-        : !effective.model.value
-          ? "尚未配置模型"
-          : selectedModel
-            ? ""
-            : `当前使用 ${effective.model.value}`;
+  const modelChanged = model !== (effective.model.value ?? "");
+  const historyChanged =
+    historyHours.trim() !== String(effective.chatHistoryHours.value);
+  const dirty = modelChanged || !!apiKey || historyChanged;
+  const selectedModel = entry?.models.some(
+    (name) => `${provider}/${name}` === model,
+  )
+    ? model
+    : "";
+  const status = modelChanged
+    ? "待保存"
+    : effective.model.source === "env"
+      ? "来自环境变量"
+      : !effective.model.value
+        ? "尚未配置模型"
+        : selectedModel
+          ? ""
+          : `当前使用 ${effective.model.value}`;
 
   function edit() {
     setErrors({});
@@ -86,22 +89,20 @@ export function SettingsForm({
     const nextErrors: SettingsErrors = {};
     if (
       modelChanged &&
-      !reset &&
       !catalog?.providers.some((item) =>
         item.models.some((name) => `${item.id}/${name}` === model),
       )
     )
       nextErrors.model = "请选择模型。";
-    if ((apiKey || clear) && !provider)
-      nextErrors.credentials = "请先选择供应商。";
+    if (apiKey && !provider) nextErrors.credentials = "请先选择供应商。";
     setErrors(nextErrors);
     setSaved(false);
     setTestResult(null);
     if (Object.keys(nextErrors).length) return null;
     const body: AiSettingsUpdate = {};
-    if (modelChanged) body.model = reset ? null : model;
+    if (modelChanged) body.model = model;
+    if (historyChanged) body.chatHistoryHours = Number(historyHours);
     if (apiKey) body.credentials = [{ provider, apiKey }];
-    else if (clear) body.credentials = [{ provider, clear: true }];
     return body;
   }
 
@@ -132,8 +133,7 @@ export function SettingsForm({
       queryClient.setQueryData(["settings", "ai"], result);
       setEffective(result);
       setModel(result.model.value ?? "");
-      setReset(false);
-      setClear(false);
+      setHistoryHours(String(result.chatHistoryHours.value));
       setSaved(true);
     } catch (error) {
       setErrors(describeSaveError(error));
@@ -150,7 +150,7 @@ export function SettingsForm({
       className="rounded-2xl border bg-card"
     >
       <fieldset disabled={busy} className="min-w-0 space-y-5 p-4">
-        <legend className="sr-only">模型与密钥</legend>
+        <legend className="sr-only">模型、密钥与对话记忆</legend>
         <ProviderField
           value={provider}
           providers={providers}
@@ -158,49 +158,55 @@ export function SettingsForm({
             edit();
             setProvider(value);
             setApiKey("");
-            setClear(false);
             setModel(effective.model.value ?? "");
-            setReset(false);
           }}
         />
         <ModelField
           provider={provider}
           models={entry?.models}
           value={selectedModel}
-          reset={reset}
-          canReset={effective.model.source === "db"}
           status={status}
           pending={pending}
           failed={failed}
           fetching={fetching}
           error={errors.model}
           onRetry={retry}
-          onReset={() => {
-            edit();
-            setReset(!reset);
-            setModel(effective.model.value ?? "");
-          }}
           onChange={(value) => {
             edit();
             setModel(value);
-            setReset(false);
           }}
         />
         <ApiKeyField
           provider={provider}
           credential={credential}
           value={apiKey}
-          clear={clear}
+          testing={testing}
+          testDisabled={busy || !catalog}
+          onTest={() => void test()}
           error={errors.credentials}
-          onClear={() => {
-            edit();
-            setClear(!clear);
-            setApiKey("");
-          }}
           onChange={(value) => {
             edit();
             setApiKey(value);
-            setClear(false);
+          }}
+        />
+        {(testing || testResult) && (
+          <p
+            role="status"
+            aria-live="polite"
+            className={`break-words text-sm leading-6 ${testResult && testResult.stage !== "ok" ? "text-destructive" : "text-muted-foreground"}`}
+          >
+            {testing
+              ? "正在测试…"
+              : testResult
+                ? describeTestResult(testResult)
+                : ""}
+          </p>
+        )}
+        <ChatHistoryField
+          value={historyHours}
+          onChange={(value) => {
+            edit();
+            setHistoryHours(value);
           }}
         />
       </fieldset>
@@ -215,17 +221,6 @@ export function SettingsForm({
                 : ""}
           <FieldError id="settings-form-error" message={errors.form} />
         </div>
-        <p
-          role="status"
-          aria-live="polite"
-          className={`mb-3 break-words text-sm leading-6 ${testResult && testResult.stage !== "ok" ? "text-destructive" : "text-muted-foreground"}`}
-        >
-          {testing
-            ? "正在测试…"
-            : testResult
-              ? describeTestResult(testResult)
-              : ""}
-        </p>
         <Button
           type="submit"
           disabled={busy || !dirty}
@@ -233,18 +228,6 @@ export function SettingsForm({
         >
           {saving ? "保存中…" : "保存"}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy || !catalog}
-          onClick={() => void test()}
-          className="mt-3 h-12 w-full rounded-xl text-base"
-        >
-          {testing ? "测试中…" : "测试"}
-        </Button>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          测试当前填写的配置，不会保存更改。
-        </p>
       </div>
     </form>
   );

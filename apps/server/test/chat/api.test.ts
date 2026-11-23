@@ -28,6 +28,7 @@ import { createLedgerDomain } from "../../src/domains/ledger/plugin.ts";
 import { createMemoryChatCapability } from "../../src/domains/memory/chat-capability.ts";
 import { createMemoryDomain } from "../../src/domains/memory/plugin.ts";
 import { createMemoryTools } from "../../src/domains/memory/tools.ts";
+import { createSettingsDomain } from "../../src/domains/settings/plugin.ts";
 import type {
   TobyAgentFactory,
   TobyAgentSpec,
@@ -201,7 +202,7 @@ afterEach(async () => {
 });
 
 function inject(
-  method: "GET" | "POST" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   url: string,
   payload?: Record<string, unknown>,
 ) {
@@ -872,5 +873,99 @@ describe("chat api: sessions and paging", () => {
       expect(response.statusCode).toBe(400);
       expect(response.json().errorCode).toBe("INVALID_TEXT");
     }
+  });
+});
+
+describe("chat api: conversation window", () => {
+  it("a saved window lands on the next message (settings → chat wiring)", async () => {
+    await app.close();
+    caseCounter += 1;
+    nowMs = BASE_MS;
+    const config = resolveConfig({
+      env: { TOBY_DATA_ROOT: path.join(baseDir, `case-${caseCounter}`) },
+    });
+    const specs: TobyAgentSpec[] = [];
+    const usage = {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    };
+    const agentFactory: TobyAgentFactory = (spec) => {
+      specs.push(spec);
+      return {
+        run: async () => ({
+          text: "收到。",
+          turns: 1,
+          turnCapped: false,
+          stopReason: "stop" as const,
+          usage,
+          messages: [],
+          producedMessages: [
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "收到。" }],
+              api: "faux",
+              provider: "faux",
+              model: "faux-1",
+              usage,
+              stopReason: "stop",
+              timestamp: 1,
+            },
+          ],
+        }),
+      };
+    };
+    // Settings + chat wired exactly like the composition root: the window
+    // resolves from the settings database on every send.
+    const settingsDomain = createSettingsDomain({
+      config,
+      clock: () => nowMs,
+      authProbe: async () => false,
+    });
+    app = await createTestApp({
+      config,
+      domains: [
+        (instance) => instance.register(settingsDomain.plugin),
+        (instance) =>
+          instance.register(
+            chatPlugin({
+              config,
+              clock: () => nowMs,
+              classifier,
+              agentFactory,
+              resolveHistoryWindowMs: () =>
+                settingsDomain.service.resolveChatHistoryWindowMs(),
+            }),
+          ),
+      ],
+    });
+    classifications = [
+      { intent: "none", sentence: "第一句" },
+      { intent: "none", sentence: "第二句" },
+      { intent: "none", sentence: "第三句" },
+    ];
+
+    await inject("POST", "/api/chat/messages", { text: "第一句" });
+    nowMs = BASE_MS + 2 * 60 * 60 * 1000;
+    await inject("POST", "/api/chat/messages", { text: "第二句" });
+    // Env default (24h): the exchange two hours back still rides.
+    const before = specs[1]!.history ?? [];
+    expect(before.map((entry) => entry.text)).toContain("第一句");
+
+    const put = await inject("PUT", "/api/settings/ai", {
+      chatHistoryHours: 1,
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json().chatHistoryHours).toEqual({ value: 1, source: "db" });
+
+    nowMs = BASE_MS + 2 * 60 * 60 * 1000 + 1;
+    await inject("POST", "/api/chat/messages", { text: "第三句" });
+    // One hour later… the morning exchange slid out, the recent one stays.
+    const after = specs[2]!.history ?? [];
+    expect(after.map((entry) => entry.text)).toContain("第二句");
+    expect(after.map((entry) => entry.text)).not.toContain("第一句");
   });
 });

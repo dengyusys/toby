@@ -5,6 +5,10 @@
  */
 
 import { z } from "zod";
+import {
+  CHAT_HISTORY_HOURS_MAX,
+  CHAT_HISTORY_HOURS_MIN,
+} from "../../infrastructure/config/config.ts";
 
 /**
  * One credential change: set an api key, or clear the stored one. The key
@@ -41,6 +45,14 @@ export const AI_SETTINGS_BODY_SCHEMA = z
       .array(AI_CREDENTIAL_CHANGE_SCHEMA)
       .optional()
       .describe("Provider credential changes"),
+    chatHistoryHours: z
+      .number()
+      .int()
+      .min(CHAT_HISTORY_HOURS_MIN)
+      .max(CHAT_HISTORY_HOURS_MAX)
+      .nullable()
+      .optional()
+      .describe("Conversation window in whole hours, or null to clear"),
   })
   .strict();
 

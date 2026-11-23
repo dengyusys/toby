@@ -1,0 +1,49 @@
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group.tsx";
+
+/** The offered conversation windows, whole hours. */
+const PRESET_HOURS = [6, 24, 72];
+
+interface ChatHistoryFieldProps {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+export function ChatHistoryField({ value, onChange }: ChatHistoryFieldProps) {
+  // An effective value outside the presets (an env-configured window)
+  // stays selectable, so the group never shows a state it cannot display.
+  const hours = [...new Set([...PRESET_HOURS, Number(value)])].sort(
+    (a, b) => a - b,
+  );
+  return (
+    <div>
+      <span className="text-sm font-medium">对话记忆时长</span>
+      <ToggleGroup
+        type="single"
+        value={value}
+        aria-label="对话记忆时长"
+        onValueChange={(next) => {
+          // Radix fires "" when the active item is tapped again — not a
+          // choice; the window stays as it was.
+          if (next.length > 0) onChange(next);
+        }}
+        className="mt-2"
+      >
+        {hours.map((preset) => (
+          <ToggleGroupItem
+            key={preset}
+            value={String(preset)}
+            className="h-12 rounded-lg text-base"
+          >
+            {preset} 小时
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      <p
+        id="settings-chat-history-status"
+        className="mt-2 text-xs leading-5 text-muted-foreground"
+      >
+        保存后，下一条消息起生效。
+      </p>
+    </div>
+  );
+}

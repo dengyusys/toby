@@ -16,6 +16,16 @@ export interface AiModelField {
 }
 
 /**
+ * The effective conversation window, in whole hours. The value always
+ * exists: "db" = a settings row, "env" = server config (the env var or
+ * the built-in default).
+ */
+export interface ChatHistoryHoursField {
+  readonly value: number;
+  readonly source: AiSettingsSource;
+}
+
+/**
  * The model + timeout an AI request resolves to, without provider
  * statuses. The model resolves database → environment; the timeout is an
  * ops concern: environment → built-in default (no settings surface).
@@ -41,6 +51,7 @@ export interface ProviderStatus {
 export interface AiSettingsView {
   readonly model: AiModelField;
   readonly providers: readonly ProviderStatus[];
+  readonly chatHistoryHours: ChatHistoryHoursField;
 }
 
 /** One provider's slice of the model catalog. */
@@ -65,6 +76,8 @@ export interface AiCredentialChange {
 export interface AiSettingsUpdate {
   readonly model?: string | null;
   readonly credentials?: readonly AiCredentialChange[];
+  /** Whole hours (bounds shared with the env var); null clears the row. */
+  readonly chatHistoryHours?: number | null;
 }
 
 /**
@@ -116,6 +129,8 @@ export interface AiTestResult {
 
 /** DB keys under which the AI settings rows live. */
 export const AI_MODEL_KEY = "ai.model";
+/** The conversation window, stored as whole hours. */
+export const CHAT_HISTORY_HOURS_KEY = "chat.historyWindowHours";
 // The request timeout is no longer settings-configurable (an ops concern
 // via TOBY_AI_TIMEOUT_MS). A stale "ai.timeoutMs" row in an existing
 // database is simply never read again — harmless, no migration.

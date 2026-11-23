@@ -7,6 +7,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import type { AiTestResult } from "@toby/contract";
 import { SettingsForm } from "./SettingsForm.tsx";
@@ -14,6 +15,7 @@ import { SettingsForm } from "./SettingsForm.tsx";
 const initial = {
   model: { value: "zai/glm-4.7", source: "db" as const },
   providers: [],
+  chatHistoryHours: { value: 24, source: "env" as const },
 };
 const catalog = { providers: [{ id: "zai", models: ["glm-4.7"] }] };
 const ok: AiTestResult = {
@@ -82,13 +84,27 @@ it("tests an unsaved key without saving, and clears the result on edit", async (
   expect(screen.queryByText(/连接成功/)).not.toBeInTheDocument();
 });
 
-it("tests model reset with the same null overlay used for saving", async () => {
-  const requests = stubProbe({ ...ok, stage: "unconfigured", reply: null });
+it("saves the conversation window preset when changed", async () => {
+  const requests: unknown[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: unknown, init: RequestInit) => {
+      requests.push(JSON.parse(String(init.body)));
+      return new Response(
+        JSON.stringify({
+          ...initial,
+          chatHistoryHours: { value: 72, source: "db" },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    }),
+  );
   mount();
-  fireEvent.click(screen.getByRole("button", { name: "恢复环境配置" }));
-  fireEvent.click(screen.getByRole("button", { name: "测试" }));
-  expect(await screen.findByText("尚未配置模型")).toBeInTheDocument();
-  expect(requests).toEqual([{ model: null }]);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("radio", { name: "72 小时" }));
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  await waitFor(() => expect(requests).toEqual([{ chatHistoryHours: 72 }]));
+  expect(await screen.findByText("已保存")).toBeInTheDocument();
 });
 
 it.each([
@@ -113,7 +129,7 @@ it("disables fields and both actions while testing", async () => {
   mount();
   fireEvent.click(screen.getByRole("button", { name: "测试" }));
   expect(screen.getByText("正在测试…")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "测试" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "测试中…" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
   expect(screen.getByLabelText("API key")).toBeDisabled();
   expect(screen.getByRole("combobox", { name: "供应商" })).toBeDisabled();

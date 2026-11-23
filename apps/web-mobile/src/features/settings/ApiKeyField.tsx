@@ -1,40 +1,44 @@
 import type { AiSettingsView } from "@toby/contract";
+import { Button } from "@/components/ui/button.tsx";
 import { FieldError } from "./FieldError.tsx";
 
 interface ApiKeyFieldProps {
   provider: string;
   credential?: AiSettingsView["providers"][number];
   value: string;
-  clear: boolean;
+  /** The probe rides the header row: it tests the model plus this key. */
+  testing: boolean;
+  testDisabled: boolean;
+  onTest: () => void;
   error?: string;
   onChange: (value: string) => void;
-  onClear: () => void;
 }
 
 export function ApiKeyField({
   provider,
   credential,
   value,
-  clear,
+  testing,
+  testDisabled,
+  onTest,
   error,
   onChange,
-  onClear,
 }: ApiKeyFieldProps) {
   return (
-    <div className="border-t pt-4">
+    <div>
       <div className="mb-2 flex items-center justify-between gap-2">
         <label htmlFor="settings-key" className="text-sm font-medium">
           API key
         </label>
-        {credential?.source === "stored" && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="min-h-11 px-1 text-xs text-muted-foreground active:text-foreground focus-visible:underline"
-          >
-            {clear ? "取消清除" : "清除密钥"}
-          </button>
-        )}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={testDisabled}
+          onClick={onTest}
+          className="h-9 rounded-lg px-3 text-sm"
+        >
+          {testing ? "测试中…" : "测试"}
+        </Button>
       </div>
       <input
         id="settings-key"
@@ -44,7 +48,7 @@ export function ApiKeyField({
         autoComplete="new-password"
         autoCapitalize="none"
         spellCheck={false}
-        placeholder={clear ? "保存后清除密钥" : "输入新密钥，留空则不修改"}
+        placeholder="输入新密钥，留空则不修改"
         aria-invalid={!!error}
         aria-describedby="settings-key-error settings-key-status"
         onChange={(event) => onChange(event.target.value)}
@@ -54,17 +58,15 @@ export function ApiKeyField({
         id="settings-key-status"
         className="mt-2 break-all text-xs leading-5 text-muted-foreground"
       >
-        {clear
-          ? "保存后清除，回退到环境变量。"
-          : value
-            ? "新密钥待保存"
-            : credential?.source === "stored"
-              ? `已存储${credential.maskedKey ? ` ${credential.maskedKey}` : ""}`
-              : credential?.source === "env"
-                ? "来自环境变量"
-                : provider
-                  ? "尚未配置密钥"
-                  : "先选择供应商"}
+        {value
+          ? "新密钥待保存"
+          : credential?.source === "stored"
+            ? `已存储${credential.maskedKey ? ` ${credential.maskedKey}` : ""}`
+            : credential?.source === "env"
+              ? "来自环境变量"
+              : provider
+                ? "尚未配置密钥"
+                : "先选择供应商"}
       </p>
       <FieldError id="settings-key-error" message={error} />
     </div>

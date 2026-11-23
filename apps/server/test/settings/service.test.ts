@@ -20,6 +20,7 @@ import type {
   AiTestProbe,
   AiTestProbeOutcome,
 } from "../../src/domains/settings/types.ts";
+import { CHAT_HISTORY_HOURS_KEY } from "../../src/domains/settings/types.ts";
 
 /** In-memory SettingsRepository that records whether any write happened. */
 function fakeRepository() {
@@ -92,6 +93,7 @@ function fakeProbe(outcome?: AiTestProbeOutcome) {
 function buildService(options: {
   repository: Repository;
   envAi?: { model?: string; timeoutMs: number };
+  envChatHistoryHours?: number;
   knownProviders?: ReadonlySet<string>;
   authProbe?: (providerId: string) => Promise<boolean>;
   catalogView?: readonly AiCatalogProvider[];
@@ -101,6 +103,9 @@ function buildService(options: {
     repository: options.repository,
     clock: () => Date.parse("2026-11-14T08:00:00.000Z"),
     ...(options.envAi ? { envAi: options.envAi } : {}),
+    ...(options.envChatHistoryHours !== undefined
+      ? { envChatHistoryHours: options.envChatHistoryHours }
+      : {}),
     knownProviders: options.knownProviders ?? new Set(["zai", "deepseek"]),
     authProbe: options.authProbe ?? (async () => false),
     catalogView: options.catalogView ?? [
@@ -573,5 +578,42 @@ describe("settings service: test configuration", () => {
       expect(await service.testConfiguration({})).toEqual(outcome);
     }
     expect(repository.writes()).toBe(0);
+  });
+});
+
+describe("settings service: conversation window", () => {
+  it("defaults to 24h, follows the env fallback, a stored row wins, null clears", async () => {
+    const repository = fakeRepository();
+    const service = buildService({ repository });
+    expect((await service.getAiSettings()).chatHistoryHours).toEqual({
+      value: 24,
+      source: "env",
+    });
+
+    const withEnv = buildService({ repository, envChatHistoryHours: 2 });
+    expect(await withEnv.resolveChatHistoryWindowMs()).toBe(7_200_000);
+
+    await service.updateAiSettings({ chatHistoryHours: 3 });
+    expect((await service.getAiSettings()).chatHistoryHours).toEqual({
+      value: 3,
+      source: "db",
+    });
+
+    await service.updateAiSettings({ chatHistoryHours: null });
+    expect((await service.getAiSettings()).chatHistoryHours).toEqual({
+      value: 24,
+      source: "env",
+    });
+  });
+
+  it("a stale row that no longer parses degrades to the fallback", async () => {
+    const repository = fakeRepository();
+    repository.settings.set(CHAT_HISTORY_HOURS_KEY, "bogus");
+    const service = buildService({ repository, envChatHistoryHours: 6 });
+    expect((await service.getAiSettings()).chatHistoryHours).toEqual({
+      value: 6,
+      source: "env",
+    });
+    expect(await service.resolveChatHistoryWindowMs()).toBe(21_600_000);
   });
 });

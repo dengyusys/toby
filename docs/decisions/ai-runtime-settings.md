@@ -32,10 +32,16 @@ deliberately NOT a user setting: it stays an ops concern via
 
 ## What is stored, and who wins
 
-| Setting          | DB key          | Fallback                              | Unset everywhere      |
-| ---------------- | --------------- | ------------------------------------- | --------------------- |
-| Model            | `ai.model`      | `TOBY_AI_MODEL`                       | AI paths answer 501   |
-| Provider API key | credentials row | provider env var (e.g. `ZAI_API_KEY`) | Provider unconfigured |
+| Setting             | DB key                    | Fallback                              | Unset everywhere      |
+| ------------------- | ------------------------- | ------------------------------------- | --------------------- |
+| Model               | `ai.model`                | `TOBY_AI_MODEL`                       | AI paths answer 501   |
+| Provider API key    | credentials row           | provider env var (e.g. `ZAI_API_KEY`) | Provider unconfigured |
+| Conversation window | `chat.historyWindowHours` | `TOBY_CHAT_HISTORY_HOURS` (24)        | 24 hours              |
+
+The conversation window (how far back the chat agent replays) rides the
+same chain — database row → environment → default — but resolves per
+chat send rather than per AI request; a saved change lands on the next
+message.
 
 Resolution is per request. Model validation (the `provider/model` pattern)
 is shared between the env parser and the settings API, so the two sources

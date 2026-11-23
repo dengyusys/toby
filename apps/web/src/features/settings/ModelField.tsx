@@ -14,7 +14,6 @@ interface ModelFieldProps {
   provider: string;
   entry?: AiCatalog["providers"][number];
   selectedModel: string;
-  resetModel: boolean;
   modelChanged: boolean;
   saving: boolean;
   catalogReady: boolean;
@@ -23,7 +22,6 @@ interface ModelFieldProps {
   catalogFetching: boolean;
   error?: string;
   retryCatalog: () => void;
-  onReset: () => void;
   onChange: (value: string) => void;
 }
 
@@ -32,7 +30,6 @@ export function ModelField({
   provider,
   entry,
   selectedModel,
-  resetModel,
   modelChanged,
   saving,
   catalogReady,
@@ -41,7 +38,6 @@ export function ModelField({
   catalogFetching,
   error,
   retryCatalog,
-  onReset,
   onChange,
 }: ModelFieldProps) {
   return (
@@ -50,15 +46,6 @@ export function ModelField({
         <Label htmlFor="ai-model" className="text-sm font-medium">
           模型
         </Label>
-        {effective.model.source === "db" && (
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:text-foreground focus-visible:underline"
-            onClick={onReset}
-          >
-            {resetModel ? "取消恢复" : "恢复环境配置"}
-          </button>
-        )}
       </div>
       <Select
         value={selectedModel}
@@ -71,15 +58,7 @@ export function ModelField({
           aria-invalid={!!error}
           aria-describedby="model-error model-status"
         >
-          <SelectValue
-            placeholder={
-              resetModel
-                ? "保存后使用环境配置"
-                : !provider
-                  ? "先选择供应商"
-                  : "选择模型"
-            }
-          />
+          <SelectValue placeholder={!provider ? "先选择供应商" : "选择模型"} />
         </SelectTrigger>
         <SelectContent position="popper">
           {catalogReady &&
@@ -94,17 +73,15 @@ export function ModelField({
         id="model-status"
         className="mt-2 break-all text-xs text-muted-foreground"
       >
-        {resetModel
-          ? "保存后恢复环境变量中的模型。"
-          : modelChanged
-            ? "待保存"
-            : effective.model.source === "env"
-              ? "来自环境变量"
-              : !effective.model.value
-                ? "尚未配置模型"
-                : selectedModel
-                  ? ""
-                  : `当前使用 ${effective.model.value}`}
+        {modelChanged
+          ? "待保存"
+          : effective.model.source === "env"
+            ? "来自环境变量"
+            : !effective.model.value
+              ? "尚未配置模型"
+              : selectedModel
+                ? ""
+                : `当前使用 ${effective.model.value}`}
       </p>
       <FieldError id="model-error" message={error} />
       {catalogPending && (

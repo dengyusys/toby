@@ -124,6 +124,7 @@ describe("settings api: effective view", () => {
     expect(response.json()).toEqual({
       model: { value: null, source: null },
       providers: [],
+      chatHistoryHours: { value: 24, source: "env" },
     });
   });
 
@@ -136,6 +137,7 @@ describe("settings api: effective view", () => {
     expect(put.json()).toEqual({
       model: { value: "faux/faux-1", source: "db" },
       providers: [{ id: "faux", source: "stored", maskedKey: "sk-…9876" }],
+      chatHistoryHours: { value: 24, source: "env" },
     });
     expect(put.body).not.toContain(FULL_KEY);
 
@@ -197,6 +199,7 @@ describe("settings api: PUT validation", () => {
     expect(get.json()).toEqual({
       model: { value: null, source: null },
       providers: [],
+      chatHistoryHours: { value: 24, source: "env" },
     });
   });
 
@@ -225,6 +228,7 @@ describe("settings api: PUT validation", () => {
     expect(response.json()).toEqual({
       model: { value: null, source: null },
       providers: [],
+      chatHistoryHours: { value: 24, source: "env" },
     });
   });
 });
@@ -271,6 +275,7 @@ describe("settings api: AI test (POST /test)", () => {
     expect(get.json()).toEqual({
       model: { value: null, source: null },
       providers: [],
+      chatHistoryHours: { value: 24, source: "env" },
     });
   });
 
@@ -333,6 +338,7 @@ describe("settings api: AI test (POST /test)", () => {
     expect(get.json()).toEqual({
       model: { value: null, source: null },
       providers: [],
+      chatHistoryHours: { value: 24, source: "env" },
     });
   });
 
@@ -392,5 +398,46 @@ describe("settings api: AI test (POST /test)", () => {
       message: null,
     });
     expect(fake.calls).toHaveLength(0);
+  });
+});
+
+describe("settings api: conversation window", () => {
+  it("PUT chatHistoryHours lands, the view follows, null clears back to env", async () => {
+    const put = await inject("PUT", "/api/settings/ai", {
+      chatHistoryHours: 2,
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json().chatHistoryHours).toEqual({ value: 2, source: "db" });
+    const get = await inject("GET", "/api/settings/ai");
+    expect(get.json().chatHistoryHours).toEqual({ value: 2, source: "db" });
+
+    const cleared = await inject("PUT", "/api/settings/ai", {
+      chatHistoryHours: null,
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().chatHistoryHours).toEqual({
+      value: 24,
+      source: "env",
+    });
+  });
+
+  it("the env fallback shows through when nothing is stored", async () => {
+    await buildApp({ env: { TOBY_CHAT_HISTORY_HOURS: "2" } });
+    const get = await inject("GET", "/api/settings/ai");
+    expect(get.json().chatHistoryHours).toEqual({ value: 2, source: "env" });
+  });
+
+  it("out-of-range or non-integer values answer SETTINGS_BODY_INVALID", async () => {
+    for (const value of [0, -1, 8761, 1.5, "24"]) {
+      const response = await inject("PUT", "/api/settings/ai", {
+        chatHistoryHours: value,
+      });
+      expect(response.statusCode, JSON.stringify(value)).toBe(400);
+      expect(response.json().errorCode, JSON.stringify(value)).toBe(
+        "SETTINGS_BODY_INVALID",
+      );
+    }
+    const get = await inject("GET", "/api/settings/ai");
+    expect(get.json().chatHistoryHours).toEqual({ value: 24, source: "env" });
   });
 });
