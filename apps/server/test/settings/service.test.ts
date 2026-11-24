@@ -80,7 +80,7 @@ function fakeProbe(outcome?: AiTestProbeOutcome) {
         outcome ?? {
           stage: "ok",
           model: input.model,
-          latencyMs: 12,
+          latency_ms: 12,
           reply: "OK",
           message: null,
         }
@@ -213,7 +213,7 @@ describe("settings service: masking", () => {
     const view = await service.getAiSettings();
     expect(JSON.stringify(view)).not.toContain("sk-full-fake-key-9876");
     expect(view.providers).toEqual([
-      { id: "zai", source: "stored", maskedKey: "sk-…9876" },
+      { id: "zai", source: "stored", masked_key: "sk-…9876" },
     ]);
   });
 });
@@ -244,7 +244,7 @@ describe("settings service: update validation", () => {
     expect(
       await caughtCode(
         service.updateAiSettings({
-          credentials: [{ provider: "unknown-provider", apiKey: "fake-key" }],
+          credentials: [{ provider: "unknown-provider", api_key: "fake-key" }],
         }),
       ),
     ).toBe("SETTINGS_UNKNOWN_PROVIDER");
@@ -255,10 +255,10 @@ describe("settings service: update validation", () => {
     const repository = fakeRepository();
     const service = buildService({ repository, envAi });
     for (const credentials of [
-      [{ provider: "zai", apiKey: "   " }],
-      [{ provider: "zai", apiKey: "" }],
+      [{ provider: "zai", api_key: "   " }],
+      [{ provider: "zai", api_key: "" }],
       [{ provider: "zai" }],
-      [{ provider: "zai", apiKey: "fake-key", clear: true }],
+      [{ provider: "zai", api_key: "fake-key", clear: true }],
     ]) {
       expect(await caughtCode(service.updateAiSettings({ credentials }))).toBe(
         "SETTINGS_INVALID_CREDENTIAL",
@@ -272,7 +272,7 @@ describe("settings service: update validation", () => {
     const service = buildService({ repository, envAi });
     const view = await service.updateAiSettings({
       model: "deepseek/deepseek-chat",
-      credentials: [{ provider: "zai", apiKey: "sk-full-fake-key-9876" }],
+      credentials: [{ provider: "zai", api_key: "sk-full-fake-key-9876" }],
     });
     expect(repository.writes()).toBe(1);
     expect(view.model).toEqual({
@@ -280,7 +280,7 @@ describe("settings service: update validation", () => {
       source: "db",
     });
     expect(view.providers).toEqual([
-      { id: "zai", source: "stored", maskedKey: "sk-…9876" },
+      { id: "zai", source: "stored", masked_key: "sk-…9876" },
     ]);
     // The full key never leaks through the view.
     expect(JSON.stringify(view)).not.toContain("sk-full-fake-key-9876");
@@ -306,10 +306,10 @@ describe("settings service: update validation", () => {
       authProbe: async (id) => id === "zai",
     });
     await service.updateAiSettings({
-      credentials: [{ provider: "zai", apiKey: "sk-full-fake-key-9876" }],
+      credentials: [{ provider: "zai", api_key: "sk-full-fake-key-9876" }],
     });
     expect(await service.getProviderStatuses()).toEqual([
-      { id: "zai", source: "stored", maskedKey: "sk-…9876" },
+      { id: "zai", source: "stored", masked_key: "sk-…9876" },
     ]);
 
     const after = await service.updateAiSettings({
@@ -317,7 +317,7 @@ describe("settings service: update validation", () => {
     });
     expect(repository.credentials.size).toBe(0);
     expect(after.providers).toEqual([
-      { id: "zai", source: "env", maskedKey: null },
+      { id: "zai", source: "env", masked_key: null },
     ]);
   });
 });
@@ -334,8 +334,8 @@ describe("settings service: provider statuses", () => {
       authProbe: async (id) => id === "zai" || id === "deepseek",
     });
     expect(await service.getProviderStatuses()).toEqual([
-      { id: "deepseek", source: "stored", maskedKey: "fak…6789" },
-      { id: "zai", source: "env", maskedKey: null },
+      { id: "deepseek", source: "stored", masked_key: "fak…6789" },
+      { id: "zai", source: "env", masked_key: null },
     ]);
   });
 
@@ -350,7 +350,7 @@ describe("settings service: provider statuses", () => {
       authProbe: async () => false,
     });
     expect(await service.getProviderStatuses()).toEqual([
-      { id: "legacy", source: "stored", maskedKey: "••••••" },
+      { id: "legacy", source: "stored", masked_key: "••••••" },
     ]);
   });
 
@@ -360,7 +360,7 @@ describe("settings service: provider statuses", () => {
     // No ambient configuration: only the stored row can appear.
     const service = buildService({ repository, authProbe: async () => false });
     expect(await service.getProviderStatuses()).toEqual([
-      { id: "zai", source: "stored", maskedKey: null },
+      { id: "zai", source: "stored", masked_key: null },
     ]);
   });
 });
@@ -387,19 +387,21 @@ describe("settings service: test configuration", () => {
       [{ model: "nope" }, "SETTINGS_INVALID_MODEL"],
       [{ model: "ZAI/glm-4.7" }, "SETTINGS_INVALID_MODEL"],
       [
-        { credentials: [{ provider: "unknown", apiKey: "fake-key" }] },
+        { credentials: [{ provider: "unknown", api_key: "fake-key" }] },
         "SETTINGS_UNKNOWN_PROVIDER",
       ],
       [
-        { credentials: [{ provider: "zai", apiKey: "" }] },
+        { credentials: [{ provider: "zai", api_key: "" }] },
         "SETTINGS_INVALID_CREDENTIAL",
       ],
       [
-        { credentials: [{ provider: "zai", apiKey: "   " }] },
+        { credentials: [{ provider: "zai", api_key: "   " }] },
         "SETTINGS_INVALID_CREDENTIAL",
       ],
       [
-        { credentials: [{ provider: "zai", apiKey: "fake-key", clear: true }] },
+        {
+          credentials: [{ provider: "zai", api_key: "fake-key", clear: true }],
+        },
         "SETTINGS_INVALID_CREDENTIAL",
       ],
       [{ credentials: [{ provider: "zai" }] }, "SETTINGS_INVALID_CREDENTIAL"],
@@ -456,7 +458,7 @@ describe("settings service: test configuration", () => {
     expect(await noEnv.testConfiguration({ model: null })).toEqual({
       stage: "unconfigured",
       model: null,
-      latencyMs: null,
+      latency_ms: null,
       reply: null,
       message: null,
     });
@@ -473,7 +475,7 @@ describe("settings service: test configuration", () => {
     expect(await service.testConfiguration({})).toEqual({
       stage: "unconfigured",
       model: null,
-      latencyMs: null,
+      latency_ms: null,
       reply: null,
       message: null,
     });
@@ -504,7 +506,7 @@ describe("settings service: test configuration", () => {
     expect(plainFake.calls[0]?.timeoutMs).toBe(30_000);
   });
 
-  it("an unsaved apiKey reaches the probe as an overlay; clear skips the stored row", async () => {
+  it("an unsaved api_key reaches the probe as an overlay; clear skips the stored row", async () => {
     const repository = fakeRepository();
     repository.credentials.set(
       "deepseek",
@@ -515,12 +517,12 @@ describe("settings service: test configuration", () => {
     await service.testConfiguration({
       model: "deepseek/deepseek-chat",
       credentials: [
-        { provider: "zai", apiKey: "sk-unsaved-fake-key" },
+        { provider: "zai", api_key: "sk-unsaved-fake-key" },
         { provider: "deepseek", clear: true },
       ],
     });
     expect(fake.calls[0]?.credentials).toEqual([
-      { provider: "zai", apiKey: "sk-unsaved-fake-key" },
+      { provider: "zai", api_key: "sk-unsaved-fake-key" },
       { provider: "deepseek", clear: true },
     ]);
     // Nothing persisted: the stored row survives and no write happened.
@@ -536,35 +538,35 @@ describe("settings service: test configuration", () => {
       {
         stage: "ok",
         model: "zai/glm-4.7",
-        latencyMs: 123,
+        latency_ms: 123,
         reply: "OK",
         message: null,
       },
       {
         stage: "auth",
         model: "zai/glm-4.7",
-        latencyMs: 45,
+        latency_ms: 45,
         reply: null,
         message: 'AI provider "zai" is not configured',
       },
       {
         stage: "timeout",
         model: "zai/glm-4.7",
-        latencyMs: 60_000,
+        latency_ms: 60_000,
         reply: null,
         message: "AI request timed out",
       },
       {
         stage: "request-failed",
         model: "zai/glm-4.7",
-        latencyMs: 20,
+        latency_ms: 20,
         reply: null,
         message: "boom",
       },
       {
         stage: "invalid-model",
         model: "zai/gone",
-        latencyMs: null,
+        latency_ms: null,
         reply: null,
         message: "not a known pair",
       },
@@ -585,7 +587,7 @@ describe("settings service: conversation window", () => {
   it("defaults to 24h, follows the env fallback, a stored row wins, null clears", async () => {
     const repository = fakeRepository();
     const service = buildService({ repository });
-    expect((await service.getAiSettings()).chatHistoryHours).toEqual({
+    expect((await service.getAiSettings()).chat_history_hours).toEqual({
       value: 24,
       source: "env",
     });
@@ -593,14 +595,14 @@ describe("settings service: conversation window", () => {
     const withEnv = buildService({ repository, envChatHistoryHours: 2 });
     expect(await withEnv.resolveChatHistoryWindowMs()).toBe(7_200_000);
 
-    await service.updateAiSettings({ chatHistoryHours: 3 });
-    expect((await service.getAiSettings()).chatHistoryHours).toEqual({
+    await service.updateAiSettings({ chat_history_hours: 3 });
+    expect((await service.getAiSettings()).chat_history_hours).toEqual({
       value: 3,
       source: "db",
     });
 
-    await service.updateAiSettings({ chatHistoryHours: null });
-    expect((await service.getAiSettings()).chatHistoryHours).toEqual({
+    await service.updateAiSettings({ chat_history_hours: null });
+    expect((await service.getAiSettings()).chat_history_hours).toEqual({
       value: 24,
       source: "env",
     });
@@ -610,7 +612,7 @@ describe("settings service: conversation window", () => {
     const repository = fakeRepository();
     repository.settings.set(CHAT_HISTORY_HOURS_KEY, "bogus");
     const service = buildService({ repository, envChatHistoryHours: 6 });
-    expect((await service.getAiSettings()).chatHistoryHours).toEqual({
+    expect((await service.getAiSettings()).chat_history_hours).toEqual({
       value: 6,
       source: "env",
     });

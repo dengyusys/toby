@@ -51,7 +51,7 @@ function fakeProbe(outcome?: AiTestProbeOutcome) {
         outcome ?? {
           stage: "ok",
           model: input.model,
-          latencyMs: 12,
+          latency_ms: 12,
           reply: "OK",
           message: null,
         }
@@ -124,20 +124,20 @@ describe("settings api: effective view", () => {
     expect(response.json()).toEqual({
       model: { value: null, source: null },
       providers: [],
-      chatHistoryHours: { value: 24, source: "env" },
+      chat_history_hours: { value: 24, source: "env" },
     });
   });
 
   it("a PUT lands and the GET view follows; no response ever carries the full key", async () => {
     const put = await inject("PUT", "/api/settings/ai", {
       model: "faux/faux-1",
-      credentials: [{ provider: "faux", apiKey: FULL_KEY }],
+      credentials: [{ provider: "faux", api_key: FULL_KEY }],
     });
     expect(put.statusCode).toBe(200);
     expect(put.json()).toEqual({
       model: { value: "faux/faux-1", source: "db" },
-      providers: [{ id: "faux", source: "stored", maskedKey: "sk-…9876" }],
-      chatHistoryHours: { value: 24, source: "env" },
+      providers: [{ id: "faux", source: "stored", masked_key: "sk-…9876" }],
+      chat_history_hours: { value: 24, source: "env" },
     });
     expect(put.body).not.toContain(FULL_KEY);
 
@@ -150,10 +150,10 @@ describe("settings api: effective view", () => {
   it("a stored credential outranks an ambient env configuration", async () => {
     await buildApp({ authProbe: async (id) => id === "faux" });
     const stored = await inject("PUT", "/api/settings/ai", {
-      credentials: [{ provider: "faux", apiKey: FULL_KEY }],
+      credentials: [{ provider: "faux", api_key: FULL_KEY }],
     });
     expect(stored.json().providers).toEqual([
-      { id: "faux", source: "stored", maskedKey: "sk-…9876" },
+      { id: "faux", source: "stored", masked_key: "sk-…9876" },
     ]);
 
     const cleared = await inject("PUT", "/api/settings/ai", {
@@ -161,7 +161,7 @@ describe("settings api: effective view", () => {
     });
     expect(cleared.statusCode).toBe(200);
     expect(cleared.json().providers).toEqual([
-      { id: "faux", source: "env", maskedKey: null },
+      { id: "faux", source: "env", masked_key: null },
     ]);
     expect(cleared.body).not.toContain(FULL_KEY);
   });
@@ -173,19 +173,19 @@ describe("settings api: PUT validation", () => {
       [{ model: "nope" }, "SETTINGS_INVALID_MODEL"],
       [{ model: "FAUX/faux-1" }, "SETTINGS_INVALID_MODEL"],
       [
-        { credentials: [{ provider: "unknown", apiKey: FULL_KEY }] },
+        { credentials: [{ provider: "unknown", api_key: FULL_KEY }] },
         "SETTINGS_UNKNOWN_PROVIDER",
       ],
       [
-        { credentials: [{ provider: "faux", apiKey: "" }] },
+        { credentials: [{ provider: "faux", api_key: "" }] },
         "SETTINGS_INVALID_CREDENTIAL",
       ],
       [
-        { credentials: [{ provider: "faux", apiKey: "  " }] },
+        { credentials: [{ provider: "faux", api_key: "  " }] },
         "SETTINGS_INVALID_CREDENTIAL",
       ],
       [
-        { credentials: [{ provider: "faux", apiKey: FULL_KEY, clear: true }] },
+        { credentials: [{ provider: "faux", api_key: FULL_KEY, clear: true }] },
         "SETTINGS_INVALID_CREDENTIAL",
       ],
       [{ credentials: [{ provider: "faux" }] }, "SETTINGS_INVALID_CREDENTIAL"],
@@ -199,7 +199,7 @@ describe("settings api: PUT validation", () => {
     expect(get.json()).toEqual({
       model: { value: null, source: null },
       providers: [],
-      chatHistoryHours: { value: 24, source: "env" },
+      chat_history_hours: { value: 24, source: "env" },
     });
   });
 
@@ -228,7 +228,7 @@ describe("settings api: PUT validation", () => {
     expect(response.json()).toEqual({
       model: { value: null, source: null },
       providers: [],
-      chatHistoryHours: { value: 24, source: "env" },
+      chat_history_hours: { value: 24, source: "env" },
     });
   });
 });
@@ -251,15 +251,15 @@ describe("settings api: AI test (POST /test)", () => {
       [{ model: "nope" }, "SETTINGS_INVALID_MODEL"],
       [{ model: "FAUX/faux-1" }, "SETTINGS_INVALID_MODEL"],
       [
-        { credentials: [{ provider: "unknown", apiKey: FULL_KEY }] },
+        { credentials: [{ provider: "unknown", api_key: FULL_KEY }] },
         "SETTINGS_UNKNOWN_PROVIDER",
       ],
       [
-        { credentials: [{ provider: "faux", apiKey: "" }] },
+        { credentials: [{ provider: "faux", api_key: "" }] },
         "SETTINGS_INVALID_CREDENTIAL",
       ],
       [
-        { credentials: [{ provider: "faux", apiKey: FULL_KEY, clear: true }] },
+        { credentials: [{ provider: "faux", api_key: FULL_KEY, clear: true }] },
         "SETTINGS_INVALID_CREDENTIAL",
       ],
       [{ credentials: [{ provider: "faux" }] }, "SETTINGS_INVALID_CREDENTIAL"],
@@ -275,7 +275,7 @@ describe("settings api: AI test (POST /test)", () => {
     expect(get.json()).toEqual({
       model: { value: null, source: null },
       providers: [],
-      chatHistoryHours: { value: 24, source: "env" },
+      chat_history_hours: { value: 24, source: "env" },
     });
   });
 
@@ -314,23 +314,23 @@ describe("settings api: AI test (POST /test)", () => {
     ]);
   });
 
-  it("an unsaved apiKey reaches the probe as an overlay and nothing persists", async () => {
+  it("an unsaved api_key reaches the probe as an overlay and nothing persists", async () => {
     const fake = fakeProbe();
     await buildApp({ testProbe: fake.probe });
     const response = await inject("POST", "/api/settings/ai/test", {
       model: "faux/faux-1",
-      credentials: [{ provider: "faux", apiKey: FULL_KEY }],
+      credentials: [{ provider: "faux", api_key: FULL_KEY }],
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       stage: "ok",
       model: "faux/faux-1",
-      latencyMs: expect.any(Number),
+      latency_ms: expect.any(Number),
       reply: "OK",
       message: null,
     });
     expect(fake.calls[0]?.credentials).toEqual([
-      { provider: "faux", apiKey: FULL_KEY },
+      { provider: "faux", api_key: FULL_KEY },
     ]);
     // The full key never echoes back, and the settings view is untouched.
     expect(response.body).not.toContain(FULL_KEY);
@@ -338,7 +338,7 @@ describe("settings api: AI test (POST /test)", () => {
     expect(get.json()).toEqual({
       model: { value: null, source: null },
       providers: [],
-      chatHistoryHours: { value: 24, source: "env" },
+      chat_history_hours: { value: 24, source: "env" },
     });
   });
 
@@ -347,28 +347,28 @@ describe("settings api: AI test (POST /test)", () => {
       {
         stage: "auth",
         model: "faux/faux-1",
-        latencyMs: 5,
+        latency_ms: 5,
         reply: null,
         message: "not configured",
       },
       {
         stage: "timeout",
         model: "faux/faux-1",
-        latencyMs: 50,
+        latency_ms: 50,
         reply: null,
         message: "AI request timed out",
       },
       {
         stage: "request-failed",
         model: "faux/faux-1",
-        latencyMs: 9,
+        latency_ms: 9,
         reply: null,
         message: "boom",
       },
       {
         stage: "invalid-model",
         model: "faux/faux-1",
-        latencyMs: null,
+        latency_ms: null,
         reply: null,
         message: "gone",
       },
@@ -393,7 +393,7 @@ describe("settings api: AI test (POST /test)", () => {
     expect(response.json()).toEqual({
       stage: "unconfigured",
       model: null,
-      latencyMs: null,
+      latency_ms: null,
       reply: null,
       message: null,
     });
@@ -402,20 +402,20 @@ describe("settings api: AI test (POST /test)", () => {
 });
 
 describe("settings api: conversation window", () => {
-  it("PUT chatHistoryHours lands, the view follows, null clears back to env", async () => {
+  it("PUT chat_history_hours lands, the view follows, null clears back to env", async () => {
     const put = await inject("PUT", "/api/settings/ai", {
-      chatHistoryHours: 2,
+      chat_history_hours: 2,
     });
     expect(put.statusCode).toBe(200);
-    expect(put.json().chatHistoryHours).toEqual({ value: 2, source: "db" });
+    expect(put.json().chat_history_hours).toEqual({ value: 2, source: "db" });
     const get = await inject("GET", "/api/settings/ai");
-    expect(get.json().chatHistoryHours).toEqual({ value: 2, source: "db" });
+    expect(get.json().chat_history_hours).toEqual({ value: 2, source: "db" });
 
     const cleared = await inject("PUT", "/api/settings/ai", {
-      chatHistoryHours: null,
+      chat_history_hours: null,
     });
     expect(cleared.statusCode).toBe(200);
-    expect(cleared.json().chatHistoryHours).toEqual({
+    expect(cleared.json().chat_history_hours).toEqual({
       value: 24,
       source: "env",
     });
@@ -424,13 +424,13 @@ describe("settings api: conversation window", () => {
   it("the env fallback shows through when nothing is stored", async () => {
     await buildApp({ env: { TOBY_CHAT_HISTORY_HOURS: "2" } });
     const get = await inject("GET", "/api/settings/ai");
-    expect(get.json().chatHistoryHours).toEqual({ value: 2, source: "env" });
+    expect(get.json().chat_history_hours).toEqual({ value: 2, source: "env" });
   });
 
   it("out-of-range or non-integer values answer SETTINGS_BODY_INVALID", async () => {
     for (const value of [0, -1, 8761, 1.5, "24"]) {
       const response = await inject("PUT", "/api/settings/ai", {
-        chatHistoryHours: value,
+        chat_history_hours: value,
       });
       expect(response.statusCode, JSON.stringify(value)).toBe(400);
       expect(response.json().errorCode, JSON.stringify(value)).toBe(
@@ -438,6 +438,6 @@ describe("settings api: conversation window", () => {
       );
     }
     const get = await inject("GET", "/api/settings/ai");
-    expect(get.json().chatHistoryHours).toEqual({ value: 24, source: "env" });
+    expect(get.json().chat_history_hours).toEqual({ value: 24, source: "env" });
   });
 });

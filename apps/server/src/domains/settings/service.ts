@@ -193,11 +193,11 @@ export function createSettingsService(
   function validateCredentialChanges(
     changes: readonly AiCredentialChange[],
   ): (
-    | { readonly provider: string; readonly apiKey: string }
+    | { readonly provider: string; readonly api_key: string }
     | { readonly provider: string; readonly clear: true }
   )[] {
     const validated: (
-      | { readonly provider: string; readonly apiKey: string }
+      | { readonly provider: string; readonly api_key: string }
       | { readonly provider: string; readonly clear: true }
     )[] = [];
     for (const change of changes) {
@@ -208,25 +208,25 @@ export function createSettingsService(
         );
       }
       if (change.clear === true) {
-        if (change.apiKey !== undefined) {
+        if (change.api_key !== undefined) {
           throw new SettingsRequestError(
             "SETTINGS_INVALID_CREDENTIAL",
             "a credential entry cannot set and clear at once",
           );
         }
         validated.push({ provider: change.provider, clear: true });
-      } else if (change.apiKey !== undefined) {
-        if (change.apiKey.trim() === "") {
+      } else if (change.api_key !== undefined) {
+        if (change.api_key.trim() === "") {
           throw new SettingsRequestError(
             "SETTINGS_INVALID_CREDENTIAL",
-            "apiKey must be a non-empty string",
+            "api_key must be a non-empty string",
           );
         }
-        validated.push({ provider: change.provider, apiKey: change.apiKey });
+        validated.push({ provider: change.provider, api_key: change.api_key });
       } else {
         throw new SettingsRequestError(
           "SETTINGS_INVALID_CREDENTIAL",
-          "a credential entry must carry apiKey or clear",
+          "a credential entry must carry api_key or clear",
         );
       }
     }
@@ -251,7 +251,7 @@ export function createSettingsService(
       statuses.set(id, {
         id,
         source: "stored",
-        maskedKey: key === null ? null : mask(key),
+        masked_key: key === null ? null : mask(key),
       });
     }
     for (const id of knownProviders) {
@@ -259,7 +259,7 @@ export function createSettingsService(
         continue;
       }
       if (await authProbe(id)) {
-        statuses.set(id, { id, source: "env", maskedKey: null });
+        statuses.set(id, { id, source: "env", masked_key: null });
       }
     }
     return [...statuses.values()].sort((a, b) =>
@@ -273,7 +273,7 @@ export function createSettingsService(
       getProviderStatuses(),
       resolveChatHistoryHours(),
     ]);
-    return { model, providers, chatHistoryHours };
+    return { model, providers, chat_history_hours: chatHistoryHours };
   }
 
   return {
@@ -309,14 +309,14 @@ export function createSettingsService(
         }
       }
 
-      if (body.chatHistoryHours !== undefined) {
-        if (body.chatHistoryHours === null) {
+      if (body.chat_history_hours !== undefined) {
+        if (body.chat_history_hours === null) {
           deleteSettings.push(CHAT_HISTORY_HOURS_KEY);
         } else {
           // Bounds already hold: the route's schema rejected anything else.
           setSettings.push({
             key: CHAT_HISTORY_HOURS_KEY,
-            value: String(body.chatHistoryHours),
+            value: String(body.chat_history_hours),
           });
         }
       }
@@ -331,7 +331,7 @@ export function createSettingsService(
             providerId: change.provider,
             credentialJson: JSON.stringify({
               type: "api_key",
-              key: change.apiKey,
+              key: change.api_key,
             }),
           });
         }
@@ -370,7 +370,7 @@ export function createSettingsService(
         return {
           stage: "unconfigured",
           model: null,
-          latencyMs: null,
+          latency_ms: null,
           reply: null,
           message: null,
         };

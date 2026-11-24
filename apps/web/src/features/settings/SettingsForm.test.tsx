@@ -15,13 +15,13 @@ import { SettingsForm } from "./SettingsForm.tsx";
 const initial = {
   model: { value: "zai/glm-4.7", source: "db" as const },
   providers: [],
-  chatHistoryHours: { value: 24, source: "env" as const },
+  chat_history_hours: { value: 24, source: "env" as const },
 };
 const catalog = { providers: [{ id: "zai", models: ["glm-4.7"] }] };
 const ok: AiTestResult = {
   stage: "ok",
   model: "zai/glm-4.7",
-  latencyMs: 123,
+  latency_ms: 123,
   reply: "你好",
   message: null,
 };
@@ -75,7 +75,7 @@ it("tests an unsaved key without saving, and clears the result on edit", async (
     await screen.findByText("连接成功 · 123ms「你好」"),
   ).toBeInTheDocument();
   expect(requests).toEqual([
-    { credentials: [{ provider: "zai", apiKey: "test-only-credential" }] },
+    { credentials: [{ provider: "zai", api_key: "test-only-credential" }] },
   ]);
   expect(screen.getByLabelText("API key")).toHaveValue("test-only-credential");
   fireEvent.change(screen.getByLabelText("API key"), {
@@ -93,7 +93,7 @@ it("saves the conversation window preset when changed", async () => {
       return new Response(
         JSON.stringify({
           ...initial,
-          chatHistoryHours: { value: 72, source: "db" },
+          chat_history_hours: { value: 72, source: "db" },
         }),
         { headers: { "Content-Type": "application/json" } },
       );
@@ -103,7 +103,7 @@ it("saves the conversation window preset when changed", async () => {
   const user = userEvent.setup();
   await user.click(screen.getByRole("radio", { name: "72 小时" }));
   fireEvent.click(screen.getByRole("button", { name: "保存" }));
-  await waitFor(() => expect(requests).toEqual([{ chatHistoryHours: 72 }]));
+  await waitFor(() => expect(requests).toEqual([{ chat_history_hours: 72 }]));
   expect(await screen.findByText("已保存")).toBeInTheDocument();
 });
 

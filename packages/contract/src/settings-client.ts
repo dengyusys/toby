@@ -23,7 +23,7 @@ export interface ProviderStatus {
   id: string;
   source: "stored" | "env";
   /** Masked preview, or null when there is no stored key to preview. */
-  maskedKey: string | null;
+  masked_key: string | null;
 }
 
 /** GET/PUT /api/settings/ai — the effective AI settings view. */
@@ -31,7 +31,7 @@ export interface AiSettingsView {
   model: { value: string | null; source: AiSettingsSource | null };
   providers: ProviderStatus[];
   /** The conversation window in whole hours; "env" = server config/default. */
-  chatHistoryHours: { value: number; source: AiSettingsSource };
+  chat_history_hours: { value: number; source: AiSettingsSource };
 }
 
 export interface AiCatalogProvider {
@@ -47,9 +47,9 @@ export interface AiCatalog {
 /** PUT /api/settings/ai body. Omitted fields stay unchanged. */
 export interface AiSettingsUpdate {
   model?: string | null;
-  credentials?: { provider: string; apiKey?: string; clear?: boolean }[];
+  credentials?: { provider: string; api_key?: string; clear?: boolean }[];
   /** Whole hours (1–8760), or null to clear the stored row. */
-  chatHistoryHours?: number | null;
+  chat_history_hours?: number | null;
 }
 
 /**
@@ -71,7 +71,7 @@ export interface AiTestResult {
   /** The effective "provider/model" spec the probe ran against, if any. */
   model: string | null;
   /** Round-trip milliseconds; null when the probe never reached a provider. */
-  latencyMs: number | null;
+  latency_ms: number | null;
   /** The model's reply, server-trimmed; present only on ok. */
   reply: string | null;
   /** Failure detail (e.g. the provider's message); null on ok. */

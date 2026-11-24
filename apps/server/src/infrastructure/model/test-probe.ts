@@ -32,7 +32,7 @@ export type AiProbeStage =
 export interface AiProbeOutcome {
   readonly stage: AiProbeStage;
   readonly model: string | null;
-  readonly latencyMs: number | null;
+  readonly latency_ms: number | null;
   readonly reply: string | null;
   readonly message: string | null;
 }
@@ -40,7 +40,7 @@ export interface AiProbeOutcome {
 /** One credential overlay the probe must apply in memory. */
 export interface AiProbeCredentialOverlay {
   readonly provider: string;
-  readonly apiKey?: string;
+  readonly api_key?: string;
   readonly clear?: boolean;
 }
 
@@ -88,8 +88,8 @@ function overlayCredentialStore(
     if (overlay?.clear === true) {
       return Promise.resolve(undefined);
     }
-    if (overlay?.apiKey !== undefined) {
-      return Promise.resolve({ type: "api_key", key: overlay.apiKey });
+    if (overlay?.api_key !== undefined) {
+      return Promise.resolve({ type: "api_key", key: overlay.api_key });
     }
     return underlying.read(providerId);
   };
@@ -105,7 +105,7 @@ function overlayCredentialStore(
       for (const [providerId, overlay] of overlays) {
         if (overlay.clear === true) {
           merged.delete(providerId);
-        } else if (overlay.apiKey !== undefined) {
+        } else if (overlay.api_key !== undefined) {
           merged.set(providerId, { providerId, type: "api_key" });
         }
       }
@@ -157,7 +157,7 @@ export function createAiTestProbe(deps: {
         return {
           stage: "invalid-model",
           model: input.model,
-          latencyMs: null,
+          latency_ms: null,
           reply: null,
           message: `AI model "${input.model}" is not a known provider/model pair in the pi-ai catalog`,
         };
@@ -193,7 +193,7 @@ export function createAiTestProbe(deps: {
         return {
           stage: "request-failed",
           model: input.model,
-          latencyMs: null,
+          latency_ms: null,
           reply: null,
           message: error instanceof Error ? error.message : String(error),
         };
@@ -207,7 +207,7 @@ export function createAiTestProbe(deps: {
         return {
           stage: "timeout",
           model: input.model,
-          latencyMs,
+          latency_ms: latencyMs,
           reply: null,
           message: "AI request timed out",
         };
@@ -220,7 +220,7 @@ export function createAiTestProbe(deps: {
           return {
             stage: "auth",
             model: input.model,
-            latencyMs,
+            latency_ms: latencyMs,
             reply: null,
             message: `AI provider "${providerId}" is not configured: add its API key on the settings page or set its environment variable (see .env.example)`,
           };
@@ -228,7 +228,7 @@ export function createAiTestProbe(deps: {
         return {
           stage: "request-failed",
           model: input.model,
-          latencyMs,
+          latency_ms: latencyMs,
           reply: null,
           message:
             reply.errorMessage ?? `AI provider error (${reply.stopReason})`,
@@ -239,7 +239,7 @@ export function createAiTestProbe(deps: {
         return {
           stage: "request-failed",
           model: input.model,
-          latencyMs,
+          latency_ms: latencyMs,
           reply: null,
           message: "AI provider returned no message content",
         };
@@ -247,7 +247,7 @@ export function createAiTestProbe(deps: {
       return {
         stage: "ok",
         model: input.model,
-        latencyMs,
+        latency_ms: latencyMs,
         reply: text.trim().slice(0, PROBE_REPLY_MAX_CHARS),
         message: null,
       };

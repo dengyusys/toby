@@ -10,9 +10,9 @@ const failureMessages = {
 
 export function describeTestResult(result: AiTestResult): string {
   if (result.stage === "ok") {
-    return result.latencyMs === null
+    return result.latency_ms === null
       ? "连接成功"
-      : `连接成功 · ${result.latencyMs}ms`;
+      : `连接成功 · ${result.latency_ms}ms`;
   }
   const message = failureMessages[result.stage];
   return result.stage === "request-failed" && result.message

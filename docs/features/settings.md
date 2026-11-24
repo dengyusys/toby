@@ -30,7 +30,7 @@ AI request or chat send.
   everywhere = the AI paths stay at 501). The view reports the `source`:
   `"db"`, `"env"`, or `null`. The request timeout is deliberately not a
   setting — `TOBY_AI_TIMEOUT_MS` (default 30s) remains the ops knob.
-- **Conversation window**: `chatHistoryHours`, whole hours 1–8760 — how
+- **Conversation window**: `chat_history_hours`, whole hours 1–8760 — how
   far back the chat agent replays the conversation. Same chain as the
   model: database row → `TOBY_CHAT_HISTORY_HOURS` env → default 24,
   re-resolved on every send, so a saved change lands on the next message.
@@ -43,7 +43,7 @@ AI request or chat send.
   Keys are plaintext at rest — the posture and its trade-off are
   recorded in the ADR.
 - **Masked previews only**: a stored key is never returned in full; the
-  view carries `maskedKey` (first 3 + `…` + last 4; ≤ 8 chars mask
+  view carries `masked_key` (first 3 + `…` + last 4; ≤ 8 chars mask
   entirely) and the settings page's password input is never echoed.
 - **One transactional write**: the whole PUT — settings upserts/deletes
   and credential upserts/deletes together — lands in a single
@@ -65,12 +65,12 @@ use the server's one error body with these codes:
 | `SETTINGS_INVALID_CREDENTIAL` | 400    | empty key, or set-and-clear in one entry      |
 | `SETTINGS_BODY_INVALID`       | 400    | body shape rejected (unknown fields included) |
 
-| Method and path                | Purpose                                                                                                                                                                                                                                                 |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/settings/ai`         | Effective view: `model` (`{value, source}`), `providers` (configured ones only: `{id, source: "stored"\|"env", maskedKey}`), `chatHistoryHours` (`{value, source}`)                                                                                     |
-| `PUT /api/settings/ai`         | Body `{model?: string\|null, credentials?: [{provider, apiKey?, clear?}], chatHistoryHours?: number\|null}`; omitted = unchanged, `null`/`clear` removes (env fallback returns); answers with the new effective view                                    |
-| `GET /api/settings/ai/catalog` | pi-ai's builtin catalog grouped by provider: `{providers: [{id, models: […]]}]`                                                                                                                                                                         |
-| `POST /api/settings/ai/test`   | One-prompt probe of what WOULD be effective after saving the same-shaped body; persists nothing. Always 200 with `{stage, model, latencyMs, reply, message}` — `stage`: `ok` / `unconfigured` / `invalid-model` / `auth` / `timeout` / `request-failed` |
+| Method and path                | Purpose                                                                                                                                                                                                                                                  |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/settings/ai`         | Effective view: `model` (`{value, source}`), `providers` (configured ones only: `{id, source: "stored"\|"env", masked_key}`), `chat_history_hours` (`{value, source}`)                                                                                   |
+| `PUT /api/settings/ai`         | Body `{model?: string\|null, credentials?: [{provider, api_key?, clear?}], chat_history_hours?: number\|null}`; omitted = unchanged, `null`/`clear` removes (env fallback returns); answers with the new effective view                                  |
+| `GET /api/settings/ai/catalog` | pi-ai's builtin catalog grouped by provider: `{providers: [{id, models: […]]}]`                                                                                                                                                                          |
+| `POST /api/settings/ai/test`   | One-prompt probe of what WOULD be effective after saving the same-shaped body; persists nothing. Always 200 with `{stage, model, latency_ms, reply, message}` — `stage`: `ok` / `unconfigured` / `invalid-model` / `auth` / `timeout` / `request-failed` |
 
 ## Key rules
 

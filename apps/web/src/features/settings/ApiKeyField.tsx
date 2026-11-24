@@ -59,7 +59,7 @@ export function ApiKeyField({
         {apiKey
           ? "新密钥待保存"
           : credential?.source === "stored"
-            ? `已存储${credential.maskedKey ? ` ${credential.maskedKey}` : ""}`
+            ? `已存储${credential.masked_key ? ` ${credential.masked_key}` : ""}`
             : credential?.source === "env"
               ? "来自环境变量"
               : provider

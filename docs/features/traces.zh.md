@@ -26,7 +26,7 @@ AI 运行时(docs/decisions/ai-pi-runtime.md)的可观测性配套:每次模型�
 | ------------------------ | ----------------------------------------------------------------------------------------------- |
 | `GET /api/traces/stream` | SSE:`trace` 事件(`run-started` / `run-finished`),每 15 秒心跳注释,连接建立即发 `: connected` 帧 |
 
-事件载荷(`TraceEvent`,镜像于 `packages/contract/src/trace-events.ts`):携带的 pi-ai 值一律原样——字段名、大小写、content 块结构与运行时产出完全一致(与对话 item 流同一套词汇);Toby 自有字段(`started_at`、`duration_ms`、`label` 等)保持 snake_case:
+事件载荷(`TraceEvent`,镜像于 `packages/contract/src/trace-events.ts`):携带的 pi-ai 值一律原样——字段名、大小写、content 块结构与运行时产出完全一致(与对话 item 流同一套词汇);Toby 自有字段(`started_at`、`duration_ms`、`label` 等)保持 snake_case,依[命名约定](../decisions/naming-conventions.zh.md):
 
 - `run-started` → `{type, run: {id, kind, label, model, prompt, started_at}}`
 - `run-finished` → `{type, run: {…started 字段, duration_ms, status: "succeeded"\|"failed", messages, result_text?, error?, stopReason?, turns?, usage?}}`

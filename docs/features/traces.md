@@ -26,7 +26,7 @@ One endpoint, session-guarded like every `/api` route (transcripts are personal 
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `GET /api/traces/stream` | SSE: `trace` events (`run-started` / `run-finished`), heartbeat comments every 15 s, `: connected` frame on open |
 
-Event payloads (`TraceEvent`, mirrored in `packages/contract/src/trace-events.ts`): carried pi-ai values are verbatim — field names, casing, content blocks exactly as the runtime produced them (the same vocabulary the chat item stream replays); Toby's own fields (`started_at`, `duration_ms`, `label`, …) stay snake_case:
+Event payloads (`TraceEvent`, mirrored in `packages/contract/src/trace-events.ts`): carried pi-ai values are verbatim — field names, casing, content blocks exactly as the runtime produced them (the same vocabulary the chat item stream replays); Toby's own fields (`started_at`, `duration_ms`, `label`, …) stay snake_case per [the naming conventions](../decisions/naming-conventions.md):
 
 - `run-started` → `{type, run: {id, kind, label, model, prompt, started_at}}`
 - `run-finished` → `{type, run: {…started fields, duration_ms, status: "succeeded"\|"failed", messages, result_text?, error?, stopReason?, turns?, usage?}}`

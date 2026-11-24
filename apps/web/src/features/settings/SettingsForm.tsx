@@ -40,7 +40,7 @@ export function SettingsForm({
   const [model, setModel] = useState(initial.model.value ?? "");
   const [apiKey, setApiKey] = useState("");
   const [historyHours, setHistoryHours] = useState(
-    String(initial.chatHistoryHours.value),
+    String(initial.chat_history_hours.value),
   );
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
@@ -60,7 +60,7 @@ export function SettingsForm({
   ];
   const modelChanged = model !== (effective.model.value ?? "");
   const historyChanged =
-    historyHours.trim() !== String(effective.chatHistoryHours.value);
+    historyHours.trim() !== String(effective.chat_history_hours.value);
   const dirty = modelChanged || !!apiKey || historyChanged;
   const catalogReady = !!catalog && !catalogFailed;
   const selectedModel = entry?.models.some(
@@ -88,8 +88,8 @@ export function SettingsForm({
     if (apiKey && !provider) nextErrors.credentials = "请先选择供应商。";
     const body: AiSettingsUpdate = {};
     if (modelChanged) body.model = model;
-    if (historyChanged) body.chatHistoryHours = Number(historyHours);
-    if (apiKey) body.credentials = [{ provider, apiKey }];
+    if (historyChanged) body.chat_history_hours = Number(historyHours);
+    if (apiKey) body.credentials = [{ provider, api_key: apiKey }];
     return { body, errors: nextErrors };
   }
 
@@ -106,7 +106,7 @@ export function SettingsForm({
     } catch (error) {
       setTestErrors(describeSaveError(error));
     } finally {
-      for (const item of body.credentials ?? []) delete item.apiKey;
+      for (const item of body.credentials ?? []) delete item.api_key;
       setTesting(false);
     }
   }
@@ -127,12 +127,12 @@ export function SettingsForm({
       queryClient.setQueryData(["settings", "ai"], result);
       setEffective(result);
       setModel(result.model.value ?? "");
-      setHistoryHours(String(result.chatHistoryHours.value));
+      setHistoryHours(String(result.chat_history_hours.value));
       setSaved(true);
     } catch (error) {
       setErrors(describeSaveError(error));
     } finally {
-      for (const item of body.credentials ?? []) delete item.apiKey;
+      for (const item of body.credentials ?? []) delete item.api_key;
       setSaving(false);
     }
   }

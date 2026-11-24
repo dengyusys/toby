@@ -4,7 +4,7 @@ export function describeTestResult(result: AiTestResult): string {
   switch (result.stage) {
     case "ok": {
       const timing =
-        result.latencyMs === null ? "" : ` · ${result.latencyMs}ms`;
+        result.latency_ms === null ? "" : ` · ${result.latency_ms}ms`;
       const reply = result.reply?.replace(/\s+/g, " ").trim().slice(0, 60);
       return `连接成功${timing}${reply ? `「${reply}」` : ""}`;
     }

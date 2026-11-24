@@ -4,7 +4,7 @@
  * unconfigured-ness is deterministic without touching the host env).
  * Pins the stage classification (ok / invalid-model / auth / timeout /
  * request-failed), the reply trim, and the in-memory credential overlay:
- * an unsaved apiKey reaches auth resolution, clear skips the stored row,
+ * an unsaved api_key reaches auth resolution, clear skips the stored row,
  * and nothing ever persists. Automated tests never touch a real model.
  */
 
@@ -117,7 +117,7 @@ describe("createAiTestProbe", () => {
     expect(outcome.model).toBe("faux/faux-1");
     expect(outcome.reply).toBe("x".repeat(120));
     expect(outcome.message).toBeNull();
-    expect(typeof outcome.latencyMs).toBe("number");
+    expect(typeof outcome.latency_ms).toBe("number");
   });
 
   it("answers a catalog miss as invalid-model before any network work", async () => {
@@ -132,7 +132,7 @@ describe("createAiTestProbe", () => {
     });
     expect(outcome.stage).toBe("invalid-model");
     expect(outcome.model).toBe("faux/missing");
-    expect(outcome.latencyMs).toBeNull();
+    expect(outcome.latency_ms).toBeNull();
     expect(outcome.message).toContain("not a known provider/model pair");
     expect(faux.state.callCount).toBe(0);
   });
@@ -154,7 +154,7 @@ describe("createAiTestProbe", () => {
     expect(outcome.stage).toBe("request-failed");
     expect(outcome.reply).toBeNull();
     expect(outcome.message).toBeTruthy();
-    expect(outcome.latencyMs).not.toBeNull();
+    expect(outcome.latency_ms).not.toBeNull();
   });
 
   it("an error on an unconfigured provider lands as auth", async () => {
@@ -169,7 +169,7 @@ describe("createAiTestProbe", () => {
     expect(outcome.message).toContain("test-envkey");
   });
 
-  it("an unsaved apiKey reaches the probe: the overlay flips auth to request-failed", async () => {
+  it("an unsaved api_key reaches the probe: the overlay flips auth to request-failed", async () => {
     // Same provider, same dead server — only the in-memory key differs,
     // so the classification flip proves the body's key entered auth
     // resolution without ever being stored.
@@ -179,7 +179,7 @@ describe("createAiTestProbe", () => {
       model: "test-envkey/test-model",
       timeoutMs: TIMEOUT_MS,
       credentials: [
-        { provider: "test-envkey", apiKey: "fake-unsaved-key-123456789" },
+        { provider: "test-envkey", api_key: "fake-unsaved-key-123456789" },
       ],
     });
     expect(outcome.stage).toBe("request-failed");
@@ -242,7 +242,7 @@ describe("createAiTestProbe", () => {
     await probe.probe({
       model: "faux/faux-1",
       timeoutMs: TIMEOUT_MS,
-      credentials: [{ provider: "faux", apiKey: "fake-unsaved-key" }],
+      credentials: [{ provider: "faux", api_key: "fake-unsaved-key" }],
     });
     expect(persistence.writes()).toBe(0);
     expect(persistence.rows.size).toBe(1);

@@ -44,14 +44,14 @@ export interface ProviderStatus {
   readonly id: string;
   /** "stored" = a credential row in the settings db; "env" = ambient config. */
   readonly source: "stored" | "env";
-  readonly maskedKey: string | null;
+  readonly masked_key: string | null;
 }
 
 /** GET /api/settings/ai — the effective AI settings view. */
 export interface AiSettingsView {
   readonly model: AiModelField;
   readonly providers: readonly ProviderStatus[];
-  readonly chatHistoryHours: ChatHistoryHoursField;
+  readonly chat_history_hours: ChatHistoryHoursField;
 }
 
 /** One provider's slice of the model catalog. */
@@ -68,7 +68,7 @@ export interface AiCatalog {
 /** One credential change inside a PUT body. */
 export interface AiCredentialChange {
   readonly provider: string;
-  readonly apiKey?: string;
+  readonly api_key?: string;
   readonly clear?: boolean;
 }
 
@@ -77,7 +77,7 @@ export interface AiSettingsUpdate {
   readonly model?: string | null;
   readonly credentials?: readonly AiCredentialChange[];
   /** Whole hours (bounds shared with the env var); null clears the row. */
-  readonly chatHistoryHours?: number | null;
+  readonly chat_history_hours?: number | null;
 }
 
 /**
@@ -92,7 +92,7 @@ export type AiTestProbeStage =
 export interface AiTestProbeOutcome {
   readonly stage: AiTestProbeStage;
   readonly model: string | null;
-  readonly latencyMs: number | null;
+  readonly latency_ms: number | null;
   readonly reply: string | null;
   readonly message: string | null;
 }
@@ -122,7 +122,7 @@ export type AiTestStage = "unconfigured" | AiTestProbeStage;
 export interface AiTestResult {
   readonly stage: AiTestStage;
   readonly model: string | null;
-  readonly latencyMs: number | null;
+  readonly latency_ms: number | null;
   readonly reply: string | null;
   readonly message: string | null;
 }

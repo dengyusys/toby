@@ -26,7 +26,7 @@ AI 请求或对话发送即生效。
   路径保持 501）。视图报告 `source`：`"db"`、`"env"` 或 `null`。
   请求超时刻意不是设置项——`TOBY_AI_TIMEOUT_MS`（默认 30 秒）仍是
   唯一的运维旋钮。
-- **对话记忆窗口**：`chatHistoryHours`，整数小时 1–8760——对话
+- **对话记忆窗口**：`chat_history_hours`，整数小时 1–8760——对话
   智能体回放多久之内的对话。与模型同一条链：数据库行 →
   `TOBY_CHAT_HISTORY_HOURS` 环境变量 → 默认 24，每次发送重新解析，
   保存后下一条消息即生效。视图报告 `{value, source}`，来源词汇与
@@ -36,7 +36,7 @@ AI 请求或对话发送即生效。
   自身的 `CredentialStore` 端口暴露——已存储的 key 优先于该供应商
   的环境变量，未存储时环境变量兜底。key 明文落库——姿态与取舍
   记录在 ADR 中。
-- **只有掩码预览**：已存储的 key 永不完整返回；视图只带 `maskedKey`
+- **只有掩码预览**：已存储的 key 永不完整返回；视图只带 `masked_key`
   （前 3 位 + `…` + 后 4 位；≤ 8 位全部掩码），设置页的密码输入框
   永不回显。
 - **一次事务性写入**：整个 PUT——设置项的 upsert/删除与凭证的
@@ -57,12 +57,12 @@ AI 请求或对话发送即生效。
 | `SETTINGS_INVALID_CREDENTIAL` | 400    | 空 key，或一条凭证同时 set 与 clear |
 | `SETTINGS_BODY_INVALID`       | 400    | 请求体形状被拒（含未知字段）        |
 
-| 方法与路径                     | 用途                                                                                                                                                                                                      |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/settings/ai`         | 有效视图：`model`（`{value, source}`）、`providers`（仅已配置项：`{id, source: "stored"\|"env", maskedKey}`）、`chatHistoryHours`（`{value, source}`）                                                    |
-| `PUT /api/settings/ai`         | 请求体 `{model?: string\|null, credentials?: [{provider, apiKey?, clear?}], chatHistoryHours?: number\|null}`；省略 = 不变，`null`/`clear` 删除（环境变量兜底回归）；应答为新的有效视图                   |
-| `GET /api/settings/ai/catalog` | pi-ai 内置目录按供应商分组：`{providers: [{id, models: […]]}]}`                                                                                                                                           |
-| `POST /api/settings/ai/test`   | 用与 PUT 同形的请求体探测保存后将生效的配置；不落库。恒为 200，应答 `{stage, model, latencyMs, reply, message}`——`stage`：`ok` / `unconfigured` / `invalid-model` / `auth` / `timeout` / `request-failed` |
+| 方法与路径                     | 用途                                                                                                                                                                                                       |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/settings/ai`         | 有效视图：`model`（`{value, source}`）、`providers`（仅已配置项：`{id, source: "stored"\|"env", masked_key}`）、`chat_history_hours`（`{value, source}`）                                                  |
+| `PUT /api/settings/ai`         | 请求体 `{model?: string\|null, credentials?: [{provider, api_key?, clear?}], chat_history_hours?: number\|null}`；省略 = 不变，`null`/`clear` 删除（环境变量兜底回归）；应答为新的有效视图                 |
+| `GET /api/settings/ai/catalog` | pi-ai 内置目录按供应商分组：`{providers: [{id, models: […]]}]}`                                                                                                                                            |
+| `POST /api/settings/ai/test`   | 用与 PUT 同形的请求体探测保存后将生效的配置；不落库。恒为 200，应答 `{stage, model, latency_ms, reply, message}`——`stage`：`ok` / `unconfigured` / `invalid-model` / `auth` / `timeout` / `request-failed` |
 
 ## 关键规则
 

@@ -61,13 +61,13 @@ describe("production ai wiring (composition root)", () => {
       url: "/api/settings/ai",
       payload: {
         model: "faux/faux-1",
-        credentials: [{ provider: "faux", apiKey: STORED_KEY }],
+        credentials: [{ provider: "faux", api_key: STORED_KEY }],
       },
     });
     expect(saved.statusCode).toBe(200);
     expect(saved.json()).toMatchObject({
       model: { value: "faux/faux-1", source: "db" },
-      providers: [{ id: "faux", source: "stored", maskedKey: "sk-…9876" }],
+      providers: [{ id: "faux", source: "stored", masked_key: "sk-…9876" }],
     });
 
     // One chat send crosses the real production composition twice: the

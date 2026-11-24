@@ -28,7 +28,7 @@ describe("createSettingsClient", () => {
   it("getAiSettings reads /api/settings/ai and decodes the view", async () => {
     const view = {
       model: { value: "zai/glm-4.7", source: "db" },
-      providers: [{ id: "zai", source: "stored", maskedKey: "zai…abcd" }],
+      providers: [{ id: "zai", source: "stored", masked_key: "zai…abcd" }],
     };
     stubFetch(200, JSON.stringify(view));
     const client = createSettingsClient("http://127.0.0.1:8629/");
@@ -46,7 +46,7 @@ describe("createSettingsClient", () => {
     const client = createSettingsClient("");
     const body = {
       model: "zai/glm-4.7",
-      credentials: [{ provider: "zai", apiKey: "fake-key" }],
+      credentials: [{ provider: "zai", api_key: "fake-key" }],
     };
     expect(await client.saveAiSettings(body)).toEqual(view);
     const [url, init] = fetchMock.mock.calls[0] as [
@@ -77,7 +77,7 @@ describe("createSettingsClient", () => {
     const result = {
       stage: "ok",
       model: "zai/glm-4.7",
-      latencyMs: 942,
+      latency_ms: 942,
       reply: "OK",
       message: null,
     };
@@ -99,7 +99,7 @@ describe("createSettingsClient", () => {
     const result = {
       stage: "auth",
       model: "deepseek/deepseek-flash",
-      latencyMs: 311,
+      latency_ms: 311,
       reply: null,
       message: "invalid api key",
     };

@@ -956,10 +956,10 @@ describe("chat api: conversation window", () => {
     expect(before.map((entry) => entry.text)).toContain("第一句");
 
     const put = await inject("PUT", "/api/settings/ai", {
-      chatHistoryHours: 1,
+      chat_history_hours: 1,
     });
     expect(put.statusCode).toBe(200);
-    expect(put.json().chatHistoryHours).toEqual({ value: 1, source: "db" });
+    expect(put.json().chat_history_hours).toEqual({ value: 1, source: "db" });
 
     nowMs = BASE_MS + 2 * 60 * 60 * 1000 + 1;
     await inject("POST", "/api/chat/messages", { text: "第三句" });

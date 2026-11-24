@@ -8,13 +8,13 @@ import { SettingsPage } from "../src/features/settings/SettingsPage.tsx";
 
 const initial: AiSettingsView = {
   model: { value: "example/first", source: "db" },
-  providers: [{ id: "example", source: "stored", maskedKey: "***" }],
-  chatHistoryHours: { value: 24, source: "env" },
+  providers: [{ id: "example", source: "stored", masked_key: "***" }],
+  chat_history_hours: { value: 24, source: "env" },
 };
 const ok: AiTestResult = {
   stage: "ok",
   model: "example/second",
-  latencyMs: 42,
+  latency_ms: 42,
   reply: "Hello",
   message: null,
 };
@@ -90,7 +90,7 @@ it("tests unsaved model and key, then saves the same body and clears feedback on
       method: "POST",
       body: {
         model: "example/second",
-        credentials: [{ provider: "example", apiKey: "fake-test-key" }],
+        credentials: [{ provider: "example", api_key: "fake-test-key" }],
       },
     },
   ]);
@@ -124,7 +124,7 @@ it("saves the conversation window preset when changed", async () => {
       Promise.resolve(
         json({
           ...initial,
-          chatHistoryHours: { value: 72, source: "db" },
+          chat_history_hours: { value: 72, source: "db" },
         }),
       ),
   });
@@ -134,7 +134,7 @@ it("saves the conversation window preset when changed", async () => {
   await user.click(preset);
   await user.click(screen.getByRole("button", { name: "保存" }));
   await screen.findByText("已保存");
-  expect(calls[0]).toEqual({ method: "PUT", body: { chatHistoryHours: 72 } });
+  expect(calls[0]).toEqual({ method: "PUT", body: { chat_history_hours: 72 } });
 });
 
 it.each([

@@ -18,7 +18,7 @@ import {
 export const AI_CREDENTIAL_CHANGE_SCHEMA = z
   .object({
     provider: z.string().min(1).describe('pi-ai provider id, e.g. "zai"'),
-    apiKey: z
+    api_key: z
       .string()
       .optional()
       .describe("The provider API key, stored verbatim"),
@@ -45,7 +45,7 @@ export const AI_SETTINGS_BODY_SCHEMA = z
       .array(AI_CREDENTIAL_CHANGE_SCHEMA)
       .optional()
       .describe("Provider credential changes"),
-    chatHistoryHours: z
+    chat_history_hours: z
       .number()
       .int()
       .min(CHAT_HISTORY_HOURS_MIN)
