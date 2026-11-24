@@ -12,6 +12,8 @@
 
 动手前:从 `docs/features/` 与 `docs/decisions/` 找「当前算数」的那份文档(功能文档 + ADR),别信记忆;先查有没有现成实现,别造平行方案。
 
+两个对话协议放在 `docs/reference/`:**grilling(拷问)**——任何方案落笔前,或用户要求被拷问、要压测某个决定时,按 [grilling.zh.md](docs/reference/grilling.zh.md) 追问;**wait-what(重讲)**——用户示意没看懂的瞬间,按 [wait-what.zh.md](docs/reference/wait-what.zh.md) 重新讲。
+
 ## 命令
 
 都在仓库根目录跑:

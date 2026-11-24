@@ -12,6 +12,8 @@ Self-hosted personal assistant: the user says one sentence, the AI drafts a cons
 
 Before implementing: find the currently authoritative doc (feature docs + ADRs) in `docs/features/` and `docs/decisions/` — do not trust memory; check for an existing implementation — do not build a parallel one.
 
+Two conversation protocols live in `docs/reference/`: **grilling** — interview the user per [grilling.md](docs/reference/grilling.md) before drafting any plan or solution, or whenever they ask to be grilled or to stress-test a decision; **wait-what** — re-pitch per [wait-what.md](docs/reference/wait-what.md) the moment they signal a message did not land.
+
 ## Commands
 
 All from the repo root:
