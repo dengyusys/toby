@@ -2,7 +2,7 @@
  * The composition root: the HTTP shell every application shares — body
  * limit, request timeout, the one error body, no-store, cookies, the SPA
  * roots — plus the domain assembly order (auth first: it provides the
- * session guard every later `/api` route gets by default). Production
+ * auth guard every later `/api` route gets by default). Production
  * `main.ts` listens on what this returns; tests drive it with their own
  * domain set. Logging is pino to stdout (docs/decisions/server-logging.md):
  * the request lifecycle lines plus the error boundary's stack-only 500
@@ -65,7 +65,7 @@ export interface AppOptions {
   logger?: FastifyBaseLogger;
 }
 
-/** The production assembly: all domains behind the session guard. */
+/** The production assembly: all domains behind the auth guard. */
 export function productionDomains(options: {
   config: TobyConfig;
   /** Injectable clock; tests typically pass a mutable closure. */
@@ -160,7 +160,7 @@ export function productionDomains(options: {
     async (app) => {
       // Default-secure from here on: every `/api` route registered after
       // this hook carries the guard unless it is marked public.
-      app.addHook("onRoute", guardApiRoutes(auth.requireSession));
+      app.addHook("onRoute", guardApiRoutes(auth.guard));
       await app.register(auth.plugin);
     },
     (app) => app.register(systemPlugin({ clock })),

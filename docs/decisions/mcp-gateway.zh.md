@@ -12,7 +12,7 @@ Toby 成为 MCP(Model Context Protocol)服务器:外部 agent——Claude Deskto
 
 ## 模型
 
-1. **传输与鉴权。** Streamable HTTP,挂在单进程服务器的 `/mcp`(`@modelcontextprotocol/sdk`)。静态 bearer token(`TOBY_MCP_TOKEN`);未配置则路由不挂载——是不可用,不是坏掉——与 `TOBY_AI_MODEL` 的"未配置即不可用"同一惯例。路由刻意不放在 `/api` 下(MCP 客户端没有浏览器 session),也不走 public 旁路:缺 token 或错 token 一律 401。规范对 HTTP 传输推荐的 OAuth 2.1 暂缓——对单用户自托管部署不成比例。
+1. **传输与鉴权。** Streamable HTTP,挂在单进程服务器的 `/mcp`(`@modelcontextprotocol/sdk`)。调用方用访问令牌鉴权——所有者的 bearer 凭证,来自 auth 域([access-tokens.md](access-tokens.zh.md))——放在 `Authorization: Bearer` 里;缺 token 或错 token 一律 401,与 `/api` 守卫的回答相同。路由刻意不放在 `/api` 下(MCP 客户端没有浏览器 session),也不走 public 旁路。没有单独的网关密钥:一处凭证存储、一个撤销页面,环境里不添新东西。规范对 HTTP 传输推荐的 OAuth 2.1 暂缓——对单用户自托管部署不成比例。
 2. **写:结构化工具,对面的模型自己填表。** 账本的 draft schema(本就是 Zod、本就为 pi 转成 JSON Schema 形状)即 MCP 工具契约;调用绑定 HTTP 路由已有的结构化入口(`entry` → `normalizeEntry` → 仓库事务 → 凭据)。不消耗任何 Toby AI run;参数不合法以 tool error 返回,纠错循环在对面的模型里跑——与 pi 内部的弹回重试是同一个循环,只是执行者换了人。句子通道(`handleWrite`)刻意不暴露:每次写都烧一次 Toby AI run,还要把追问循环拖进两个 agent 之间。
 3. **读:策展白名单,不做自动暴露。** 第一版暴露账本三个查询与 system info。每个暴露出去的 schema 都是公开的、带版本的契约;域按明列加入,新域落地不等于自动对全世界可见。
 4. **写语义原样继承。** 写入在校验后直接执行——没有确认分级、没有默许窗口,没有可继承出差异的东西。MCP 写入与 chat 写入同样落地;对面在自己的对话里转述凭据。解析不了的句子由对面自己追问——与内部 agent 同一策略。
@@ -21,7 +21,7 @@ Toby 成为 MCP(Model Context Protocol)服务器:外部 agent——Claude Deskto
 
 ## 位置
 
-两层,镜像 AI 运行时的拆法:`infrastructure/mcp/` 放协议胶水(SDK 接线、token 校验、工具到 MCP 的 schema 映射),不 import 任何域;工具集接口在 composition root 层按结构满足,与 [chat-domain-capabilities.md](chat-domain-capabilities.zh.md) 给 chat 的接线方式一致。边界测试照常盯守。
+两层,镜像 AI 运行时的拆法:`infrastructure/mcp/` 放协议胶水(SDK 接线、bearer 校验 —— token 由 auth 域验证,在组合根接入 —— 工具到 MCP 的 schema 映射),不 import 任何域;工具集接口在 composition root 层按结构满足,与 [chat-domain-capabilities.md](chat-domain-capabilities.zh.md) 给 chat 的接线方式一致。边界测试照常盯守。
 
 ## 刻意不进第一版的
 
@@ -32,4 +32,4 @@ Toby 成为 MCP(Model Context Protocol)服务器:外部 agent——Claude Deskto
 
 ## 测试
 
-与所有其他部分同一待遇:`app.inject` 驱动挂载的端点,token 是脚本化的;自动化测试不碰真实 MCP 客户端,不碰真实 AI。真实客户端冒烟(Claude Desktop 或 pi agent)是显式授权的手工步骤,结果单独汇报。
+与所有其他部分同一待遇:`app.inject` 驱动挂载的端点,访问令牌经 auth 域创建;自动化测试不碰真实 MCP 客户端,不碰真实 AI。真实客户端冒烟(Claude Desktop 或 pi agent)是显式授权的手工步骤,结果单独汇报。

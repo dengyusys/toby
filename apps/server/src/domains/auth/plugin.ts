@@ -1,7 +1,7 @@
 /**
  * Auth assembly: the auth database, the service with its sweeper, and the
- * public auth routes; the session guard is handed to the composition root,
- * which installs it on every `/api` route not marked public.
+ * auth routes; the guard is handed to the composition root, which installs
+ * it on every `/api` route not marked public.
  */
 
 import type { FastifyPluginAsync, preHandlerAsyncHookHandler } from "fastify";
@@ -10,7 +10,7 @@ import type { Clock } from "../../infrastructure/clock.ts";
 import { createAuthDb } from "./db.ts";
 import { createAuthRepository } from "./repository.ts";
 import { createAuthService } from "./service.ts";
-import { authRoutes, makeRequireSession } from "./routes.ts";
+import { authRoutes, makeAuthGuard } from "./routes.ts";
 
 export interface AuthPluginOptions {
   config: TobyConfig;
@@ -20,8 +20,11 @@ export interface AuthPluginOptions {
 export interface AuthDomain {
   /** The mountable plugin. */
   plugin: FastifyPluginAsync;
-  /** The session check the composition root installs on guarded routes. */
-  requireSession: preHandlerAsyncHookHandler;
+  /**
+   * The check the composition root installs on guarded routes: resolves the
+   * caller (session or access token) and enforces the route's rule.
+   */
+  guard: preHandlerAsyncHookHandler;
 }
 
 export function authPlugin(options: AuthPluginOptions): AuthDomain {
@@ -34,9 +37,13 @@ export function authPlugin(options: AuthPluginOptions): AuthDomain {
     repository,
   });
   return {
-    requireSession: makeRequireSession(service),
+    guard: makeAuthGuard(service),
     plugin: async (app) => {
-      await app.register(authRoutes, { service, config: options.config });
+      await app.register(authRoutes, {
+        service,
+        config: options.config,
+        clock,
+      });
       service.start();
       app.addHook("onClose", async () => {
         service.stop();

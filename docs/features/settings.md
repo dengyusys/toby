@@ -55,8 +55,11 @@ AI request or chat send.
 
 ## Interface
 
-All routes sit behind the default session guard (none is public). Errors
-use the server's one error body with these codes:
+All routes sit behind the default auth guard, and all of them are
+session-only: an access token answers `403 SESSION_REQUIRED`, whatever its
+scope — the stored provider keys are the owner's to manage from the browser
+(docs/features/auth.md). Errors use the server's one error body with these
+codes:
 
 | Code                          | Status | Meaning                                       |
 | ----------------------------- | ------ | --------------------------------------------- |

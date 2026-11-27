@@ -35,6 +35,9 @@ export const memoryRoutes: FastifyPluginAsync<MemoryRoutesOptions> = async (
 
   // Human maintenance: discard the whole book — one atomic replace of an
   // explicit empty file, corrupt or not. Not gated by off-record: that
-  // gate guards the AI tools, which this route never touches.
-  app.post("/api/memory/reset", () => service.resetMemory());
+  // gate guards the AI tools, which this route never touches. Session-only:
+  // a leaked access token must not be able to empty the book in one call.
+  app.post("/api/memory/reset", { config: { sessionOnly: true } }, () =>
+    service.resetMemory(),
+  );
 };

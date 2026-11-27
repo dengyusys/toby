@@ -29,9 +29,11 @@ Fastify 加闭包工厂让每个承重件都留在语料密集区——路由表
 - 每个域保留三种角色文件:`routes.ts`(HTTP 壳,一个 Fastify 插件)、
   `service.ts` / `db.ts` / `repository.ts`(不含 HTTP 导入的闭包工厂)、`plugin.ts`
   (装配,并经 `onClose` 管理生命周期)。
-- 会话守卫是一个异步 `preHandler`,由组合根默认装在每条 `/api` 路由上;路由以
-  `config: { public: true }` 显式豁免(health 与 auth 端点)。静态页面永远不挂——
-  登录页必须能匿名加载。
+- 认证守卫是一个异步 `preHandler`,由组合根默认装在每条 `/api` 路由上:它解析出调用方
+  (所有者的会话 Cookie,或访问令牌)并执行路由自己的规则。路由以
+  `config: { public: true }` 显式豁免(health 与 auth 端点),或以
+  `config: { sessionOnly: true }` 收紧(docs/decisions/access-tokens.zh.md)。
+  静态页面永远不挂——登录页必须能匿名加载。
 - 唯一错误体:`DomainHttpError` 原样透传,框架 4xx 配上由状态码推出的 code,
   其余一律是净化后的 500。
 

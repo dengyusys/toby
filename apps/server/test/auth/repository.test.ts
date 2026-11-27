@@ -1,8 +1,8 @@
 /**
  * Auth repository against a real sqlite database in a temporary directory:
  * no password until the first one lands, exactly one ever, and it survives a
- * close and reopen, plus the database's lazy open + close lifecycle
- * underneath.
+ * close and reopen; access tokens roundtrip by digest; plus the database's
+ * lazy open + close lifecycle underneath.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
@@ -16,6 +16,7 @@ import {
   createAuthRepository,
   type AuthRepository,
 } from "../../src/domains/auth/repository.ts";
+import type { AccessTokenRecord } from "../../src/domains/auth/types.ts";
 
 const dataRoot = mkdtempSync(path.join(tmpdir(), "toby-auth-repository-"));
 const fixedNow = () => Date.parse("2026-11-27T08:00:00.000Z");
@@ -78,6 +79,58 @@ describe("auth repository", () => {
       ).toBe("scrypt$second");
     } finally {
       await reopened.close();
+    }
+  });
+
+  it("tokens roundtrip by digest; the list holds the live ones, newest first; revocation sticks", async () => {
+    const { db, repository } = await openAuth();
+    const older: AccessTokenRecord = {
+      id: "token-1",
+      name: "script",
+      scopes: ["read"],
+      lastFour: "abcd",
+      createdAt: "2026-11-27T08:00:00.000Z",
+      lastUsedAt: null,
+      expiresAt: null,
+      revokedAt: null,
+    };
+    const newer: AccessTokenRecord = {
+      id: "token-2",
+      name: "page",
+      scopes: ["write"],
+      lastFour: "wxyz",
+      createdAt: "2026-11-27T08:05:00.000Z",
+      lastUsedAt: null,
+      expiresAt: "2027-01-01T00:00:00.000Z",
+      revokedAt: null,
+    };
+    try {
+      await repository.insertToken(older, "digest-older");
+      await repository.insertToken(newer, "digest-newer");
+
+      expect(await repository.findTokenByDigest("digest-older")).toEqual(older);
+      expect(await repository.findTokenByDigest("no-such-digest")).toBeNull();
+      expect(await repository.listTokens()).toEqual([newer, older]);
+
+      await repository.touchToken("token-1", "2026-11-27T09:00:00.000Z");
+      expect((await repository.findToken("token-1"))?.lastUsedAt).toBe(
+        "2026-11-27T09:00:00.000Z",
+      );
+
+      expect(
+        await repository.revokeToken("token-1", "2026-11-27T10:00:00.000Z"),
+      ).toBe(true);
+      expect(
+        await repository.revokeToken("no-such-id", "2026-11-27T10:00:00.000Z"),
+      ).toBe(false);
+      // A revoked token is still found by id — so revoking twice can answer
+      // "already revoked" — but it has left the list.
+      expect((await repository.findToken("token-1"))?.revokedAt).toBe(
+        "2026-11-27T10:00:00.000Z",
+      );
+      expect(await repository.listTokens()).toEqual([newer]);
+    } finally {
+      await db.close();
     }
   });
 

@@ -6,9 +6,13 @@ export type AuthErrorCode =
   | "INVALID_CREDENTIALS"
   | "AUTH_REQUIRED"
   | "ALREADY_REGISTERED"
-  | "REGISTRATION_CLOSED";
+  | "REGISTRATION_CLOSED"
+  | "INVALID_TOKEN"
+  | "INSUFFICIENT_SCOPE"
+  | "SESSION_REQUIRED"
+  | "TOKEN_NOT_FOUND";
 
-/** Login, registration and guard failure. */
+/** Login, registration, guard and token failure. */
 export class AuthError extends DomainHttpError {
   constructor(code: AuthErrorCode, status: number, message: string) {
     super(status, code, message);

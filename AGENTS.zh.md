@@ -60,7 +60,7 @@
 ## 代码风格
 
 - `apps/web`、`apps/web-mobile`、`packages`:`.ts` 由 Node 22 直跑、无构建 —— 禁 `enum` / `namespace` / 类参数属性;类型导入用 `import type`(`erasableSyntaxOnly` 自动拦违规)。
-- `apps/server`:原生 Fastify,经纯 `tsc` 构建——遵循与上面相同的可擦除语法规则(禁装饰器、禁类参数属性)。服务是对显式依赖(config、clock、store、extractor 等)的闭包工厂,不写成类;每个域在自己的 `plugin.ts` 中自装配,组合根 `src/composition-root.ts` 默认给每条 `/api` 路由装上会话守卫(路由以 `config: { public: true }` 显式豁免)。测试经 fastify 的 `inject` 驱动应用。日志走 pino 输出到 stdout——请求生命周期行加错误边界的 500 堆栈报告(docs/decisions/server-logging.md);`main.ts` 启动期失败仍打印一行纯文本 stderr。
+- `apps/server`:原生 Fastify,经纯 `tsc` 构建——遵循与上面相同的可擦除语法规则(禁装饰器、禁类参数属性)。服务是对显式依赖(config、clock、store、extractor 等)的闭包工厂,不写成类;每个域在自己的 `plugin.ts` 中自装配,组合根 `src/composition-root.ts` 默认给每条 `/api` 路由装上认证守卫(路由以 `config: { public: true }` 显式豁免,或以 `config: { sessionOnly: true }` 只留给浏览器会话)。测试经 fastify 的 `inject` 驱动应用。日志走 pino 输出到 stdout——请求生命周期行加错误边界的 500 堆栈报告(docs/decisions/server-logging.md);`main.ts` 启动期失败仍打印一行纯文本 stderr。
 - 禁 Python;引入前必须先有 ADR。
 - 注释:写代码说不出来的那句话——它为何存在、调用方猜不到的、坑在哪。写或删注释时,遵循 docs/decisions/comment-practice.zh.md。注释与代码矛盾即缺陷,同一笔提交修掉。
 - 命名:优先够标准词。预训练已有的词是免费的,造的比喻词每次阅读都要付一次定义的钱(writing-for-agents,docs/reference/writing-for-agents.zh.md)。各层用什么写法——JSON 用 snake_case、TypeScript 用 camelCase、常量用大写、文件名用 kebab-case——见 docs/decisions/naming-conventions.zh.md。

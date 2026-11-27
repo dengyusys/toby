@@ -41,10 +41,12 @@ line by line.
 - Each domain keeps three role files: `routes.ts` (the HTTP shell, a Fastify
   plugin), `service.ts` / `db.ts` / `repository.ts` (closure factories with no HTTP
   imports), and `plugin.ts` (assembly, plus lifecycle through `onClose`).
-- The session guard is an async `preHandler` the composition root installs
-  on every `/api` route by default; a route opts out with
-  `config: { public: true }` (health, the auth endpoints). Static pages
-  never carry it — the login page must load without a session.
+- The auth guard is an async `preHandler` the composition root installs on
+  every `/api` route by default: it resolves the caller (the owner's session
+  cookie, or an access token) and enforces the route's rule. A route opts out
+  with `config: { public: true }` (health, the auth endpoints), or tightens
+  with `config: { sessionOnly: true }` (docs/decisions/access-tokens.md).
+  Static pages never carry it — the login page must load without a session.
 - One error body: a `DomainHttpError` passes through as built, a framework
   4xx gets a status-derived code, anything else is the sanitized 500.
 

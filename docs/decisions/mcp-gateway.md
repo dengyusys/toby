@@ -23,14 +23,16 @@ internal agents use.
 ## The model
 
 1. **Transport and authentication.** Streamable HTTP at `/mcp` on the single
-   server process (`@modelcontextprotocol/sdk`). A static bearer token
-   (`TOBY_MCP_TOKEN`); unset keeps the route unmounted — unavailable, not
-   broken — the same "unconfigured means unavailable" convention as
-   `TOBY_AI_MODEL`. The route deliberately does not sit under `/api` (session
-   cookies do not apply to MCP clients) and does not use the public-route
-   bypass: a missing or wrong token answers 401. OAuth 2.1, the spec's
-   recommendation for HTTP transports, is deferred as disproportionate to a
-   single-user self-hosted deployment.
+   server process (`@modelcontextprotocol/sdk`). Callers authenticate with an
+   access token — the owner's bearer credential from the auth domain
+   ([access-tokens.md](access-tokens.md)) — in `Authorization: Bearer`; a
+   missing or wrong token answers 401, as the `/api` guard answers it. The
+   route deliberately does not sit under `/api` (session cookies do not
+   apply to MCP clients) and does not use the public-route bypass. There is
+   no separate gateway secret: one credential store, one revoke page, nothing
+   new in the environment. OAuth 2.1, the spec's recommendation for HTTP
+   transports, is deferred as disproportionate to a single-user self-hosted
+   deployment.
 2. **Writes: structured tools — the caller's model fills the form.** The
    ledger's draft schema (already Zod, already JSON-Schema-shaped for pi)
    becomes the MCP tool contract; the call binds to the structured intake the
@@ -66,7 +68,8 @@ internal agents use.
 ## Placement
 
 Two layers, mirroring the AI runtime's split: `infrastructure/mcp/` holds the
-protocol glue (SDK wiring, token check, tool-to-MCP schema mapping) and
+protocol glue (SDK wiring, the bearer check — the auth domain verifies the
+token, handed in at the composition root — tool-to-MCP schema mapping) and
 imports no domain; the tool-set interface is satisfied structurally at the
 composition-root level, wired exactly as
 [chat-domain-capabilities.md](chat-domain-capabilities.md) wires chat. The
@@ -87,6 +90,7 @@ boundary tests keep watching.
 ## Testing
 
 The same regime as everything else: `app.inject` drives the mounted endpoint
-with scripted tokens; automated tests use no real MCP client and no real AI.
+with access tokens minted through the auth domain; automated tests use no
+real MCP client and no real AI.
 A live-client smoke run (Claude Desktop or a pi agent) is a manual step with
 explicit authorization, reported separately.

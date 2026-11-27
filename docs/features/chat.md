@@ -204,8 +204,10 @@ read-only agent path, never an error.
 
 ## Interface
 
-All JSON; every route follows the session guard; errors use the server's
-standard body.
+All JSON; every route follows the auth guard; errors use the server's
+standard body. An access token reads the history with `read`; a send needs
+`write`, because one sentence can land a write in another domain
+(docs/features/auth.md).
 
 | Method and path                       | Purpose                                                               |
 | ------------------------------------- | --------------------------------------------------------------------- |

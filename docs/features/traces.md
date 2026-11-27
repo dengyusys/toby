@@ -20,7 +20,7 @@ The observability counterpart to the AI runtime (docs/decisions/ai-pi-runtime.md
 
 ## Interface
 
-One endpoint, session-guarded like every `/api` route (transcripts are personal data — no public opt-out):
+One endpoint, guarded like every `/api` route (transcripts are personal data — no public opt-out): a session, or an access token with `read`. `EventSource` cannot send the token's header, so a token caller reads the stream with `fetch` (docs/features/auth.md):
 
 | Method and path          | Purpose                                                                                                          |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |

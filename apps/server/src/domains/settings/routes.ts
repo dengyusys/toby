@@ -2,7 +2,9 @@
  * Settings routes: the PUT envelope — and the POST /test body, which
  * accepts the exact same shape — is checked here against schema.ts and
  * answers the domain's own SETTINGS_BODY_INVALID (clients match codes, never
- * framework ones). Every route follows the session guard.
+ * framework ones). Every route follows the auth guard, and every route is
+ * session-only: the stored provider keys are the owner's to manage from the
+ * browser, never through an access token.
  */
 
 import type { FastifyPluginAsync } from "fastify";
@@ -37,17 +39,19 @@ export const settingsRoutes: FastifyPluginAsync<SettingsRoutesOptions> = async (
   app,
   { service },
 ) => {
-  app.get("/api/settings/ai", () => service.getAiSettings());
+  const sessionOnly = { config: { sessionOnly: true } };
 
-  app.put("/api/settings/ai", (request) =>
+  app.get("/api/settings/ai", sessionOnly, () => service.getAiSettings());
+
+  app.put("/api/settings/ai", sessionOnly, (request) =>
     service.updateAiSettings(parseAiSettingsBody(request.body)),
   );
 
   // The outcome is data (a 200 stage), never an HTTP error; the body is
   // validated exactly like PUT, so shape problems answer the same 400s.
-  app.post("/api/settings/ai/test", (request) =>
+  app.post("/api/settings/ai/test", sessionOnly, (request) =>
     service.testConfiguration(parseAiSettingsBody(request.body)),
   );
 
-  app.get("/api/settings/ai/catalog", () => service.getCatalog());
+  app.get("/api/settings/ai/catalog", sessionOnly, () => service.getCatalog());
 };

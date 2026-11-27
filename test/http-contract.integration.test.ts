@@ -455,6 +455,70 @@ describe("http contract (registered)", () => {
     expect(sessionBody.state).toBe("authenticated");
   });
 
+  it("opens the API to an access token, within its tier", async () => {
+    const cookie = await loginSession(authUrl, INTEGRATION_PASSWORD);
+    const created = await fetch(`${authUrl}/api/auth/tokens`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "integration probe", scopes: ["read"] }),
+    });
+    expect(created.status).toBe(200);
+    const createdBody = (await created.json()) as {
+      token: { id: string; last_four: string; scopes: string[] };
+      secret: string;
+    };
+    // 32 random bytes as base64url, and the list only ever shows its tail.
+    expect(createdBody.secret).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(createdBody.token.scopes).toEqual(["read"]);
+    expect(createdBody.token.last_four).toBe(createdBody.secret.slice(-4));
+    const authorization = `Bearer ${createdBody.secret}`;
+
+    const months = await fetch(`${authUrl}/api/ledger/months`, {
+      headers: { authorization },
+    });
+    expect(months.status).toBe(200);
+    expect(await months.json()).toEqual({ months: [] });
+
+    // A read token never changes anything, and never touches credentials.
+    const write = await fetch(`${authUrl}/api/ledger/entries`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization },
+      body: JSON.stringify({
+        entry: {
+          date: "2026-10-20",
+          type: "expense",
+          category: "餐饮",
+          amount: "25",
+          note: "token probe",
+        },
+      }),
+    });
+    expect(write.status).toBe(403);
+    expect(((await write.json()) as { errorCode: string }).errorCode).toBe(
+      "INSUFFICIENT_SCOPE",
+    );
+    const settings = await fetch(`${authUrl}/api/settings/ai`, {
+      headers: { authorization },
+    });
+    expect(settings.status).toBe(403);
+    expect(((await settings.json()) as { errorCode: string }).errorCode).toBe(
+      "SESSION_REQUIRED",
+    );
+
+    const revoked = await fetch(
+      `${authUrl}/api/auth/tokens/${createdBody.token.id}`,
+      { method: "DELETE", headers: { cookie } },
+    );
+    expect(revoked.status).toBe(200);
+    const afterRevoke = await fetch(`${authUrl}/api/ledger/months`, {
+      headers: { authorization },
+    });
+    expect(afterRevoke.status).toBe(401);
+    expect(
+      ((await afterRevoke.json()) as { errorCode: string }).errorCode,
+    ).toBe("INVALID_TOKEN");
+  });
+
   it("streams the trace feed over SSE behind the session guard", async () => {
     // Transcripts are personal data: the stream is guarded like every
     // other /api route.

@@ -13,7 +13,10 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { productionDomains } from "../../src/composition-root.ts";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { REGISTRATION_WINDOW_MS } from "../../src/domains/auth/service.ts";
+import {
+  REGISTRATION_WINDOW_MS,
+  TOKEN_LAST_USED_THROTTLE_MS,
+} from "../../src/domains/auth/service.ts";
 import { createTestApp } from "../app-fixture.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-auth-api-"));
@@ -73,6 +76,46 @@ function register(password: string) {
 
 async function login(password: string, cookie?: string) {
   return send("POST", "/api/auth/login", { password }, cookie);
+}
+
+/** Any request, with whatever headers — a cookie, an Authorization, both. */
+function call(
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  url: string,
+  options: {
+    payload?: Record<string, unknown>;
+    headers?: Record<string, string>;
+  } = {},
+) {
+  return app.inject({
+    method,
+    url,
+    ...(options.payload !== undefined ? { payload: options.payload } : {}),
+    headers: options.headers ?? {},
+  });
+}
+
+interface TokenView {
+  id: string;
+  name: string;
+  scopes: string[];
+  last_four: string;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+}
+
+/** Creates a token over the browser session: a 200, with the secret once. */
+async function createToken(
+  cookie: string,
+  body: Record<string, unknown> = { name: "probe", scopes: ["write"] },
+): Promise<{ token: TokenView; secret: string }> {
+  const response = await call("POST", "/api/auth/tokens", {
+    payload: body,
+    headers: { cookie },
+  });
+  expect(response.statusCode).toBe(200);
+  return response.json() as { token: TokenView; secret: string };
 }
 
 afterEach(async () => {
@@ -495,5 +538,272 @@ describe("registered", () => {
     expect(guarded.json().errorCode).toBe("AUTH_REQUIRED");
     const open = await send("GET", "/api/probe/open");
     expect(open.statusCode).toBe(200);
+  });
+});
+
+describe("access tokens", () => {
+  let cookie: string;
+  const ENTRY = {
+    date: "2026-10-20",
+    type: "expense",
+    category: "餐饮",
+    amount: "25",
+    note: "token probe",
+  };
+
+  beforeEach(async () => {
+    await buildApp({});
+    cookie = `toby_session=${tokenFrom(await register(PASSWORD))}`;
+  });
+
+  it("token management is the browser session's business", async () => {
+    for (const method of ["GET", "POST"] as const) {
+      const anonymous = await call(method, "/api/auth/tokens");
+      expect(anonymous.statusCode).toBe(401);
+      expect(anonymous.json().errorCode).toBe("AUTH_REQUIRED");
+    }
+    // Even a write token never manages the owner's tokens.
+    const { secret } = await createToken(cookie);
+    const viaToken = await call("GET", "/api/auth/tokens", {
+      headers: { authorization: `Bearer ${secret}` },
+    });
+    expect(viaToken.statusCode).toBe(403);
+    expect(viaToken.json().errorCode).toBe("SESSION_REQUIRED");
+    const minted = await call("POST", "/api/auth/tokens", {
+      payload: { name: "self-made", scopes: ["read"] },
+      headers: { authorization: `Bearer ${secret}` },
+    });
+    expect(minted.statusCode).toBe(403);
+    expect(minted.json().errorCode).toBe("SESSION_REQUIRED");
+  });
+
+  it("a write token calls the API like a session does", async () => {
+    const { token, secret } = await createToken(cookie, {
+      name: "my page",
+      scopes: ["write"],
+    });
+    expect(token).toMatchObject({
+      name: "my page",
+      scopes: ["write"],
+      last_four: secret.slice(-4),
+      last_used_at: null,
+      expires_at: null,
+    });
+    const auth = { authorization: `Bearer ${secret}` };
+
+    const months = await call("GET", "/api/ledger/months", { headers: auth });
+    expect(months.statusCode).toBe(200);
+    const written = await call("POST", "/api/ledger/entries", {
+      payload: { entry: ENTRY },
+      headers: auth,
+    });
+    expect(written.statusCode).toBe(200);
+  });
+
+  it("a read token looks but never changes", async () => {
+    const { secret } = await createToken(cookie, {
+      name: "dashboard",
+      scopes: ["read"],
+    });
+    const auth = { authorization: `Bearer ${secret}` };
+
+    for (const url of [
+      "/api/ledger/months",
+      "/api/chat/sessions",
+      "/api/system/info",
+    ]) {
+      const looked = await call("GET", url, { headers: auth });
+      expect(looked.statusCode).toBe(200);
+    }
+    for (const [method, url, payload] of [
+      ["POST", "/api/ledger/entries", { entry: ENTRY }],
+      ["POST", "/api/chat/messages", { text: "hello" }],
+      ["POST", "/api/memory/off-record", { on: true }],
+    ] as const) {
+      const refused = await call(method, url, { payload, headers: auth });
+      expect(refused.statusCode).toBe(403);
+      expect(refused.json().errorCode).toBe("INSUFFICIENT_SCOPE");
+    }
+  });
+
+  it("session-only routes refuse every token, write included", async () => {
+    const { secret } = await createToken(cookie, {
+      name: "write",
+      scopes: ["write"],
+    });
+    const auth = { authorization: `Bearer ${secret}` };
+
+    for (const [method, url, payload] of [
+      ["GET", "/api/settings/ai"],
+      ["PUT", "/api/settings/ai", { model: null }],
+      ["POST", "/api/settings/ai/test", {}],
+      ["GET", "/api/settings/ai/catalog"],
+      ["POST", "/api/memory/reset"],
+      [
+        "PUT",
+        "/api/auth/password",
+        { current_password: PASSWORD, new_password: "another passphrase" },
+      ],
+      ["GET", "/api/auth/tokens"],
+      ["DELETE", "/api/auth/tokens/some-id"],
+    ] as const) {
+      const refused = await call(method, url, { payload, headers: auth });
+      expect(refused.statusCode).toBe(403);
+      expect(refused.json().errorCode).toBe("SESSION_REQUIRED");
+    }
+    // Nothing gave: the password still works and the session is intact.
+    expect((await login(PASSWORD)).statusCode).toBe(200);
+    expect(
+      (await call("GET", "/api/auth/tokens", { headers: { cookie } }))
+        .statusCode,
+    ).toBe(200);
+  });
+
+  it("an unknown, revoked, or expired token answers 401 INVALID_TOKEN", async () => {
+    const unknown = await call("GET", "/api/ledger/months", {
+      headers: { authorization: "Bearer not-a-real-token" },
+    });
+    expect(unknown.statusCode).toBe(401);
+    expect(unknown.json().errorCode).toBe("INVALID_TOKEN");
+
+    const revoked = await createToken(cookie);
+    const revoke = await call(
+      "DELETE",
+      `/api/auth/tokens/${revoked.token.id}`,
+      {
+        headers: { cookie },
+      },
+    );
+    expect(revoke.statusCode).toBe(200);
+    expect(revoke.json()).toMatchObject({
+      id: revoked.token.id,
+      action: "revoked",
+    });
+    const afterRevoke = await call("GET", "/api/ledger/months", {
+      headers: { authorization: `Bearer ${revoked.secret}` },
+    });
+    expect(afterRevoke.statusCode).toBe(401);
+    expect(afterRevoke.json().errorCode).toBe("INVALID_TOKEN");
+    // Revoking twice is harmless; an id that never existed is a 404.
+    expect(
+      (
+        await call("DELETE", `/api/auth/tokens/${revoked.token.id}`, {
+          headers: { cookie },
+        })
+      ).statusCode,
+    ).toBe(200);
+    const missing = await call("DELETE", "/api/auth/tokens/no-such-id", {
+      headers: { cookie },
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().errorCode).toBe("TOKEN_NOT_FOUND");
+
+    const expiring = await createToken(cookie, {
+      name: "short-lived",
+      scopes: ["read"],
+      expires_at: new Date(nowMs + 60_000).toISOString(),
+    });
+    expect(expiring.token.expires_at).toBe(
+      new Date(nowMs + 60_000).toISOString(),
+    );
+    nowMs += 60_000;
+    const expired = await call("GET", "/api/ledger/months", {
+      headers: { authorization: `Bearer ${expiring.secret}` },
+    });
+    expect(expired.statusCode).toBe(401);
+    expect(expired.json().errorCode).toBe("INVALID_TOKEN");
+  });
+
+  it("a presented token decides the request, whatever cookies sit beside it", async () => {
+    const { secret } = await createToken(cookie, {
+      name: "read",
+      scopes: ["read"],
+    });
+    // An invalid token is still invalid beside a valid session.
+    const bad = await call("GET", "/api/ledger/months", {
+      headers: { authorization: "Bearer nope", cookie },
+    });
+    expect(bad.statusCode).toBe(401);
+    expect(bad.json().errorCode).toBe("INVALID_TOKEN");
+    // A read token is still read-only beside a valid session.
+    const limited = await call("POST", "/api/ledger/entries", {
+      payload: { entry: ENTRY },
+      headers: { authorization: `Bearer ${secret}`, cookie },
+    });
+    expect(limited.statusCode).toBe(403);
+    expect(limited.json().errorCode).toBe("INSUFFICIENT_SCOPE");
+    // A non-Bearer Authorization header is not ours: the cookie decides.
+    const basic = await call("GET", "/api/ledger/months", {
+      headers: { authorization: "Basic abc", cookie },
+    });
+    expect(basic.statusCode).toBe(200);
+  });
+
+  it("the list shows the tail and the last use, never the secret", async () => {
+    const { token, secret } = await createToken(cookie, {
+      name: "script",
+      scopes: ["read"],
+    });
+    const list = async () =>
+      (
+        (
+          await call("GET", "/api/auth/tokens", { headers: { cookie } })
+        ).json() as { tokens: TokenView[] }
+      ).tokens;
+
+    expect(await list()).toEqual([token]);
+    const auth = { authorization: `Bearer ${secret}` };
+
+    expect(
+      (await call("GET", "/api/ledger/months", { headers: auth })).statusCode,
+    ).toBe(200);
+    const firstUse = new Date(nowMs).toISOString();
+    expect((await list())[0]?.last_used_at).toBe(firstUse);
+
+    // A second use inside the throttle window leaves the stamp alone.
+    nowMs += 60_000;
+    await call("GET", "/api/ledger/months", { headers: auth });
+    expect((await list())[0]?.last_used_at).toBe(firstUse);
+
+    nowMs += TOKEN_LAST_USED_THROTTLE_MS;
+    await call("GET", "/api/ledger/months", { headers: auth });
+    expect((await list())[0]?.last_used_at).toBe(new Date(nowMs).toISOString());
+  });
+
+  it("creation refuses anything but a name, one tier, and a future expiry", async () => {
+    for (const body of [
+      { name: "", scopes: ["read"] },
+      { name: "x".repeat(65), scopes: ["read"] },
+      { name: "ok", scopes: [] },
+      { name: "ok", scopes: ["read", "write"] },
+      { name: "ok", scopes: ["admin"] },
+      { name: "ok", scopes: "read" },
+      { name: "ok", scopes: ["read"], extra: true },
+      { name: "ok", scopes: ["read"], expires_at: "yesterday" },
+      {
+        name: "ok",
+        scopes: ["read"],
+        expires_at: new Date(nowMs).toISOString(),
+      },
+    ]) {
+      const refused = await call("POST", "/api/auth/tokens", {
+        payload: body,
+        headers: { cookie },
+      });
+      expect(refused.statusCode).toBe(400);
+      expect(refused.json().errorCode).toBe("BAD_REQUEST");
+    }
+    const listed = await call("GET", "/api/auth/tokens", {
+      headers: { cookie },
+    });
+    expect(listed.json()).toEqual({ tokens: [] });
+
+    // A valid expiry is stored in canonical UTC.
+    const ok = await createToken(cookie, {
+      name: "ok",
+      scopes: ["read"],
+      expires_at: "2027-01-01T08:00:00+08:00",
+    });
+    expect(ok.token.expires_at).toBe("2027-01-01T00:00:00.000Z");
   });
 });

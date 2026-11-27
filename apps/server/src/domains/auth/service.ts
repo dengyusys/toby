@@ -1,14 +1,18 @@
 /**
  * Auth service: single-user login over a password the owner sets on the
- * first-run registration page. The clock is injected so tests drive expiry
- * and the registration window; no plaintext password or token is retained.
+ * first-run registration page, plus access tokens for the owner's own
+ * programs. The clock is injected so tests drive expiry and the registration
+ * window; no plaintext password or token is retained.
  */
 
+import { randomUUID } from "node:crypto";
 import type {
   AuthConfig,
   TobyConfig,
 } from "../../infrastructure/config/config.ts";
 import type { Clock } from "../../infrastructure/clock.ts";
+import { readBearerToken, type Principal, type Scope } from "./access.ts";
+import { digestOf } from "./digest.ts";
 import { AuthError } from "./errors.ts";
 import { hashPassword, verifyPassword } from "./password.ts";
 import type { AuthRepository } from "./repository.ts";
@@ -17,7 +21,12 @@ import {
   type SessionHandle,
   type SessionRegistry,
 } from "./sessions.ts";
-import type { AuthLoginSuccess, AuthSessionInfo } from "./types.ts";
+import { generateTokenSecret, tokenFingerprint } from "./tokens.ts";
+import type {
+  AccessTokenRecord,
+  AuthLoginSuccess,
+  AuthSessionInfo,
+} from "./types.ts";
 
 type SessionGrant = SessionHandle;
 
@@ -31,6 +40,18 @@ const SESSION_SWEEP_INTERVAL_MS = 60_000;
  * restart reopens it.
  */
 export const REGISTRATION_WINDOW_MS = 10 * 60_000;
+
+/**
+ * How long a token's "last used" stamp stays as it is: a busy token costs
+ * the request path at most one write per window.
+ */
+export const TOKEN_LAST_USED_THROTTLE_MS = 5 * 60_000;
+
+/** A token as its creation returns it: the record, and the secret once. */
+export interface CreatedToken {
+  readonly record: AccessTokenRecord;
+  readonly secret: string;
+}
 
 export interface AuthService {
   /** Wrong password 401 — including before the owner has registered. */
@@ -50,13 +71,38 @@ export interface AuthService {
   logout(token: string | undefined): Promise<void>;
   session(token: string | undefined): Promise<AuthSessionInfo>;
   /**
-   * Session check for the route guard. The exemption decision belongs to
-   * the route that wires the guard in — the URL string never enters it, so
-   * encoded-path tricks cannot dodge it.
+   * Who is calling, for the route guard: the owner's session cookie, or an
+   * access token in the Authorization header. A presented token decides on
+   * its own — an invalid one is INVALID_TOKEN even beside a valid cookie —
+   * so the cookie is consulted only when no token was presented.
    */
-  requireSession(token: string | undefined): void;
+  authenticate(input: {
+    authorization: string | undefined;
+    cookie: string | undefined;
+  }): Promise<Principal>;
+  createToken(input: {
+    name: string;
+    scopes: readonly Scope[];
+    /** ISO time, or null for a token that never expires. */
+    expiresAt: string | null;
+  }): Promise<CreatedToken>;
+  /** Tokens that are not revoked, newest first. */
+  listTokens(): Promise<AccessTokenRecord[]>;
+  /**
+   * Revoking twice is harmless and answers the record both times; an id that
+   * never existed is TOKEN_NOT_FOUND.
+   */
+  revokeToken(id: string): Promise<AccessTokenRecord>;
   start(): void;
   stop(): void;
+}
+
+/** Revoked and expired tokens are the same to a caller: not live. */
+function isLive(token: AccessTokenRecord, nowMs: number): boolean {
+  if (token.revokedAt !== null) {
+    return false;
+  }
+  return token.expiresAt === null || Date.parse(token.expiresAt) > nowMs;
 }
 
 export function createAuthService(deps: {
@@ -126,7 +172,8 @@ export function createAuthService(deps: {
       }
       await deps.repository.updatePasswordHash(hashPassword(newPassword));
       // Sessions were granted on the strength of the old password: a stolen
-      // one must not outlive the change.
+      // one must not outlive the change. Access tokens are the owner's own
+      // doing and are revoked one by one.
       sessions.revokeAll();
     },
 
@@ -150,10 +197,66 @@ export function createAuthService(deps: {
           };
     },
 
-    requireSession(token) {
-      if (token === undefined || !sessions.verify(token)) {
+    async authenticate({ authorization, cookie }) {
+      const presented = readBearerToken(authorization);
+      if (presented !== undefined) {
+        const token = await deps.repository.findTokenByDigest(
+          digestOf(presented),
+        );
+        const nowMs = deps.clock();
+        if (token === null || !isLive(token, nowMs)) {
+          // Unknown, revoked and expired read the same from the outside.
+          throw new AuthError("INVALID_TOKEN", 401, "invalid access token");
+        }
+        if (
+          token.lastUsedAt === null ||
+          nowMs - Date.parse(token.lastUsedAt) >= TOKEN_LAST_USED_THROTTLE_MS
+        ) {
+          await deps.repository.touchToken(
+            token.id,
+            new Date(nowMs).toISOString(),
+          );
+        }
+        return { kind: "token", tokenId: token.id, scopes: token.scopes };
+      }
+      if (cookie === undefined || !sessions.verify(cookie)) {
         throw new AuthError("AUTH_REQUIRED", 401, "login required");
       }
+      return { kind: "session" };
+    },
+
+    async createToken({ name, scopes, expiresAt }) {
+      const secret = generateTokenSecret();
+      const { digest, lastFour } = tokenFingerprint(secret);
+      const record: AccessTokenRecord = {
+        id: randomUUID(),
+        name,
+        scopes,
+        lastFour,
+        createdAt: new Date(deps.clock()).toISOString(),
+        lastUsedAt: null,
+        expiresAt,
+        revokedAt: null,
+      };
+      await deps.repository.insertToken(record, digest);
+      return { record, secret };
+    },
+
+    listTokens() {
+      return deps.repository.listTokens();
+    },
+
+    async revokeToken(id) {
+      const record = await deps.repository.findToken(id);
+      if (record === null) {
+        throw new AuthError("TOKEN_NOT_FOUND", 404, "no such access token");
+      }
+      if (record.revokedAt !== null) {
+        return record;
+      }
+      const revokedAt = new Date(deps.clock()).toISOString();
+      await deps.repository.revokeToken(id, revokedAt);
+      return { ...record, revokedAt };
     },
 
     // Prune expired sessions; bounded memory is the sweeper's only job.

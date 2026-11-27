@@ -4,7 +4,8 @@
  * invalidates every session — accepted for a single-user assistant.
  */
 
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
+import { digestOf } from "./digest.ts";
 
 export interface SessionHandle {
   readonly token: string;
@@ -26,10 +27,6 @@ export interface SessionRegistry {
   /** Ends every session at once — a password change uses it. */
   revokeAll(): void;
   sweep(): void;
-}
-
-function digestOf(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
 }
 
 export function createSessionRegistry(

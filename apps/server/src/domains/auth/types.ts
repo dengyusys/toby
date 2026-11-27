@@ -5,6 +5,8 @@
  * both sides together.
  */
 
+import type { Scope } from "./access.ts";
+
 /**
  * Where the deployment stands: no password yet (the registration page is the
  * only way forward), a password but no session, or a live session.
@@ -20,4 +22,19 @@ export interface AuthSessionInfo {
 /** POST /api/auth/register and POST /api/auth/login success response. */
 export interface AuthLoginSuccess {
   readonly status: "ok";
+}
+
+/** An access token as the server keeps it — never the secret itself. */
+export interface AccessTokenRecord {
+  readonly id: string;
+  readonly name: string;
+  readonly scopes: readonly Scope[];
+  /** The visible tail shown in the list. */
+  readonly lastFour: string;
+  readonly createdAt: string;
+  readonly lastUsedAt: string | null;
+  /** ISO time after which the token answers 401; null = never. */
+  readonly expiresAt: string | null;
+  /** ISO time of the revocation; null while the token is live. */
+  readonly revokedAt: string | null;
 }

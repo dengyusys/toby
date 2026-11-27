@@ -10,9 +10,10 @@ import type { DbDialect, DomainDb } from "../../infrastructure/db/types.ts";
 
 /**
  * Idempotent DDL, applied on every open. `owner` holds exactly one row — the
- * single owner's password hash. There is no migration mechanism: a column
- * missing here cannot be added to an existing table later, so the table is
- * declared complete.
+ * single owner's password hash. `access_tokens` holds one row per access
+ * token, never the secret: a SHA-256 digest to look up and the tail to show.
+ * There is no migration mechanism: a column missing here cannot be added to
+ * an existing table later, so both tables are declared complete.
  */
 const AUTH_SCHEMA: Record<DbDialect, readonly string[]> = {
   sqlite: [
@@ -21,12 +22,37 @@ const AUTH_SCHEMA: Record<DbDialect, readonly string[]> = {
       password_hash TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )`,
+    `CREATE TABLE IF NOT EXISTS access_tokens (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      token_digest TEXT NOT NULL,
+      token_last4 TEXT NOT NULL,
+      scopes_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      last_used_at TEXT,
+      expires_at TEXT,
+      revoked_at TEXT
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS access_tokens_token_digest
+      ON access_tokens (token_digest)`,
   ],
   mysql: [
     `CREATE TABLE IF NOT EXISTS owner (
       id INTEGER PRIMARY KEY,
       password_hash VARCHAR(255) NOT NULL,
       updated_at VARCHAR(32) NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS access_tokens (
+      id VARCHAR(36) PRIMARY KEY,
+      name VARCHAR(64) NOT NULL,
+      token_digest VARCHAR(64) NOT NULL,
+      token_last4 VARCHAR(8) NOT NULL,
+      scopes_json VARCHAR(255) NOT NULL,
+      created_at VARCHAR(32) NOT NULL,
+      last_used_at VARCHAR(32) NULL,
+      expires_at VARCHAR(32) NULL,
+      revoked_at VARCHAR(32) NULL,
+      UNIQUE KEY access_tokens_token_digest (token_digest)
     )`,
   ],
 };
