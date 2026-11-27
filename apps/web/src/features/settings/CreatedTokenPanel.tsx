@@ -37,7 +37,7 @@ export function CreatedTokenPanel({
     <div
       role="status"
       aria-live="polite"
-      className="rounded-xl border border-primary/50 bg-card p-5 sm:p-7"
+      className="rounded-lg border border-primary/50 bg-card p-4 sm:p-5"
     >
       <p className="text-sm font-medium">
         令牌「{name}」已创建。明文只显示这一次,请现在复制保存。
@@ -48,9 +48,9 @@ export function CreatedTokenPanel({
         readOnly
         value={secret}
         onFocus={(event) => event.currentTarget.select()}
-        className="mt-4 w-full rounded-lg border bg-muted px-3 py-2 font-mono text-sm"
+        className="mt-3 h-9 w-full rounded-md border bg-muted px-3 font-mono text-sm"
       />
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button type="button" onClick={() => void copy()}>
           复制
         </Button>
@@ -59,10 +59,10 @@ export function CreatedTokenPanel({
         </Button>
       </div>
       {copyStatus === "copied" && (
-        <p className="mt-3 text-xs text-muted-foreground">已复制到剪贴板。</p>
+        <p className="mt-2 text-xs text-muted-foreground">已复制到剪贴板。</p>
       )}
       {copyStatus === "manual" && (
-        <p className="mt-3 text-xs text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground">
           无法自动复制,已选中明文,请按 Ctrl+C。
         </p>
       )}

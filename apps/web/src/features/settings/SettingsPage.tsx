@@ -17,20 +17,20 @@ export function SettingsPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto w-full max-w-2xl px-6 py-10">
-        <header className="mb-6 pr-12">
+        <header className="mb-3 pr-12">
           <h1 className="font-serif text-2xl font-semibold tracking-tight">
             设置
           </h1>
         </header>
         {/* The links sit one pixel over the bar's border, so the active
             tab's underline covers it instead of stacking under it. */}
-        <nav aria-label="设置分区" className="mb-8 flex gap-1 border-b">
+        <nav aria-label="设置分区" className="mb-6 flex gap-1 border-b">
           {TABS.map(({ to, label }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
-                `-mb-px border-b-2 px-4 py-3 text-sm transition-colors ${
+                `-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
                   isActive
                     ? "border-foreground font-medium text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground"

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { FieldError } from "./FieldError.tsx";
+import { FORM_ROW, FORM_ROW_LABEL } from "./form-row.ts";
 
 interface ApiKeyFieldProps {
   provider: string;
@@ -27,46 +28,48 @@ export function ApiKeyField({
   onChange,
 }: ApiKeyFieldProps) {
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <Label htmlFor="ai-api-key" className="text-sm font-medium">
-          API key
-        </Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={testDisabled}
-          onClick={onTest}
-        >
-          {testing ? "测试中…" : "测试"}
-        </Button>
+    <div className={FORM_ROW}>
+      <Label htmlFor="ai-api-key" className={FORM_ROW_LABEL}>
+        API key
+      </Label>
+      <div>
+        {/* The probe sits with the key it tests: same row, same height. */}
+        <div className="flex gap-2">
+          <Input
+            id="ai-api-key"
+            type="password"
+            className="min-w-0 flex-1"
+            value={apiKey}
+            disabled={!provider}
+            autoComplete="new-password"
+            spellCheck={false}
+            placeholder="输入新密钥，留空则不修改"
+            aria-invalid={!!error}
+            aria-describedby="credentials-error key-status"
+            onChange={(event) => onChange(event.target.value)}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={testDisabled}
+            onClick={onTest}
+          >
+            {testing ? "测试中…" : "测试"}
+          </Button>
+        </div>
+        <p id="key-status" className="mt-1.5 text-xs text-muted-foreground">
+          {apiKey
+            ? "新密钥待保存"
+            : credential?.source === "stored"
+              ? `已存储${credential.masked_key ? ` ${credential.masked_key}` : ""}`
+              : credential?.source === "env"
+                ? "来自环境变量"
+                : provider
+                  ? "尚未配置密钥"
+                  : ""}
+        </p>
+        <FieldError id="credentials-error" message={error} />
       </div>
-      <Input
-        id="ai-api-key"
-        type="password"
-        className="h-11 rounded-lg"
-        value={apiKey}
-        disabled={!provider}
-        autoComplete="new-password"
-        spellCheck={false}
-        placeholder="输入新密钥，留空则不修改"
-        aria-invalid={!!error}
-        aria-describedby="credentials-error key-status"
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <p id="key-status" className="mt-2 text-xs text-muted-foreground">
-        {apiKey
-          ? "新密钥待保存"
-          : credential?.source === "stored"
-            ? `已存储${credential.masked_key ? ` ${credential.masked_key}` : ""}`
-            : credential?.source === "env"
-              ? "来自环境变量"
-              : provider
-                ? "尚未配置密钥"
-                : ""}
-      </p>
-      <FieldError id="credentials-error" message={error} />
     </div>
   );
 }

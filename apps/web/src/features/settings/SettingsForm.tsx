@@ -9,6 +9,7 @@ import type {
 import { Button } from "@/components/ui/button.tsx";
 import { settingsClient } from "@/lib/api.ts";
 import { FieldError } from "./FieldError.tsx";
+import { FORM_ROW } from "./form-row.ts";
 import { describeSaveError } from "./save-errors.ts";
 import type { Errors } from "./save-errors.ts";
 import { ProviderField } from "./ProviderField.tsx";
@@ -141,9 +142,9 @@ export function SettingsForm({
     <form
       onSubmit={(event) => void save(event)}
       noValidate
-      className="rounded-xl border bg-card shadow-sm"
+      className="@container rounded-lg border bg-card"
     >
-      <fieldset disabled={busy} className="min-w-0 space-y-6 p-5 sm:p-7">
+      <fieldset disabled={busy} className="min-w-0 space-y-4 p-4 sm:p-5">
         <legend className="sr-only">模型、密钥与对话记忆</legend>
         <ProviderField
           provider={provider}
@@ -190,11 +191,20 @@ export function SettingsForm({
           }}
         />
         {(testing || testStatus) && (
-          <p aria-live="polite" className="text-xs text-muted-foreground">
-            {testing ? "正在测试…" : testStatus}
-          </p>
+          // An empty label cell keeps the message under the controls.
+          <div className={FORM_ROW}>
+            <span aria-hidden="true" />
+            <p aria-live="polite" className="text-xs text-muted-foreground">
+              {testing ? "正在测试…" : testStatus}
+            </p>
+          </div>
         )}
-        <FieldError id="test-error" message={testErrors.form} />
+        {testErrors.form && (
+          <div className={FORM_ROW}>
+            <span aria-hidden="true" />
+            <FieldError id="test-error" message={testErrors.form} />
+          </div>
+        )}
         <ChatHistoryField
           value={historyHours}
           onChange={(value) => {
@@ -203,7 +213,7 @@ export function SettingsForm({
           }}
         />
       </fieldset>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-4 sm:px-7">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 sm:px-5">
         <div aria-live="polite" className="text-xs text-muted-foreground">
           {saving
             ? "正在保存…"

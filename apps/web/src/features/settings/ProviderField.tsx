@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.tsx";
+import { FORM_ROW, FORM_ROW_LABEL } from "./form-row.ts";
 
 interface ProviderFieldProps {
   provider: string;
@@ -21,15 +22,12 @@ export function ProviderField({
   onChange,
 }: ProviderFieldProps) {
   return (
-    <div>
-      <Label htmlFor="ai-provider" className="mb-2 block text-sm font-medium">
+    <div className={FORM_ROW}>
+      <Label htmlFor="ai-provider" className={FORM_ROW_LABEL}>
         供应商
       </Label>
       <Select value={provider} disabled={saving} onValueChange={onChange}>
-        <SelectTrigger
-          id="ai-provider"
-          className="w-full rounded-lg data-[size=default]:h-11"
-        >
+        <SelectTrigger id="ai-provider" className="w-full">
           <SelectValue placeholder="选择供应商" />
         </SelectTrigger>
         <SelectContent position="popper">

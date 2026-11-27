@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.tsx";
 import { FieldError } from "./FieldError.tsx";
+import { FORM_ROW, FORM_ROW_LABEL } from "./form-row.ts";
 
 interface ModelFieldProps {
   effective: AiSettingsView;
@@ -41,69 +42,71 @@ export function ModelField({
   onChange,
 }: ModelFieldProps) {
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <Label htmlFor="ai-model" className="text-sm font-medium">
-          模型
-        </Label>
-      </div>
-      <Select
-        value={selectedModel}
-        disabled={saving || !catalogReady || !entry}
-        onValueChange={onChange}
-      >
-        <SelectTrigger
-          id="ai-model"
-          className="w-full rounded-lg data-[size=default]:h-11"
-          aria-invalid={!!error}
-          aria-describedby="model-error model-status"
+    <div className={FORM_ROW}>
+      <Label htmlFor="ai-model" className={FORM_ROW_LABEL}>
+        模型
+      </Label>
+      <div>
+        <Select
+          value={selectedModel}
+          disabled={saving || !catalogReady || !entry}
+          onValueChange={onChange}
         >
-          <SelectValue placeholder={!provider ? "先选择供应商" : "选择模型"} />
-        </SelectTrigger>
-        <SelectContent position="popper">
-          {catalogReady &&
-            entry?.models.map((name) => (
-              <SelectItem key={name} value={`${provider}/${name}`}>
-                {name}
-              </SelectItem>
-            ))}
-        </SelectContent>
-      </Select>
-      <p
-        id="model-status"
-        className="mt-2 break-all text-xs text-muted-foreground"
-      >
-        {modelChanged
-          ? "待保存"
-          : effective.model.source === "env"
-            ? "来自环境变量"
-            : !effective.model.value
-              ? "尚未配置模型"
-              : selectedModel
-                ? ""
-                : `当前使用 ${effective.model.value}`}
-      </p>
-      <FieldError id="model-error" message={error} />
-      {catalogPending && (
-        <p role="status" className="mt-2 text-xs text-muted-foreground">
-          正在读取模型目录…
-        </p>
-      )}
-      {catalogFailed && (
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <p role="alert" className="text-xs text-muted-foreground">
-            无法读取模型目录。
-          </p>
-          <button
-            type="button"
-            className="text-xs underline underline-offset-4 disabled:opacity-50"
-            disabled={catalogFetching}
-            onClick={retryCatalog}
+          <SelectTrigger
+            id="ai-model"
+            className="w-full"
+            aria-invalid={!!error}
+            aria-describedby="model-error model-status"
           >
-            {catalogFetching ? "读取中…" : "重试"}
-          </button>
-        </div>
-      )}
+            <SelectValue
+              placeholder={!provider ? "先选择供应商" : "选择模型"}
+            />
+          </SelectTrigger>
+          <SelectContent position="popper">
+            {catalogReady &&
+              entry?.models.map((name) => (
+                <SelectItem key={name} value={`${provider}/${name}`}>
+                  {name}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+        <p
+          id="model-status"
+          className="mt-1.5 break-all text-xs text-muted-foreground"
+        >
+          {modelChanged
+            ? "待保存"
+            : effective.model.source === "env"
+              ? "来自环境变量"
+              : !effective.model.value
+                ? "尚未配置模型"
+                : selectedModel
+                  ? ""
+                  : `当前使用 ${effective.model.value}`}
+        </p>
+        <FieldError id="model-error" message={error} />
+        {catalogPending && (
+          <p role="status" className="mt-1.5 text-xs text-muted-foreground">
+            正在读取模型目录…
+          </p>
+        )}
+        {catalogFailed && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-3">
+            <p role="alert" className="text-xs text-muted-foreground">
+              无法读取模型目录。
+            </p>
+            <button
+              type="button"
+              className="text-xs underline underline-offset-4 disabled:opacity-50"
+              disabled={catalogFetching}
+              onClick={retryCatalog}
+            >
+              {catalogFetching ? "读取中…" : "重试"}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { authClient } from "@/lib/api.ts";
 import { FieldError } from "./FieldError.tsx";
+import { FORM_ROW, FORM_ROW_LABEL } from "./form-row.ts";
 
 function describeError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -74,54 +75,54 @@ export function PasswordForm() {
       <form
         onSubmit={(event) => void submit(event)}
         noValidate
-        className="rounded-xl border bg-card shadow-sm"
+        className="@container rounded-lg border bg-card"
       >
-        <fieldset disabled={saving} className="min-w-0 space-y-6 p-5 sm:p-7">
+        <fieldset disabled={saving} className="min-w-0 space-y-4 p-4 sm:p-5">
           <legend className="sr-only">登录密码</legend>
-          <div>
-            <Label htmlFor="current-password" className="text-sm font-medium">
+          <div className={FORM_ROW}>
+            <Label htmlFor="current-password" className={FORM_ROW_LABEL}>
               当前密码
             </Label>
             <Input
               id="current-password"
               type="password"
-              className="mt-2 h-11 rounded-lg"
               value={currentPassword}
               autoComplete="current-password"
               onChange={(event) => setCurrentPassword(event.target.value)}
             />
           </div>
-          <div>
-            <Label htmlFor="new-password" className="text-sm font-medium">
+          <div className={FORM_ROW}>
+            <Label htmlFor="new-password" className={FORM_ROW_LABEL}>
               新密码
             </Label>
-            <Input
-              id="new-password"
-              type="password"
-              className="mt-2 h-11 rounded-lg"
-              value={newPassword}
-              autoComplete="new-password"
-              aria-invalid={!!error}
-              aria-describedby="password-error"
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
+            <div>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                autoComplete="new-password"
+                aria-invalid={!!error}
+                aria-describedby="password-error"
+                onChange={(event) => setNewPassword(event.target.value)}
+              />
+              {/* The message sits with the field it is about. */}
+              <FieldError id="password-error" message={error} />
+            </div>
           </div>
-          <div>
-            <Label htmlFor="confirm-password" className="text-sm font-medium">
+          <div className={FORM_ROW}>
+            <Label htmlFor="confirm-password" className={FORM_ROW_LABEL}>
               确认新密码
             </Label>
             <Input
               id="confirm-password"
               type="password"
-              className="mt-2 h-11 rounded-lg"
               value={confirm}
               autoComplete="new-password"
               onChange={(event) => setConfirm(event.target.value)}
             />
           </div>
-          <FieldError id="password-error" message={error} />
         </fieldset>
-        <div className="flex items-center justify-end gap-2 border-t px-5 py-4 sm:px-7">
+        <div className="flex items-center justify-end gap-2 border-t px-4 py-3 sm:px-5">
           <Button type="submit" disabled={saving || !ready}>
             {saving ? "修改中…" : "修改密码"}
           </Button>
