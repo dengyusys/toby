@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router";
+import { Navigate, Route, Routes } from "react-router";
 import { ChatPage } from "@/features/chat/ChatPage.tsx";
 import { LedgerPage } from "@/features/ledger/LedgerPage.tsx";
 import { MemoryPage } from "@/features/memory/MemoryPage.tsx";
@@ -6,6 +6,9 @@ import { LoginPage } from "@/features/auth/LoginPage.tsx";
 import { RegisterPage } from "@/features/auth/RegisterPage.tsx";
 import { RequireAuth } from "@/features/auth/RequireAuth.tsx";
 import { HealthPage } from "@/features/system/HealthPage.tsx";
+import { AccessTokensSection } from "@/features/settings/AccessTokensSection.tsx";
+import { AiSettingsTab } from "@/features/settings/AiSettingsTab.tsx";
+import { PasswordForm } from "@/features/settings/PasswordForm.tsx";
 import { SettingsPage } from "@/features/settings/SettingsPage.tsx";
 import { TraceStreamProvider } from "@/features/traces/trace-stream.tsx";
 import { AppLayout } from "@/layouts/AppLayout.tsx";
@@ -37,7 +40,14 @@ export function App() {
           <Route path="/ledger" element={<LedgerPage />} />
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/system" element={<HealthPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          {/* Settings is a tabbed page and each tab is a route: the URL says
+              which tab is on screen, and only that tab loads its data. */}
+          <Route path="/settings" element={<SettingsPage />}>
+            <Route index element={<Navigate to="/settings/ai" replace />} />
+            <Route path="ai" element={<AiSettingsTab />} />
+            <Route path="password" element={<PasswordForm />} />
+            <Route path="tokens" element={<AccessTokensSection />} />
+          </Route>
         </Route>
       </Route>
     </Routes>

@@ -1,76 +1,47 @@
-import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button.tsx";
-import { settingsClient } from "@/lib/api.ts";
-import { AccessTokensSection } from "./AccessTokensSection.tsx";
-import { PasswordForm } from "./PasswordForm.tsx";
-import { SettingsForm } from "./SettingsForm.tsx";
+/**
+ * The settings shell: the page title, a tab bar of routed links, and the
+ * outlet. Each tab is its own route (App.tsx), so the URL says which
+ * settings are on screen — a refresh, a bookmark, or the back button all
+ * keep it — and only the tab on screen asks for its data.
+ */
 
-/** One section title on the settings page: a level under the page title. */
-const SECTION_HEADING = "mb-4 font-serif text-lg font-semibold tracking-tight";
+import { NavLink, Outlet } from "react-router";
+
+const TABS = [
+  { to: "/settings/ai", label: "模型" },
+  { to: "/settings/password", label: "登录密码" },
+  { to: "/settings/tokens", label: "访问令牌" },
+] as const;
 
 export function SettingsPage() {
-  const settings = useQuery({
-    queryKey: ["settings", "ai"],
-    queryFn: () => settingsClient.getAiSettings(),
-    refetchOnWindowFocus: false,
-  });
-  const catalog = useQuery({
-    queryKey: ["settings", "ai", "catalog"],
-    queryFn: () => settingsClient.getCatalog(),
-  });
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto w-full max-w-2xl px-6 py-10">
-        <header className="mb-7 pr-12">
+        <header className="mb-6 pr-12">
           <h1 className="font-serif text-2xl font-semibold tracking-tight">
             设置
           </h1>
         </header>
-        <section aria-labelledby="settings-model-heading">
-          <h2 id="settings-model-heading" className={SECTION_HEADING}>
-            模型
-          </h2>
-          {settings.isPending ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              正在读取设置…
-            </p>
-          ) : settings.isError ? (
-            <div>
-              <p role="alert" className="text-sm text-destructive">
-                无法读取设置。
-              </p>
-              <Button
-                variant="outline"
-                className="mt-3"
-                disabled={settings.isFetching}
-                onClick={() => void settings.refetch()}
-              >
-                重新读取
-              </Button>
-            </div>
-          ) : (
-            <SettingsForm
-              initial={settings.data}
-              catalog={catalog.data}
-              catalogPending={catalog.isPending}
-              catalogFailed={catalog.isError}
-              catalogFetching={catalog.isFetching}
-              retryCatalog={() => void catalog.refetch()}
-            />
-          )}
-        </section>
-        <section aria-labelledby="settings-password-heading" className="mt-10">
-          <h2 id="settings-password-heading" className={SECTION_HEADING}>
-            登录密码
-          </h2>
-          <PasswordForm />
-        </section>
-        <section aria-labelledby="settings-tokens-heading" className="mt-10">
-          <h2 id="settings-tokens-heading" className={SECTION_HEADING}>
-            访问令牌
-          </h2>
-          <AccessTokensSection />
-        </section>
+        {/* The links sit one pixel over the bar's border, so the active
+            tab's underline covers it instead of stacking under it. */}
+        <nav aria-label="设置分区" className="mb-8 flex gap-1 border-b">
+          {TABS.map(({ to, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                `-mb-px border-b-2 px-4 py-3 text-sm transition-colors ${
+                  isActive
+                    ? "border-foreground font-medium text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`
+              }
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+        <Outlet />
       </div>
     </div>
   );

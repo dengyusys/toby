@@ -66,62 +66,67 @@ export function PasswordForm() {
 
   const ready = !!currentPassword && !!newPassword && !!confirm;
 
+  // The tab's name is in the tab bar; the heading keeps the page outline for
+  // screen readers.
   return (
-    <form
-      onSubmit={(event) => void submit(event)}
-      noValidate
-      className="rounded-xl border bg-card shadow-sm"
-    >
-      <fieldset disabled={saving} className="min-w-0 space-y-6 p-5 sm:p-7">
-        <legend className="sr-only">登录密码</legend>
-        <div>
-          <Label htmlFor="current-password" className="text-sm font-medium">
-            当前密码
-          </Label>
-          <Input
-            id="current-password"
-            type="password"
-            className="mt-2 h-11 rounded-lg"
-            value={currentPassword}
-            autoComplete="current-password"
-            onChange={(event) => setCurrentPassword(event.target.value)}
-          />
+    <>
+      <h2 className="sr-only">登录密码</h2>
+      <form
+        onSubmit={(event) => void submit(event)}
+        noValidate
+        className="rounded-xl border bg-card shadow-sm"
+      >
+        <fieldset disabled={saving} className="min-w-0 space-y-6 p-5 sm:p-7">
+          <legend className="sr-only">登录密码</legend>
+          <div>
+            <Label htmlFor="current-password" className="text-sm font-medium">
+              当前密码
+            </Label>
+            <Input
+              id="current-password"
+              type="password"
+              className="mt-2 h-11 rounded-lg"
+              value={currentPassword}
+              autoComplete="current-password"
+              onChange={(event) => setCurrentPassword(event.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="new-password" className="text-sm font-medium">
+              新密码
+            </Label>
+            <Input
+              id="new-password"
+              type="password"
+              className="mt-2 h-11 rounded-lg"
+              value={newPassword}
+              autoComplete="new-password"
+              aria-invalid={!!error}
+              aria-describedby="password-error"
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="confirm-password" className="text-sm font-medium">
+              确认新密码
+            </Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              className="mt-2 h-11 rounded-lg"
+              value={confirm}
+              autoComplete="new-password"
+              onChange={(event) => setConfirm(event.target.value)}
+            />
+          </div>
+          <FieldError id="password-error" message={error} />
+        </fieldset>
+        <div className="flex items-center justify-end gap-2 border-t px-5 py-4 sm:px-7">
+          <Button type="submit" disabled={saving || !ready}>
+            {saving ? "修改中…" : "修改密码"}
+          </Button>
         </div>
-        <div>
-          <Label htmlFor="new-password" className="text-sm font-medium">
-            新密码
-          </Label>
-          <Input
-            id="new-password"
-            type="password"
-            className="mt-2 h-11 rounded-lg"
-            value={newPassword}
-            autoComplete="new-password"
-            aria-invalid={!!error}
-            aria-describedby="password-error"
-            onChange={(event) => setNewPassword(event.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="confirm-password" className="text-sm font-medium">
-            确认新密码
-          </Label>
-          <Input
-            id="confirm-password"
-            type="password"
-            className="mt-2 h-11 rounded-lg"
-            value={confirm}
-            autoComplete="new-password"
-            onChange={(event) => setConfirm(event.target.value)}
-          />
-        </div>
-        <FieldError id="password-error" message={error} />
-      </fieldset>
-      <div className="flex items-center justify-end gap-2 border-t px-5 py-4 sm:px-7">
-        <Button type="submit" disabled={saving || !ready}>
-          {saving ? "修改中…" : "修改密码"}
-        </Button>
-      </div>
-    </form>
+      </form>
+    </>
   );
 }
