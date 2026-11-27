@@ -27,6 +27,10 @@
 
 已知限制:健康门控只读取已导出环境变量里的 `TOBY_PORT`。若只改 `.env` 里的 `TOBY_PORT`,还需在 shell 中导出(`export TOBY_PORT=8632` 这种形式),否则编排器会探测错误的端口。
 
+## 首次运行
+
+首次启动会打开一次性的注册页:打开 PC 端 `http://localhost:8630/` 设置登录密码 —— 这个页面之后不会再出现。注册在服务端启动后 10 分钟内开放,`node --watch` 每次重启都会重新计时。密码存在 `data/auth.db`;想从头再来,停掉服务端、删掉这个文件、重新运行。
+
 ## 环境变量
 
 存在时从仓库根 `.env` 加载(可从 `.env.example` 复制起步)。相对的 `TOBY_DATA_ROOT` 相对仓库根解析,不相对当前目录。
@@ -48,7 +52,6 @@
 | `TOBY_CHAT_HISTORY_HOURS`       | `24`          | 对话智能体回放的对话窗口(从现在往回算;1–8760 小时);设置页的值优先                                                            |
 | `TOBY_DEV_PC_ORIGIN`            | _(空)_        | 仅开发期:`/` 的重定向目标;`pnpm run dev` 设为 `http://localhost:8630`。与 `TOBY_DEV_MOBILE_ORIGIN` 成对                      |
 | `TOBY_DEV_MOBILE_ORIGIN`        | _(空)_        | 仅开发期:`/m/` 的重定向目标;`pnpm run dev` 设为 `http://localhost:8631/m`。与 `TOBY_DEV_PC_ORIGIN` 成对                      |
-| `TOBY_AUTH_PASSWORD_HASH`       | _(空)_        | `scripts/hash-password.js` 生成的 scrypt 哈希(生成:`node scripts/hash-password.js "你的密码"`);设置即启用登录                |
 | `TOBY_AUTH_SESSION_TTL_HOURS`   | `168`         | 会话有效期(1–8760 小时)                                                                                                      |
 | `TOBY_AUTH_SECURE_COOKIE`       | `false`       | `true` 为会话 Cookie 追加 `Secure`(HTTPS 部署)                                                                               |
 

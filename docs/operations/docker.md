@@ -71,7 +71,10 @@ curl http://127.0.0.1:8629/api/system/health
 ```
 
 Then open `http://127.0.0.1:8629/` — the PC app, served by the
-container. Logs: `docker compose logs -f server`.
+container. The first start shows the one-time registration page: set the
+login password there within 10 minutes of the container starting. The
+password is stored in `./data/auth.db`, so the same backup that covers
+`data/` covers it. Logs: `docker compose logs -f server`.
 
 ## Day-2 operations
 
@@ -89,6 +92,9 @@ container. Logs: `docker compose logs -f server`.
 - **Healthcheck `unhealthy`** — `/api/system/health` is exempt from
   authentication by design (the Docker healthcheck depends on it), so this
   means the process or port is actually broken; check `docker logs`.
+- **Registration page says the window has closed** — more than 10 minutes
+  passed since the container started; `docker compose restart server`
+  reopens the window, so register right after it comes back.
 - **Port 8629 in use** — the dev server or another container holds it;
   free it or change the mapping and `TOBY_PORT` together.
 - **`Cannot find module` at container start** — the runtime stage lost a

@@ -60,9 +60,8 @@ PUT that would store it.
   masked preview (`sk-…abc`) and a source (`stored` / `env`) only. The
   settings page's password input is never echoed and is cleared after a
   successful save.
-- **The routes sit behind the default session guard.** With
-  authentication disabled, their exposure matches every other route in
-  that mode — settings do not introduce a new posture.
+- **The routes sit behind the default session guard.** Settings introduce
+  no new posture: their exposure is every guarded route's exposure.
 - Keys never enter source, docs, logs, traces, or test fixtures.
 
 ## Runtime application

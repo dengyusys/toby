@@ -28,7 +28,7 @@ One process: deterministic orchestration and execution on the sides, a tool-boun
 **Available today**
 
 - One-sentence bookkeeping: speak (or type) an expense or income; it lands at once as a receipt card — and edit or correct any entry later, in the list or by saying so
-- Login protection for deployments, PC (`/`) and mobile (`/m/`) web apps
+- Login protection (the first run registers the owner's password), PC (`/`) and mobile (`/m/`) web apps
 - Self-hosted and single-user: your data stays in local SQLite files on your machine
 
 **On their way**
@@ -48,7 +48,7 @@ pnpm run start    # production mode: build webs, single server process serves pa
 docker compose up -d --build    # deploy with Docker — manual: docs/operations/docker.md
 ```
 
-No `.env` is needed for the default run. AI is optional: the one-sentence ledger path needs `TOBY_AI_MODEL` plus the matching provider key — copy `.env.example` and see [docs/operations/local-dev.md](docs/operations/local-dev.md) for ports, processes, and deployment notes.
+No `.env` is needed for the default run; the first run opens a one-time registration page where you set the login password. AI is optional: the one-sentence ledger path needs `TOBY_AI_MODEL` plus the matching provider key — copy `.env.example` and see [docs/operations/local-dev.md](docs/operations/local-dev.md) for ports, processes, and deployment notes.
 
 The name: **8629** — the server's port — spells TOBY on a T9 keypad.
 

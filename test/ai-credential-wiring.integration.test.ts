@@ -35,6 +35,18 @@ const faux = createFauxCatalog();
 
 let app: Awaited<ReturnType<typeof createTestApp>>;
 let caseCounter = 0;
+let cookie: string;
+
+/** The session cookie a registration or login started, as a request header value. */
+function sessionCookie(response: { headers: Record<string, unknown> }): string {
+  const match = /toby_session=([^;]+)/.exec(
+    String(response.headers["set-cookie"]),
+  );
+  if (!match) {
+    throw new Error("no session cookie in response");
+  }
+  return `toby_session=${match[1]}`;
+}
 
 beforeEach(async () => {
   caseCounter += 1;
@@ -46,6 +58,15 @@ beforeEach(async () => {
     config,
     domains: productionDomains({ config, createModels: faux.seam }),
   });
+  // The API opens only for a registered, logged-in owner: register on the
+  // fresh database and ride the session the registration starts.
+  const registered = await app.inject({
+    method: "POST",
+    url: "/api/auth/register",
+    payload: { password: "wiring-test-password" },
+  });
+  expect(registered.statusCode).toBe(200);
+  cookie = sessionCookie(registered);
 });
 
 afterEach(async () => {
@@ -59,6 +80,7 @@ describe("production ai wiring (composition root)", () => {
     const saved = await app.inject({
       method: "PUT",
       url: "/api/settings/ai",
+      headers: { cookie },
       payload: {
         model: "faux/faux-1",
         credentials: [{ provider: "faux", api_key: STORED_KEY }],
@@ -78,6 +100,7 @@ describe("production ai wiring (composition root)", () => {
     const sent = await app.inject({
       method: "POST",
       url: "/api/chat/messages",
+      headers: { cookie },
       payload: { text: "hello there" },
     });
     expect(sent.statusCode).toBe(200);

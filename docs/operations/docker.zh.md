@@ -66,7 +66,9 @@ docker compose ps                       # 状态: healthy
 curl http://127.0.0.1:8629/api/system/health
 ```
 
-然后打开 `http://127.0.0.1:8629/` —— 容器提供的 PC 端应用。日志:
+然后打开 `http://127.0.0.1:8629/` —— 容器提供的 PC 端应用。首次启动会出现
+一次性的注册页:在容器启动后 10 分钟内于该页面设置登录密码。密码保存在
+`./data/auth.db`,备份 `data/` 的同一份备份即覆盖它。日志:
 `docker compose logs -f server`。
 
 ## 日常操作
@@ -84,6 +86,8 @@ curl http://127.0.0.1:8629/api/system/health
 - **healthcheck `unhealthy`** —— `/api/system/health` 按设计豁免认证
   (Docker healthcheck 就依赖它),报 unhealthy 说明进程或端口真的有问题;
   用 `docker logs` 查。
+- **注册页提示窗口已关闭** —— 容器启动已超过 10 分钟;
+  `docker compose restart server` 重新打开窗口,重启后立刻注册。
 - **端口 8629 被占** —— dev server 或别的容器占着;释放它,或同时改
   端口映射与 `TOBY_PORT`。
 - **容器启动报 `Cannot find module`** —— runtime 阶段丢了 monorepo

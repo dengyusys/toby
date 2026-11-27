@@ -120,7 +120,7 @@ flowchart TB
 安全边界:
 
 - HTTP 写路径每次都是一次经校验的仓库事务;任何不是这样的写入——绕过、两段式、半截写入——都是缺陷。
-- AI 不获得文件路径、数据内容与 shell;其工具经安全分级门控,write-intent(写意图)工具的效果是确定性校验加一次事务(docs/decisions/ai-pi-runtime.zh.md)。密钥只存在于本地环境配置,Web 包内不得包含密钥。
+- AI 不获得文件路径、数据内容与 shell;其工具经安全分级门控,write-intent(写意图)工具的效果是确定性校验加一次事务(docs/decisions/ai-pi-runtime.zh.md)。密钥只存在于本地环境配置或服务端自己的数据目录(`data/`),Web 包内不得包含密钥。
 - 引入 Python 等新运行时需先立 ADR。
 - 上述导入纪律由 `test/boundaries.test.ts` 机器强制。
 

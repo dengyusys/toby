@@ -27,6 +27,10 @@ Starts three processes from one command, orchestrated by `scripts/dev.js`:
 
 Known limitation: the health gate reads `TOBY_PORT` from exported environment variables only. If you change `TOBY_PORT` inside `.env`, export it in your shell too (`export TOBY_PORT=8632` style), or the orchestrator will poll the wrong port.
 
+## First run
+
+The first start opens the one-time registration: open the PC app at `http://localhost:8630/` and set the login password — the page never appears again. Registration is open for 10 minutes after the server starts, and every `node --watch` restart starts the window over. The password lives in `data/auth.db`; to start over, stop the server, delete that file, and run again.
+
 ## Environment variables
 
 Loaded from the repository-root `.env` when present (copy `.env.example` to start). Relative `TOBY_DATA_ROOT` resolves against the repository root, not the current directory.
@@ -48,7 +52,6 @@ Loaded from the repository-root `.env` when present (copy `.env.example` to star
 | `TOBY_CHAT_HISTORY_HOURS`       | `24`          | Conversation window the chat agent replays (hours back from now; 1–8760); the settings page value wins                                                                       |
 | `TOBY_DEV_PC_ORIGIN`            | _(empty)_     | Dev only: target of the `/` redirect; `pnpm run dev` sets `http://localhost:8630`. Pairs with `TOBY_DEV_MOBILE_ORIGIN`                                                       |
 | `TOBY_DEV_MOBILE_ORIGIN`        | _(empty)_     | Dev only: target of the `/m/` redirect; `pnpm run dev` sets `http://localhost:8631/m`. Pairs with `TOBY_DEV_PC_ORIGIN`                                                       |
-| `TOBY_AUTH_PASSWORD_HASH`       | _(empty)_     | scrypt hash from `scripts/hash-password.js` (generate: `node scripts/hash-password.js "your password"`); setting it enables login                                            |
 | `TOBY_AUTH_SESSION_TTL_HOURS`   | `168`         | Session lifetime (1–8760 hours)                                                                                                                                              |
 | `TOBY_AUTH_SECURE_COOKIE`       | `false`       | `true` appends `Secure` to the session cookie (HTTPS deployments)                                                                                                            |
 

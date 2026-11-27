@@ -5,14 +5,14 @@ English | [简体中文](deploy-ecs.zh.md)
 Deploy the `toby` image to a single Aliyun ECS (or any VPS) without a
 container registry: build locally, transfer the image tarball with `scp`,
 `docker load` on the server. ACR/CI automation can replace this later; see
-"Future automation" below.
+"Automated deployment" below.
 
 Files involved — all in `deploy/` in this repo:
 
 | File                  | Role                                                                            |
 | --------------------- | ------------------------------------------------------------------------------- |
 | `compose.server.yaml` | Server-side compose: local image (no `build:`), loopback port, health probe `/` |
-| `env.example`         | Environment template — copy to `.env`, fill the login password hash             |
+| `env.example`         | Environment template — copy to `.env`; no value in it is required               |
 | `toby.tar.gz`         | The image tarball (gitignored, regenerated per release via `docker save`)       |
 
 ## 0 — Prerequisites
@@ -29,16 +29,7 @@ docker save toby | gzip > deploy/toby.tar.gz
 sha256sum deploy/toby.tar.gz > deploy/toby.tar.gz.sha256
 ```
 
-## 2 — On the dev machine: generate the password hash
-
-```bash
-node scripts/hash-password.js 'your-login-password'
-# paste the whole scrypt$... output into the server's .env
-```
-
-Never send the password itself through any channel you do not control.
-
-## 3 — Upload
+## 2 — Upload
 
 ```bash
 ssh root@<IP> "mkdir -p /opt/toby-init /opt/toby/data"
@@ -53,7 +44,7 @@ container first (`docker compose stop`), then
 `tar czf data.tar.gz -C data .` and upload it the same way. Compare
 SHA-256 checksums before and after the move.
 
-## 4 — On the server: install Docker, load, configure
+## 3 — On the server: install Docker, load, configure
 
 ```bash
 ssh root@<IP>
@@ -71,19 +62,25 @@ cd /opt/toby
 cp /opt/toby-init/compose.server.yaml docker-compose.yaml
 cp /opt/toby-init/env.example .env
 chmod 600 .env
-vi .env        # TOBY_AUTH_PASSWORD_HASH — the AI model and provider keys
-               #   are configured on the settings page after first login
 ```
 
-## 5 — Run and verify
+No `.env` value is required: the login password is set on the registration
+page at first start (step 4), and the AI model and provider keys are
+configured on the settings page after first login.
+
+## 4 — Run, register, verify
 
 ```bash
 cd /opt/toby && docker compose up -d
 docker compose ps                              # Up (healthy) after ~15s
 curl -I http://127.0.0.1:8629/                 # expect 200
-curl http://127.0.0.1:8629/api/system/health   # expect 401 — auth is on
-docker logs toby 2>&1 | tail -5                # "toby server started"
+curl http://127.0.0.1:8629/api/system/health   # expect 200 — health is public by design
 ```
+
+**Register within 10 minutes of the start.** Open `http://127.0.0.1:8629/`
+(through the tunnel below) and set the login password on the registration
+page — it appears only once. Until then every API route answers 401; if the
+window has closed, `docker compose restart` reopens it.
 
 First check from your own machine — no ports opened, SSH tunnel:
 
@@ -96,7 +93,7 @@ For permanent access pick one: reverse proxy with TLS on a filed domain
 (keep the loopback binding), or a WireGuard/Tailscale overlay (change the
 port mapping to `"8629:8629"`, still no security-group rule for 8629).
 
-## 6 — Day-2 on the server
+## 5 — Day-2 on the server
 
 ```bash
 docker logs -f toby

@@ -120,7 +120,7 @@ Domain organization discipline:
 Security boundaries:
 
 - HTTP write paths are one validated, transactional repository write each; any write that is not — a bypass, a two-step write, a partial write — is a defect.
-- The AI gets no file paths, no data contents, and no shell; its tools are kind-gated, and a write-intent tool's effect is deterministic validation plus one transaction (docs/decisions/ai-pi-runtime.md). Secrets live only in local environment config, never inside web bundles.
+- The AI gets no file paths, no data contents, and no shell; its tools are kind-gated, and a write-intent tool's effect is deterministic validation plus one transaction (docs/decisions/ai-pi-runtime.md). Secrets live in local environment config or in the server's own data directory (`data/`), never inside web bundles.
 - Introducing new runtimes (Python etc.) requires an ADR first.
 - These import disciplines are machine-enforced by `test/boundaries.test.ts`.
 

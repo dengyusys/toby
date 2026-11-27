@@ -16,8 +16,8 @@ services:
         required: false
     healthcheck:
       # /api/system/health is exempt from authentication by design (the
-      # Docker healthcheck depends on it), so this probe stays green with
-      # or without TOBY_AUTH_PASSWORD_HASH.
+      # Docker healthcheck depends on it), so this probe stays green before
+      # and after the owner registers.
       test:
         [
           "CMD",

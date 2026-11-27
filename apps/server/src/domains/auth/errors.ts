@@ -3,9 +3,12 @@
 import { DomainHttpError } from "../../infrastructure/http/http-error.ts";
 
 export type AuthErrorCode =
-  "AUTH_DISABLED" | "INVALID_CREDENTIALS" | "AUTH_REQUIRED";
+  | "INVALID_CREDENTIALS"
+  | "AUTH_REQUIRED"
+  | "ALREADY_REGISTERED"
+  | "REGISTRATION_CLOSED";
 
-/** Login/guard failure. */
+/** Login, registration and guard failure. */
 export class AuthError extends DomainHttpError {
   constructor(code: AuthErrorCode, status: number, message: string) {
     super(status, code, message);

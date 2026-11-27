@@ -1,7 +1,9 @@
 /**
  * Root HTTP integration tests: spawn the real server process and exercise it
  * over actual sockets — the contract the web apps and deployments rely on.
- * SPA serving is only asserted when a web build exists (CI never builds one).
+ * The API stays closed until the owner registers; every suite that needs it
+ * registers and logs in over the same socket. SPA serving is only asserted
+ * when a web build exists (CI never builds one).
  */
 
 import { spawn } from "node:child_process";
@@ -12,7 +14,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { hashPassword } from "../apps/server/src/domains/auth/password.ts";
 
 // Repository root from this file's location — never from cwd.
 const repositoryRoot = path.resolve(
@@ -25,6 +26,7 @@ const mobileIndex = path.join(
   repositoryRoot,
   "apps/web-mobile/dist/index.html",
 );
+const INTEGRATION_PASSWORD = "integration-password";
 
 /** Reserve an ephemeral port: listen on port 0, read it back, release it. */
 function reservePort(): Promise<number> {
@@ -41,6 +43,23 @@ function reservePort(): Promise<number> {
       netServer.close(() => resolve(port));
     });
   });
+}
+
+/** The `name=value` pair of the session cookie a login or registration set. */
+function sessionCookie(response: Response): string {
+  const setCookie = response.headers.get("set-cookie") ?? "";
+  expect(setCookie).toContain("toby_session=");
+  return setCookie.split(";")[0] ?? "";
+}
+
+async function loginSession(url: string, password: string): Promise<string> {
+  const response = await fetch(`${url}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  expect(response.status).toBe(200);
+  return sessionCookie(response);
 }
 
 // Temporary data root only — production data/ is never touched.
@@ -119,6 +138,48 @@ afterAll(async () => {
   rmSync(tempDataRoot, { recursive: true, force: true });
 });
 
+// A fresh process has no password: the API is closed until the owner
+// registers, and the registration works exactly once.
+describe("http contract (first run)", () => {
+  it("a fresh server is unregistered until the owner registers, once", async () => {
+    const before = await fetch(`${baseUrl}/api/auth/session`);
+    expect(before.status).toBe(200);
+    expect(await before.json()).toEqual({ state: "unregistered" });
+    const denied = await fetch(`${baseUrl}/api/ledger/months`);
+    expect(denied.status).toBe(401);
+    // No password exists yet, so none can be the right one.
+    const premature = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: INTEGRATION_PASSWORD }),
+    });
+    expect(premature.status).toBe(401);
+
+    const registered = await fetch(`${baseUrl}/api/auth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: INTEGRATION_PASSWORD }),
+    });
+    expect(registered.status).toBe(200);
+    expect(registered.headers.get("set-cookie")).toContain("HttpOnly");
+    const session = await fetch(`${baseUrl}/api/auth/session`, {
+      headers: { cookie: sessionCookie(registered) },
+    });
+    expect(await session.json()).toMatchObject({ state: "authenticated" });
+
+    // One owner, one password: a second registration is refused.
+    const again = await fetch(`${baseUrl}/api/auth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: "another-integration-password" }),
+    });
+    expect(again.status).toBe(403);
+    expect(((await again.json()) as { errorCode: string }).errorCode).toBe(
+      "ALREADY_REGISTERED",
+    );
+  });
+});
+
 describe("http contract (api)", () => {
   it("health returns ok with no-store json", async () => {
     const response = await fetch(`${baseUrl}/api/system/health`);
@@ -129,7 +190,10 @@ describe("http contract (api)", () => {
   });
 
   it("info exposes name, version, node, started_at, uptime", async () => {
-    const response = await fetch(`${baseUrl}/api/system/info`);
+    const cookie = await loginSession(baseUrl, INTEGRATION_PASSWORD);
+    const response = await fetch(`${baseUrl}/api/system/info`, {
+      headers: { cookie },
+    });
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
       name: string;
@@ -169,18 +233,18 @@ describe("http contract (api)", () => {
 
 describe("http contract (ledger flow)", () => {
   it("records a transaction end to end: write, delete", async () => {
+    const cookie = await loginSession(baseUrl, INTEGRATION_PASSWORD);
+    const entry = {
+      date: "2026-10-20",
+      type: "expense",
+      category: "餐饮",
+      amount: "25",
+      note: "integration probe",
+    };
     const created = await fetch(`${baseUrl}/api/ledger/entries`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        entry: {
-          date: "2026-10-20",
-          type: "expense",
-          category: "餐饮",
-          amount: "25",
-          note: "integration probe",
-        },
-      }),
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ entry }),
     });
     expect(created.status).toBe(200);
     const receipt = (await created.json()) as {
@@ -193,22 +257,16 @@ describe("http contract (ledger flow)", () => {
     expect(receipt.entries[0]!.amount).toBe(2500);
     expect(!Number.isNaN(Date.parse(receipt.created_at))).toBe(true);
 
-    const months = await fetch(`${baseUrl}/api/ledger/months`);
+    const months = await fetch(`${baseUrl}/api/ledger/months`, {
+      headers: { cookie },
+    });
     expect(await months.json()).toEqual({ months: ["2026-10"] });
 
     // A second write; the user-initiated delete removes the row; repeat 404s.
     const second = await fetch(`${baseUrl}/api/ledger/entries`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        entry: {
-          date: "2026-10-20",
-          type: "expense",
-          category: "餐饮",
-          amount: "25",
-          note: "integration probe",
-        },
-      }),
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ entry }),
     });
     expect(second.status).toBe(200);
     const secondReceipt = (await second.json()) as {
@@ -218,6 +276,7 @@ describe("http contract (ledger flow)", () => {
 
     const report = await fetch(
       `${baseUrl}/api/ledger/transactions?month=2026-10`,
+      { headers: { cookie } },
     );
     const body = (await report.json()) as {
       transactions: { id: number }[];
@@ -230,7 +289,7 @@ describe("http contract (ledger flow)", () => {
 
     const deleted = await fetch(
       `${baseUrl}/api/ledger/transactions/${transactionId}`,
-      { method: "DELETE" },
+      { method: "DELETE", headers: { cookie } },
     );
     expect(deleted.status).toBe(200);
     expect(await deleted.json()).toMatchObject({
@@ -240,6 +299,7 @@ describe("http contract (ledger flow)", () => {
 
     const afterDelete = await fetch(
       `${baseUrl}/api/ledger/transactions?month=2026-10`,
+      { headers: { cookie } },
     );
     const afterBody = (await afterDelete.json()) as {
       transactions: unknown[];
@@ -249,7 +309,7 @@ describe("http contract (ledger flow)", () => {
 
     const repeat = await fetch(
       `${baseUrl}/api/ledger/transactions/${transactionId}`,
-      { method: "DELETE" },
+      { method: "DELETE", headers: { cookie } },
     );
     expect(repeat.status).toBe(404);
   });
@@ -281,10 +341,9 @@ describe.skipIf(!existsSync(mobileIndex))(
   },
 );
 
-// A second real process with a password hash configured: proves the guard
-// wiring through main.ts, not just the app factory.
-describe("http contract (auth enabled)", () => {
-  const passwordHash = hashPassword("integration-password");
+// A second real process: proves the registration → login → guard wiring
+// through main.ts, not just the app factory.
+describe("http contract (registered)", () => {
   const authDataRoot = mkdtempSync(
     path.join(tmpdir(), "toby-auth-integration-"),
   );
@@ -301,7 +360,6 @@ describe("http contract (auth enabled)", () => {
         TOBY_HOST: "127.0.0.1",
         TOBY_PORT: String(port),
         TOBY_DATA_ROOT: authDataRoot,
-        TOBY_AUTH_PASSWORD_HASH: passwordHash,
       },
       stdio: ["ignore", "ignore", "pipe"],
       windowsHide: true,
@@ -328,6 +386,14 @@ describe("http contract (auth enabled)", () => {
       }
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
+    // Registration opens right after startup; the tests below start logged
+    // out, exactly like a returning visitor.
+    const registered = await fetch(`${authUrl}/api/auth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: INTEGRATION_PASSWORD }),
+    });
+    expect(registered.status).toBe(200);
   }, 30_000);
 
   afterAll(async () => {
@@ -368,7 +434,7 @@ describe("http contract (auth enabled)", () => {
     const right = await fetch(`${authUrl}/api/auth/login`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password: "integration-password" }),
+      body: JSON.stringify({ password: INTEGRATION_PASSWORD }),
     });
     expect(right.status).toBe(200);
     const setCookie = right.headers.get("set-cookie") ?? "";
@@ -385,8 +451,8 @@ describe("http contract (auth enabled)", () => {
     const session = await fetch(`${authUrl}/api/auth/session`, {
       headers: { cookie },
     });
-    const sessionBody = (await session.json()) as { authenticated: boolean };
-    expect(sessionBody.authenticated).toBe(true);
+    const sessionBody = (await session.json()) as { state: string };
+    expect(sessionBody.state).toBe("authenticated");
   });
 
   it("streams the trace feed over SSE behind the session guard", async () => {
@@ -401,7 +467,7 @@ describe("http contract (auth enabled)", () => {
     const login = await fetch(`${authUrl}/api/auth/login`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password: "integration-password" }),
+      body: JSON.stringify({ password: INTEGRATION_PASSWORD }),
     });
     expect(login.status).toBe(200);
     const cookie = (login.headers.get("set-cookie") ?? "").split(";")[0] ?? "";

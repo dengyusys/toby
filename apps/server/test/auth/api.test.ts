@@ -1,8 +1,9 @@
 /**
- * Auth domain over HTTP: the contract's five scenarios (not logged in,
- * wrong password, logout, expiry, revocation) plus the exemption surface
- * (login endpoint + static pages). Auth is driven purely through
- * env-injected config and an injected clock, over the production assembly.
+ * Auth domain over HTTP: first-run registration (the startup window, the
+ * one-time rule), the contract's five scenarios (not logged in, wrong
+ * password, logout, expiry, revocation) and the exemption surface (auth
+ * endpoints + static pages). Everything runs over the production assembly
+ * with an injected clock.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
@@ -12,12 +13,11 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { productionDomains } from "../../src/composition-root.ts";
 import { resolveConfig } from "../../src/infrastructure/config/config.ts";
-import { hashPassword } from "../../src/domains/auth/password.ts";
+import { REGISTRATION_WINDOW_MS } from "../../src/domains/auth/service.ts";
 import { createTestApp } from "../app-fixture.ts";
 
 const baseDir = mkdtempSync(path.join(tmpdir(), "toby-auth-api-"));
 const PASSWORD = "correct horse battery staple";
-const PASSWORD_HASH = hashPassword(PASSWORD);
 
 afterAll(() => {
   rmSync(baseDir, { recursive: true, force: true });
@@ -67,6 +67,10 @@ function tokenFrom(response: { headers: Record<string, unknown> }): string {
   return match[1]!;
 }
 
+function register(password: string) {
+  return send("POST", "/api/auth/register", { password });
+}
+
 async function login(password: string, cookie?: string) {
   return send("POST", "/api/auth/login", { password }, cookie);
 }
@@ -75,31 +79,106 @@ afterEach(async () => {
   await app.close();
 });
 
-describe("auth disabled (no password hash configured)", () => {
+describe("not registered (a fresh auth database)", () => {
   beforeEach(async () => {
     await buildApp({});
   });
 
-  it("session reports enabled false and login is rejected", async () => {
+  it("the session reports unregistered and nothing opens without a password", async () => {
     const session = await send("GET", "/api/auth/session");
     expect(session.statusCode).toBe(200);
-    expect(session.json()).toEqual({ enabled: false, authenticated: false });
+    expect(session.json()).toEqual({ state: "unregistered" });
 
+    // Before a password exists, no password can be the right one.
     const loginResponse = await login(PASSWORD);
-    expect(loginResponse.statusCode).toBe(400);
-    expect(loginResponse.json().errorCode).toBe("AUTH_DISABLED");
+    expect(loginResponse.statusCode).toBe(401);
+    expect(loginResponse.json().errorCode).toBe("INVALID_CREDENTIALS");
+
+    for (const url of ["/api/ledger/months", "/api/system/info"]) {
+      const response = await send("GET", url);
+      expect(response.statusCode).toBe(401);
+      expect(response.json().errorCode).toBe("AUTH_REQUIRED");
+    }
   });
 
-  it("business endpoints stay open — local dev behavior", async () => {
-    const months = await send("GET", "/api/ledger/months");
+  it("registration sets the password once and starts a session", async () => {
+    const response = await register(PASSWORD);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ status: "ok" });
+    const setCookie = String(response.headers["set-cookie"]);
+    expect(setCookie).toContain("toby_session=");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("SameSite=Strict");
+
+    const cookie = `toby_session=${tokenFrom(response)}`;
+    const months = await send("GET", "/api/ledger/months", undefined, cookie);
     expect(months.statusCode).toBe(200);
-    expect(months.json()).toEqual({ months: [] });
+
+    // One owner, one password: the page is gone the moment it succeeds.
+    const again = await register("another passphrase");
+    expect(again.statusCode).toBe(403);
+    expect(again.json().errorCode).toBe("ALREADY_REGISTERED");
+
+    const session = await send("GET", "/api/auth/session");
+    expect(session.json()).toEqual({ state: "unauthenticated" });
+    const right = await login(PASSWORD);
+    expect(right.statusCode).toBe(200);
+    const wrong = await login("another passphrase");
+    expect(wrong.statusCode).toBe(401);
+    expect(wrong.json().errorCode).toBe("INVALID_CREDENTIALS");
+  });
+
+  it("registration closes with the startup window; a restart reopens it", async () => {
+    nowMs += REGISTRATION_WINDOW_MS;
+    const response = await register(PASSWORD);
+    expect(response.statusCode).toBe(403);
+    expect(response.json().errorCode).toBe("REGISTRATION_CLOSED");
+    // Nothing was stored: the deployment is still unregistered.
+    const session = await send("GET", "/api/auth/session");
+    expect(session.json()).toEqual({ state: "unregistered" });
+
+    // A restart is a new startup, so the window starts over.
+    await app.close();
+    await buildApp({});
+    const reopened = await register(PASSWORD);
+    expect(reopened.statusCode).toBe(200);
+  });
+
+  it("the last moment inside the window still registers", async () => {
+    nowMs += REGISTRATION_WINDOW_MS - 1;
+    const response = await register(PASSWORD);
+    expect(response.statusCode).toBe(200);
+  });
+
+  it("a password out of bounds, an unknown field, or a missing body is a 400", async () => {
+    for (const body of [
+      { password: "short" },
+      { password: "x".repeat(257) },
+      { password: PASSWORD, extra: true },
+    ]) {
+      const response = await send("POST", "/api/auth/register", body);
+      expect(response.statusCode).toBe(400);
+      expect(response.json().errorCode).toBe("BAD_REQUEST");
+    }
+    const noBody = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      headers: { "content-type": "application/json" },
+    });
+    expect(noBody.statusCode).toBe(400);
+    expect(noBody.json().errorCode).toBe("BAD_REQUEST");
+
+    // A rejected registration stores nothing.
+    const session = await send("GET", "/api/auth/session");
+    expect(session.json()).toEqual({ state: "unregistered" });
   });
 });
 
-describe("auth enabled", () => {
+describe("registered", () => {
   beforeEach(async () => {
-    await buildApp({ TOBY_AUTH_PASSWORD_HASH: PASSWORD_HASH });
+    await buildApp({});
+    const response = await register(PASSWORD);
+    expect(response.statusCode).toBe(200);
   });
 
   it("not logged in: business endpoints answer 401 AUTH_REQUIRED", async () => {
@@ -118,7 +197,7 @@ describe("auth enabled", () => {
     expect(logout.statusCode).toBe(200);
     const session = await send("GET", "/api/auth/session");
     expect(session.statusCode).toBe(200);
-    expect(session.json().authenticated).toBe(false);
+    expect(session.json()).toEqual({ state: "unauthenticated" });
   });
 
   it("health stays public: the Docker healthcheck must not need a session", async () => {
@@ -228,10 +307,8 @@ describe("auth enabled", () => {
     // route cookie flags. Release the beforeEach assembly first — an open
     // sqlite file cannot be unlinked on Windows.
     await app.close();
-    await buildApp({
-      TOBY_AUTH_PASSWORD_HASH: PASSWORD_HASH,
-      TOBY_AUTH_SECURE_COOKIE: "true",
-    });
+    await buildApp({ TOBY_AUTH_SECURE_COOKIE: "true" });
+    expect((await register(PASSWORD)).statusCode).toBe(200);
     const response = await login(PASSWORD);
     expect(response.statusCode).toBe(200);
     expect(String(response.headers["set-cookie"])).toContain("; Secure");
@@ -249,12 +326,10 @@ describe("auth enabled", () => {
     const session = await send("GET", "/api/auth/session", undefined, cookie);
     expect(session.statusCode).toBe(200);
     const body = session.json() as {
-      enabled: boolean;
-      authenticated: boolean;
+      state: string;
       expires_at?: string;
     };
-    expect(body.enabled).toBe(true);
-    expect(body.authenticated).toBe(true);
+    expect(body.state).toBe("authenticated");
     // TTL is 7 days from the fixed test clock, returned as a UTC ISO string.
     expect(body.expires_at).toBe(
       new Date(BASE_MS + 7 * 24 * 3_600_000).toISOString(),
@@ -297,7 +372,7 @@ describe("auth enabled", () => {
     const cookie = `toby_session="${token}"`;
     const session = await send("GET", "/api/auth/session", undefined, cookie);
     expect(session.statusCode).toBe(200);
-    expect(session.json().authenticated).toBe(true);
+    expect(session.json().state).toBe("authenticated");
     const months = await send("GET", "/api/ledger/months", undefined, cookie);
     expect(months.statusCode).toBe(401);
     expect(months.json().errorCode).toBe("AUTH_REQUIRED");
@@ -324,7 +399,6 @@ describe("auth enabled", () => {
     const config = resolveConfig({
       env: {
         TOBY_DATA_ROOT: path.join(baseDir, `case-${caseCounter}`),
-        TOBY_AUTH_PASSWORD_HASH: PASSWORD_HASH,
       },
     });
     app = await createTestApp({
@@ -345,13 +419,5 @@ describe("auth enabled", () => {
     expect(guarded.json().errorCode).toBe("AUTH_REQUIRED");
     const open = await send("GET", "/api/probe/open");
     expect(open.statusCode).toBe(200);
-  });
-});
-
-describe("auth configured with a malformed hash", () => {
-  it("startup fails fast with a clear message", async () => {
-    expect(() =>
-      resolveConfig({ env: { TOBY_AUTH_PASSWORD_HASH: "not-scrypt" } }),
-    ).toThrow(/TOBY_AUTH_PASSWORD_HASH/);
   });
 });

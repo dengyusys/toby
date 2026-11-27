@@ -69,10 +69,12 @@ export const CHAT_HISTORY_HOURS_MIN = 1;
 export const CHAT_HISTORY_HOURS_MAX = 8760;
 export const DEFAULT_CHAT_HISTORY_HOURS = 24;
 
+/**
+ * Session lifetime and cookie flags. The password is not configuration: the
+ * owner sets it on the first-run registration page and it lives in the auth
+ * database.
+ */
 export interface AuthConfig {
-  /** A configured password hash enables authentication. */
-  enabled: boolean;
-  passwordHash: string;
   sessionTtlMs: number;
   secureCookie: boolean;
 }
@@ -237,20 +239,8 @@ function resolveChatConfig(env: Env): ChatConfig {
   return { historyWindowMs: hours * 3_600_000 };
 }
 
-// The generator (scripts/hash-password.js) fixes the scrypt parameters;
-// pinning them here rejects malformed hashes at startup instead of at
-// login time.
-const SCRYPT_HASH_PATTERN =
-  /^scrypt\$16384\$8\$1\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/;
-
-/** Auth stays off until a password hash is explicitly configured. */
+/** Session lifetime and cookie flags; the password lives in the auth database. */
 function resolveAuthConfig(env: Env): AuthConfig {
-  const passwordHash = env.TOBY_AUTH_PASSWORD_HASH ?? "";
-  if (passwordHash && !SCRYPT_HASH_PATTERN.test(passwordHash)) {
-    throw new Error(
-      "TOBY_AUTH_PASSWORD_HASH must be an scrypt$N$r$p$salt$hash value from scripts/hash-password.js",
-    );
-  }
   const ttlHours = Number(env.TOBY_AUTH_SESSION_TTL_HOURS ?? "168");
   if (!Number.isInteger(ttlHours) || ttlHours < 1 || ttlHours > 8760) {
     throw new Error(
@@ -258,8 +248,6 @@ function resolveAuthConfig(env: Env): AuthConfig {
     );
   }
   return {
-    enabled: passwordHash !== "",
-    passwordHash,
     sessionTtlMs: ttlHours * 3_600_000,
     secureCookie: resolveBoolean(
       env.TOBY_AUTH_SECURE_COOKIE,

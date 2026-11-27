@@ -1,17 +1,20 @@
 /**
- * Password verification: scrypt with a stored random salt, constant-time
- * comparison, no plaintext ever retained. The stored format is
- * `scrypt$N$r$p$saltB64$hashB64`; scripts/hash-password.js generates it —
- * keep the two in sync when the format changes.
+ * Password hashing and verification: scrypt with a stored random salt,
+ * constant-time comparison, no plaintext ever retained. The stored format is
+ * `scrypt$N$r$p$saltB64$hashB64`, produced here when the owner sets a
+ * password and read back from the auth database at login.
  *
  * Parameter upgrade path (N/r/p): current N=16384 sits below the OWASP
- * suggestion of 2^17. Raising it means: generate fresh hashes with
- * scripts/hash-password.js, let SCRYPT_* and the config hash regex accept
- * both old and new during one migration window, and re-hash on the next
- * successful login — not a breaking change.
+ * suggestion of 2^17. Verification reads N/r/p from the stored string, so
+ * raising them means hashing new passwords with the stronger parameters and
+ * re-hashing old ones on the next successful login — not a breaking change.
  */
 
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+
+/** Accepted password length, enforced wherever a password is set. */
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 256;
 
 const SCRYPT_N = 16_384;
 const SCRYPT_R = 8;

@@ -148,45 +148,39 @@ describe("resolveConfig", () => {
     }
   });
 
-  it("auth defaults: disabled, 7-day sessions", () => {
+  it("auth defaults: 7-day sessions", () => {
     const config = resolveConfig({ env: {} });
     expect(config.auth).toEqual({
-      enabled: false,
-      passwordHash: "",
       sessionTtlMs: 168 * 3_600_000,
       secureCookie: false,
     });
   });
 
-  it("TOBY_AUTH_* overrides are honored and enable authentication", () => {
-    const hash = "scrypt$16384$8$1$c2FsdA== $aGFzaA==".replace(" ", ""); // format-only
+  it("TOBY_AUTH_* overrides are honored", () => {
     const config = resolveConfig({
       env: {
-        TOBY_AUTH_PASSWORD_HASH: hash,
         TOBY_AUTH_SESSION_TTL_HOURS: "24",
         TOBY_AUTH_SECURE_COOKIE: "true",
       },
     });
-    expect(config.auth.enabled).toBe(true);
-    expect(config.auth.passwordHash).toBe(hash);
     expect(config.auth.sessionTtlMs).toBe(24 * 3_600_000);
     expect(config.auth.secureCookie).toBe(true);
   });
 
-  it("malformed auth values are rejected", () => {
-    expect(() =>
-      resolveConfig({ env: { TOBY_AUTH_PASSWORD_HASH: "plaintext" } }),
-    ).toThrow(/TOBY_AUTH_PASSWORD_HASH/);
-    // The scrypt parameters are pinned to the generator's — anything else
-    // fails at startup instead of at login time.
-    expect(() =>
-      resolveConfig({
-        env: { TOBY_AUTH_PASSWORD_HASH: "scrypt$1$1$1$c2FsdA==$aGFzaA==" },
-      }),
-    ).toThrow(/TOBY_AUTH_PASSWORD_HASH/);
+  it("a malformed session TTL is rejected", () => {
     expect(() =>
       resolveConfig({ env: { TOBY_AUTH_SESSION_TTL_HOURS: "0" } }),
     ).toThrow(/TOBY_AUTH_SESSION_TTL_HOURS/);
+  });
+
+  it("the retired password hash variable is no longer read", () => {
+    // The password lives in the auth database: a value left in the
+    // environment changes nothing, valid or not.
+    for (const value of ["plaintext", "scrypt$16384$8$1$c2FsdA==$aGFzaA=="]) {
+      expect(
+        resolveConfig({ env: { TOBY_AUTH_PASSWORD_HASH: value } }).auth,
+      ).toEqual({ sessionTtlMs: 168 * 3_600_000, secureCookie: false });
+    }
   });
 
   it("boolean flags accept only true/false", () => {

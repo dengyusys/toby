@@ -28,7 +28,7 @@
 **已可用**
 
 - 一句话记账:说出(或输入)一笔收支,即刻落库为凭据卡;事后可在列表里改,也可以一句话纠错
-- 部署可开启登录保护,PC(`/`)与移动端(`/m/`)双 Web 应用
+- 登录保护(首次运行时注册所有者的密码),PC(`/`)与移动端(`/m/`)双 Web 应用
 - 自托管、单用户:数据保存在你机器上的本地 SQLite 文件里
 
 **陆续到来**
@@ -48,7 +48,7 @@ pnpm run start    # 生产模式:构建前端,单进程服务端同时提供页�
 docker compose up -d --build    # Docker 部署 —— 手册: docs/operations/docker.zh.md
 ```
 
-默认运行无需 `.env`。AI 为可选:一句话记账路径需设置 `TOBY_AI_MODEL` 与对应供应商密钥——复制 `.env.example`,端口、进程与部署说明见 [docs/operations/local-dev.zh.md](docs/operations/local-dev.zh.md)。
+默认运行无需 `.env`;首次运行会打开一次性的注册页,在那里设置登录密码。AI 为可选:一句话记账路径需设置 `TOBY_AI_MODEL` 与对应供应商密钥——复制 `.env.example`,端口、进程与部署说明见 [docs/operations/local-dev.zh.md](docs/operations/local-dev.zh.md)。
 
 名字的由来:**8629** —— 服务端端口 —— 在 T9 键盘上正好拼出 TOBY。
 

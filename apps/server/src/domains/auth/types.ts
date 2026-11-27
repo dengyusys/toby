@@ -5,14 +5,19 @@
  * both sides together.
  */
 
+/**
+ * Where the deployment stands: no password yet (the registration page is the
+ * only way forward), a password but no session, or a live session.
+ */
+export type AuthState = "unregistered" | "unauthenticated" | "authenticated";
+
 /** GET /api/auth/session response. */
 export interface AuthSessionInfo {
-  readonly enabled: boolean;
-  readonly authenticated: boolean;
+  readonly state: AuthState;
   readonly expires_at?: string;
 }
 
-/** POST /api/auth/login success response. */
+/** POST /api/auth/register and POST /api/auth/login success response. */
 export interface AuthLoginSuccess {
   readonly status: "ok";
 }
