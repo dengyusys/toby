@@ -20,6 +20,25 @@ import type { AccessTokenView } from "@toby/contract";
 import { AccessTokensSection } from "../src/features/settings/AccessTokensSection.tsx";
 
 const SECRET = "s3cret-value-7890";
+const SCRIPT_CREATED_AT = "2026-11-01T08:00:00.000Z";
+const SCRIPT_LAST_USED_AT = "2026-11-20T08:00:00.000Z";
+
+// The table prints in the browser's time zone, and the machine running this
+// test has one of its own — CI's is UTC — so the expected text is built the
+// way the table builds it, not written out for one time zone.
+const DAY = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short" });
+const DAY_AND_TIME = new Intl.DateTimeFormat("sv-SE", {
+  dateStyle: "short",
+  timeStyle: "short",
+});
+
+function day(iso: string): string {
+  return DAY.format(new Date(iso));
+}
+
+function dayAndTime(iso: string): string {
+  return DAY_AND_TIME.format(new Date(iso));
+}
 
 const calls: { method: string; url: string; body?: unknown }[] = [];
 let listed: AccessTokenView[] = [];
@@ -98,8 +117,8 @@ beforeEach(() => {
       id: "token-1",
       name: "记账脚本",
       last_four: "wxyz",
-      created_at: "2026-11-01T08:00:00.000Z",
-      last_used_at: "2026-11-20T08:00:00.000Z",
+      created_at: SCRIPT_CREATED_AT,
+      last_used_at: SCRIPT_LAST_USED_AT,
     },
     {
       id: "token-2",
@@ -129,12 +148,10 @@ it("lists each token in the table with its dates", async () => {
   ).toBeInTheDocument();
 
   const script = within(rowOf("记账脚本"));
-  expect(script.getByText("2026-11-01 16:00")).toBeInTheDocument();
+  expect(script.getByText(dayAndTime(SCRIPT_CREATED_AT))).toBeInTheDocument();
   // Two spellings share the cell: the day alone, and the day with its time.
-  expect(within(rowOf("记账脚本")).getByText("2026-11-20")).toBeInTheDocument();
-  expect(
-    within(rowOf("记账脚本")).getByText("2026-11-20 16:00"),
-  ).toBeInTheDocument();
+  expect(script.getByText(day(SCRIPT_LAST_USED_AT))).toBeInTheDocument();
+  expect(script.getByText(dayAndTime(SCRIPT_LAST_USED_AT))).toBeInTheDocument();
 
   const dashboard = within(rowOf("看板"));
   expect(dashboard.getByText("从未使用")).toBeInTheDocument();
