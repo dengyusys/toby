@@ -23,6 +23,8 @@ export interface SessionRegistry {
   expiryOf(token: string): number | undefined;
   /** Unknown tokens revoke as no-ops. */
   revoke(token: string): void;
+  /** Ends every session at once — a password change uses it. */
+  revokeAll(): void;
   sweep(): void;
 }
 
@@ -63,6 +65,10 @@ export function createSessionRegistry(
 
     revoke(token) {
       sessions.delete(digestOf(token));
+    },
+
+    revokeAll() {
+      sessions.clear();
     },
 
     sweep() {

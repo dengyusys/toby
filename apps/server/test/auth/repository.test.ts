@@ -62,6 +62,25 @@ describe("auth repository", () => {
     }
   });
 
+  it("the password can be replaced, and the replacement survives a reopen", async () => {
+    const { config, db, repository } = await openAuth();
+    await repository.setFirstPasswordHash("scrypt$first");
+    await repository.updatePasswordHash("scrypt$second");
+    expect(await repository.getPasswordHash()).toBe("scrypt$second");
+    await db.close();
+    const reopened = createAuthDb({ config });
+    try {
+      expect(
+        await createAuthRepository({
+          db: reopened,
+          clock: fixedNow,
+        }).getPasswordHash(),
+      ).toBe("scrypt$second");
+    } finally {
+      await reopened.close();
+    }
+  });
+
   it("the password survives a close and reopen", async () => {
     // A process restart ends every session but never the password itself.
     const { config, db, repository } = await openAuth();

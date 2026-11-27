@@ -52,6 +52,24 @@ describe("createAuthClient", () => {
     expect(JSON.parse(String(init?.body))).toEqual({ password: "hunter2" });
   });
 
+  it("changePassword puts both passwords to /api/auth/password", async () => {
+    const fetchMock = stubFetch(200, JSON.stringify({ status: "ok" }));
+    const client = createAuthClient("http://127.0.0.1:8629/");
+    expect(await client.changePassword("old-password", "new-password")).toEqual(
+      { status: "ok" },
+    );
+    const [url, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit | undefined,
+    ];
+    expect(url).toBe("http://127.0.0.1:8629/api/auth/password");
+    expect(init?.method).toBe("PUT");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      current_password: "old-password",
+      new_password: "new-password",
+    });
+  });
+
   it("logout posts with an empty body; session is a plain GET", async () => {
     const fetchMock = stubFetch(200, JSON.stringify({ status: "ok" }));
     const client = createAuthClient("");

@@ -45,6 +45,9 @@ with the product's data, changed in the product.**
    imported: an existing deployment registers again after upgrading. The
    owner chose this over a one-time import — one deployment, one minute of
    work, and no legacy path to retire later.
+6. **Change, don't reset.** The PC settings page replaces the password
+   against the current one, and every session ends with it — a session was
+   granted on the strength of the old password.
 
 ## Deliberately not in v1
 

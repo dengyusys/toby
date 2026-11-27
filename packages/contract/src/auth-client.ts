@@ -31,6 +31,14 @@ export interface AuthClient {
    */
   register(password: string): Promise<AuthLoginResult>;
   login(password: string): Promise<AuthLoginResult>;
+  /**
+   * Changes the password against the current one. Every session ends with
+   * it, the caller's included, so a successful change means logging in again.
+   */
+  changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ status: "ok" }>;
   /** Idempotent: logging out while logged out succeeds. */
   logout(): Promise<{ status: "ok" }>;
   session(): Promise<AuthSessionInfo>;
@@ -49,6 +57,15 @@ export function createAuthClient(baseUrl: string): AuthClient {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
+      }),
+    changePassword: (currentPassword, newPassword) =>
+      requestJson<{ status: "ok" }>(endpoint(baseUrl, "/api/auth/password"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
       }),
     logout: () =>
       requestJson<{ status: "ok" }>(endpoint(baseUrl, "/api/auth/logout"), {

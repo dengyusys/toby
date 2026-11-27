@@ -44,7 +44,7 @@ async function buildApp(env: Record<string, string>): Promise<void> {
 }
 
 function send(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT",
   url: string,
   payload?: Record<string, unknown>,
   cookie?: string,
@@ -362,6 +362,82 @@ describe("registered", () => {
       `toby_session=${token}`,
     );
     expect(months.statusCode).toBe(401);
+  });
+
+  it("changing the password needs the current one and ends every session", async () => {
+    const token = tokenFrom(await login(PASSWORD));
+    const cookie = `toby_session=${token}`;
+    const NEXT = "another passphrase";
+
+    const wrong = await send(
+      "PUT",
+      "/api/auth/password",
+      { current_password: "nope", new_password: NEXT },
+      cookie,
+    );
+    expect(wrong.statusCode).toBe(401);
+    expect(wrong.json().errorCode).toBe("INVALID_CREDENTIALS");
+    // A failed attempt changes nothing: the old password and the session
+    // both still work.
+    expect((await login(PASSWORD)).statusCode).toBe(200);
+    const untouched = await send(
+      "GET",
+      "/api/ledger/months",
+      undefined,
+      cookie,
+    );
+    expect(untouched.statusCode).toBe(200);
+
+    const changed = await send(
+      "PUT",
+      "/api/auth/password",
+      { current_password: PASSWORD, new_password: NEXT },
+      cookie,
+    );
+    expect(changed.statusCode).toBe(200);
+    expect(changed.json()).toEqual({ status: "ok" });
+    expect(String(changed.headers["set-cookie"])).toContain("Max-Age=0");
+
+    // The session that made the change is gone with all the others, and
+    // only the new password opens a session again.
+    const revoked = await send("GET", "/api/ledger/months", undefined, cookie);
+    expect(revoked.statusCode).toBe(401);
+    expect((await login(PASSWORD)).statusCode).toBe(401);
+    expect((await login(NEXT)).statusCode).toBe(200);
+  });
+
+  it("a new password out of bounds, equal to the old one, or with an unknown field is a 400", async () => {
+    const cookie = `toby_session=${tokenFrom(await login(PASSWORD))}`;
+    for (const body of [
+      { current_password: PASSWORD, new_password: "short" },
+      { current_password: PASSWORD, new_password: PASSWORD },
+      {
+        current_password: PASSWORD,
+        new_password: "another passphrase",
+        extra: true,
+      },
+    ]) {
+      const response = await send("PUT", "/api/auth/password", body, cookie);
+      expect(response.statusCode).toBe(400);
+      expect(response.json().errorCode).toBe("BAD_REQUEST");
+    }
+    expect((await login(PASSWORD)).statusCode).toBe(200);
+    const untouched = await send(
+      "GET",
+      "/api/ledger/months",
+      undefined,
+      cookie,
+    );
+    expect(untouched.statusCode).toBe(200);
+  });
+
+  it("changing the password requires a session", async () => {
+    const response = await send("PUT", "/api/auth/password", {
+      current_password: PASSWORD,
+      new_password: "another passphrase",
+    });
+    expect(response.statusCode).toBe(401);
+    expect(response.json().errorCode).toBe("AUTH_REQUIRED");
   });
 
   it("a quoted session cookie: the session answers, the guard does not", async () => {

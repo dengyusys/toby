@@ -59,6 +59,24 @@ const REGISTER_BODY_SCHEMA = z
   })
   .strict();
 
+/**
+ * PUT /api/auth/password body. The new password must differ from the current
+ * one: a "change" that keeps the password would only log everyone out.
+ */
+const CHANGE_PASSWORD_BODY_SCHEMA = z
+  .object({
+    current_password: z.string(),
+    new_password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+  })
+  .strict()
+  .refine(
+    ({ current_password, new_password }) => current_password !== new_password,
+    {
+      path: ["new_password"],
+      message: "must differ from current_password",
+    },
+  );
+
 export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
   app,
   options,
@@ -94,6 +112,14 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
   app.post("/api/auth/login", isPublic, async (request, reply) => {
     const body = parseBody(LOGIN_BODY_SCHEMA, request);
     return startSession(reply, await service.login(body.password ?? ""));
+  });
+
+  app.put("/api/auth/password", async (request, reply) => {
+    const body = parseBody(CHANGE_PASSWORD_BODY_SCHEMA, request);
+    await service.changePassword(body.current_password, body.new_password);
+    // Every session is gone, the caller's included.
+    reply.clearCookie(SESSION_COOKIE, cookieAttributes);
+    return { status: "ok" };
   });
 
   app.post("/api/auth/logout", isPublic, async (request, reply) => {

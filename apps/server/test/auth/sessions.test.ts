@@ -42,6 +42,15 @@ describe("session registry", () => {
     expect(registry.verify(session.token)).toBe(false);
   });
 
+  it("revokeAll ends every live token at once", () => {
+    const { registry } = makeRegistry();
+    const first = registry.create(60_000);
+    const second = registry.create(60_000);
+    registry.revokeAll();
+    expect(registry.verify(first.token)).toBe(false);
+    expect(registry.verify(second.token)).toBe(false);
+  });
+
   it("sweep removes expired entries", () => {
     const { registry, advance } = makeRegistry();
     registry.create(1_000);

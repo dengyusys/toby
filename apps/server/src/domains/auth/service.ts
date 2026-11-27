@@ -41,6 +41,11 @@ export interface AuthService {
    * (REGISTRATION_CLOSED). Success starts a session.
    */
   register(password: string): Promise<SessionGrant>;
+  /**
+   * Changes the password against the current one (wrong current 401) and
+   * ends every session, the caller's included.
+   */
+  changePassword(currentPassword: string, newPassword: string): Promise<void>;
   /** Idempotent: unknown or missing tokens revoke as no-ops. */
   logout(token: string | undefined): Promise<void>;
   session(token: string | undefined): Promise<AuthSessionInfo>;
@@ -108,6 +113,21 @@ export function createAuthService(deps: {
         );
       }
       return sessions.create(config.sessionTtlMs);
+    },
+
+    async changePassword(currentPassword, newPassword) {
+      const stored = await deps.repository.getPasswordHash();
+      if (
+        typeof currentPassword !== "string" ||
+        stored === null ||
+        !verifyPassword(currentPassword, stored)
+      ) {
+        throw new AuthError("INVALID_CREDENTIALS", 401, "wrong password");
+      }
+      await deps.repository.updatePasswordHash(hashPassword(newPassword));
+      // Sessions were granted on the strength of the old password: a stolen
+      // one must not outlive the change.
+      sessions.revokeAll();
     },
 
     async logout(token) {

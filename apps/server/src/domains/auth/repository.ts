@@ -19,6 +19,8 @@ export interface AuthRepository {
    * exists — including when a concurrent registration won the race.
    */
   setFirstPasswordHash(hash: string): Promise<boolean>;
+  /** Replaces the stored hash; the owner row already exists. */
+  updatePasswordHash(hash: string): Promise<void>;
 }
 
 export function createAuthRepository(deps: {
@@ -53,6 +55,14 @@ export function createAuthRepository(deps: {
         }
         throw error;
       }
+    },
+
+    async updatePasswordHash(hash) {
+      const handle = await db.open();
+      await handle.run(
+        "UPDATE owner SET password_hash = ?, updated_at = ? WHERE id = ?",
+        [hash, new Date(clock()).toISOString(), OWNER_ID],
+      );
     },
   };
 }
