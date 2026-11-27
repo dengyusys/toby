@@ -40,11 +40,16 @@ export type {
 } from "./settings-client.ts";
 export { createAuthClient } from "./auth-client.ts";
 export type {
+  AccessTokenCreate,
+  AccessTokenRevocation,
+  AccessTokenView,
   AuthClient,
   AuthErrorCode,
   AuthLoginResult,
+  AuthScope,
   AuthSessionInfo,
   AuthState,
+  CreatedAccessToken,
 } from "./auth-client.ts";
 export { createChatClient } from "./chat-client.ts";
 export type {

@@ -114,6 +114,60 @@ describe("createAuthClient", () => {
     expect(error.code).toBe("INVALID_CREDENTIALS");
   });
 
+  it("listTokens is a plain GET on /api/auth/tokens", async () => {
+    const fetchMock = stubFetch(200, JSON.stringify({ tokens: [] }));
+    const client = createAuthClient("");
+    expect(await client.listTokens()).toEqual({ tokens: [] });
+    expect(fetchMock.mock.calls[0]).toEqual(["/api/auth/tokens", undefined]);
+  });
+
+  it("createToken posts the name, one tier, and the expiry to /api/auth/tokens", async () => {
+    const fetchMock = stubFetch(
+      200,
+      JSON.stringify({ token: { id: "t1" }, secret: "s3cret" }),
+    );
+    const client = createAuthClient("http://127.0.0.1:8629/");
+    expect(
+      await client.createToken({
+        name: "script",
+        scopes: ["read"],
+        expires_at: "2027-01-01T00:00:00.000Z",
+      }),
+    ).toEqual({ token: { id: "t1" }, secret: "s3cret" });
+    const [url, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit | undefined,
+    ];
+    expect(url).toBe("http://127.0.0.1:8629/api/auth/tokens");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      name: "script",
+      scopes: ["read"],
+      expires_at: "2027-01-01T00:00:00.000Z",
+    });
+  });
+
+  it("revokeToken deletes /api/auth/tokens/:id, escaping the id", async () => {
+    const fetchMock = stubFetch(
+      200,
+      JSON.stringify({
+        id: "t 1",
+        action: "revoked",
+        revoked_at: "2026-11-27T08:00:00.000Z",
+      }),
+    );
+    const client = createAuthClient("");
+    expect(await client.revokeToken("t 1")).toEqual({
+      id: "t 1",
+      action: "revoked",
+      revoked_at: "2026-11-27T08:00:00.000Z",
+    });
+    expect(fetchMock.mock.calls[0]).toEqual([
+      "/api/auth/tokens/t%201",
+      { method: "DELETE" },
+    ]);
+  });
+
   it("maps a closed registration window into ApiError", async () => {
     stubFetch(
       403,

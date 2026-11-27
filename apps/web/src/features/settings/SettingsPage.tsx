@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button.tsx";
 import { settingsClient } from "@/lib/api.ts";
+import { AccessTokensSection } from "./AccessTokensSection.tsx";
 import { PasswordForm } from "./PasswordForm.tsx";
 import { SettingsForm } from "./SettingsForm.tsx";
 
@@ -63,6 +64,12 @@ export function SettingsPage() {
             登录密码
           </h2>
           <PasswordForm />
+        </section>
+        <section aria-labelledby="settings-tokens-heading" className="mt-10">
+          <h2 id="settings-tokens-heading" className={SECTION_HEADING}>
+            访问令牌
+          </h2>
+          <AccessTokensSection />
         </section>
       </div>
     </div>
