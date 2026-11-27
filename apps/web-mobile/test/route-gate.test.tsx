@@ -1,6 +1,7 @@
 /**
  * Session gate: entering a protected route without a session lands on the
- * login page; a valid session and a passwordless deployment render the page.
+ * login page; a valid session renders the page. A deployment without a
+ * password lands on the login page too — mobile has no registration page.
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -48,7 +49,7 @@ afterEach(() => {
 });
 
 it("redirects sessionless visitors to the login page", async () => {
-  routeSession({ enabled: true, authenticated: false });
+  routeSession({ state: "unauthenticated" });
   renderGate();
 
   expect(await screen.findByText("login page")).toBeInTheDocument();
@@ -56,17 +57,17 @@ it("redirects sessionless visitors to the login page", async () => {
 });
 
 it("renders the page for a valid session", async () => {
-  routeSession({ enabled: true, authenticated: true });
+  routeSession({ state: "authenticated" });
   renderGate();
 
   expect(await screen.findByText("chat page")).toBeInTheDocument();
   expect(screen.queryByText("login page")).not.toBeInTheDocument();
 });
 
-it("renders the page when authentication is disabled", async () => {
-  routeSession({ enabled: false, authenticated: false });
+it("sends an unregistered visitor to the login page, never into the app", async () => {
+  routeSession({ state: "unregistered" });
   renderGate();
 
-  expect(await screen.findByText("chat page")).toBeInTheDocument();
-  expect(screen.queryByText("login page")).not.toBeInTheDocument();
+  expect(await screen.findByText("login page")).toBeInTheDocument();
+  expect(screen.queryByText("chat page")).not.toBeInTheDocument();
 });

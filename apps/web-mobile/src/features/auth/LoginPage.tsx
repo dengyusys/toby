@@ -1,24 +1,23 @@
 /**
  * Login page (mobile): one password field; mobile owns its layout, nothing is
- * shared with the PC app. Password-less deployments show a notice instead.
+ * shared with the PC app. A deployment without a password shows a notice
+ * pointing at the PC app instead of the form.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";
-import { Link } from "react-router";
 import { useState } from "react";
 import { ApiError } from "@toby/contract";
 import { authClient } from "@/lib/api.ts";
 import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button.tsx";
+import { UnregisteredNotice } from "./UnregisteredNotice.tsx";
 
 function describeError(error: unknown): string {
   if (error instanceof ApiError) {
     switch (error.code) {
       case "INVALID_CREDENTIALS":
         return "密码不对";
-      case "AUTH_DISABLED":
-        return "登录未配置";
       default:
         return error.message;
     }
@@ -47,28 +46,8 @@ export function LoginPage() {
     },
   });
 
-  if (sessionQuery.data && !sessionQuery.data.enabled) {
-    return (
-      <div className="flex min-h-dvh justify-center bg-background p-4">
-        <div className="flex w-full items-center justify-center rounded-3xl bg-muted px-4 py-12">
-          <section className="w-full max-w-md rounded-2xl bg-card px-8 py-12">
-            <div className="flex flex-col items-center">
-              <img src={logo} alt="" className="size-16" />
-              <h1 className="mt-8 text-3xl font-semibold">登录未启用</h1>
-            </div>
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-              本部署没有配置密码,无需登录。
-            </p>
-            <Link
-              to="/"
-              className="mt-10 inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-xl bg-primary px-4 text-base font-semibold text-primary-foreground hover:opacity-80 active:opacity-80"
-            >
-              直接进入
-            </Link>
-          </section>
-        </div>
-      </div>
-    );
+  if (sessionQuery.data?.state === "unregistered") {
+    return <UnregisteredNotice onRetry={() => void sessionQuery.refetch()} />;
   }
 
   return (

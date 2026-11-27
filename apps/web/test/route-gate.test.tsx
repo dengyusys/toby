@@ -1,6 +1,7 @@
 /**
  * Session gate: entering a protected route without a session lands on the
- * login page; a valid session and a passwordless deployment render the page.
+ * login page, a valid session renders the page, and a deployment without a
+ * password lands on the registration page.
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -36,6 +37,7 @@ function renderGate() {
             <Route path="/" element={<div>chat page</div>} />
           </Route>
           <Route path="/login" element={<div>login page</div>} />
+          <Route path="/register" element={<div>register page</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -48,7 +50,7 @@ afterEach(() => {
 });
 
 it("redirects sessionless visitors to the login page", async () => {
-  routeSession({ enabled: true, authenticated: false });
+  routeSession({ state: "unauthenticated" });
   renderGate();
 
   expect(await screen.findByText("login page")).toBeInTheDocument();
@@ -56,17 +58,18 @@ it("redirects sessionless visitors to the login page", async () => {
 });
 
 it("renders the page for a valid session", async () => {
-  routeSession({ enabled: true, authenticated: true });
+  routeSession({ state: "authenticated" });
   renderGate();
 
   expect(await screen.findByText("chat page")).toBeInTheDocument();
   expect(screen.queryByText("login page")).not.toBeInTheDocument();
 });
 
-it("renders the page when authentication is disabled", async () => {
-  routeSession({ enabled: false, authenticated: false });
+it("redirects an unregistered visitor to the registration page", async () => {
+  routeSession({ state: "unregistered" });
   renderGate();
 
-  expect(await screen.findByText("chat page")).toBeInTheDocument();
+  expect(await screen.findByText("register page")).toBeInTheDocument();
+  expect(screen.queryByText("chat page")).not.toBeInTheDocument();
   expect(screen.queryByText("login page")).not.toBeInTheDocument();
 });

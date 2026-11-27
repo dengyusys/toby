@@ -29,7 +29,7 @@ function routeFetch(): void {
       calls.push(url);
       const body = url.endsWith("/api/auth/logout")
         ? { status: "ok" }
-        : { enabled: true, authenticated: sessionCalls++ === 0 };
+        : { state: sessionCalls++ === 0 ? "authenticated" : "unauthenticated" };
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status: 200,

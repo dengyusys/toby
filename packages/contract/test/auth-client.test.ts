@@ -24,6 +24,21 @@ afterEach(() => {
 });
 
 describe("createAuthClient", () => {
+  it("register posts the password to /api/auth/register", async () => {
+    const fetchMock = stubFetch(200, JSON.stringify({ status: "ok" }));
+    const client = createAuthClient("http://127.0.0.1:8629/");
+    expect(await client.register("hunter2hunter2")).toEqual({ status: "ok" });
+    const [url, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit | undefined,
+    ];
+    expect(url).toBe("http://127.0.0.1:8629/api/auth/register");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      password: "hunter2hunter2",
+    });
+  });
+
   it("login posts the password to /api/auth/login", async () => {
     const fetchMock = stubFetch(200, JSON.stringify({ status: "ok" }));
     const client = createAuthClient("http://127.0.0.1:8629/");
@@ -47,19 +62,17 @@ describe("createAuthClient", () => {
     expect(calls[1]).toEqual(["/api/auth/session", undefined]);
   });
 
-  it("decodes the session info shape", async () => {
+  it("decodes the session state shape", async () => {
     stubFetch(
       200,
       JSON.stringify({
-        enabled: true,
-        authenticated: true,
+        state: "authenticated",
         expires_at: "2026-10-27T08:00:00.000Z",
       }),
     );
     const client = createAuthClient("");
     expect(await client.session()).toEqual({
-      enabled: true,
-      authenticated: true,
+      state: "authenticated",
       expires_at: "2026-10-27T08:00:00.000Z",
     });
   });
@@ -81,5 +94,24 @@ describe("createAuthClient", () => {
     expect(error).toBeInstanceOf(ApiError);
     expect(error.status).toBe(401);
     expect(error.code).toBe("INVALID_CREDENTIALS");
+  });
+
+  it("maps a closed registration window into ApiError", async () => {
+    stubFetch(
+      403,
+      JSON.stringify({
+        statusCode: 403,
+        message: "the registration window has closed",
+        error: "Forbidden",
+        errorCode: "REGISTRATION_CLOSED",
+      }),
+    );
+    const client = createAuthClient("");
+    const error = (await client
+      .register("hunter2hunter2")
+      .catch((thrown: unknown) => thrown)) as ApiError;
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(403);
+    expect(error.code).toBe("REGISTRATION_CLOSED");
   });
 });

@@ -41,8 +41,10 @@ export type {
 export { createAuthClient } from "./auth-client.ts";
 export type {
   AuthClient,
+  AuthErrorCode,
   AuthLoginResult,
   AuthSessionInfo,
+  AuthState,
 } from "./auth-client.ts";
 export { createChatClient } from "./chat-client.ts";
 export type {

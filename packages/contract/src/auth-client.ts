@@ -1,13 +1,22 @@
 /**
- * Auth domain client: login/logout/session. The session token lives in an
- * HttpOnly cookie set by the server; this client never sees or stores it.
+ * Auth domain client: register/login/logout/session. The session token lives
+ * in an HttpOnly cookie set by the server; this client never sees or stores it.
  */
 
 import { endpoint, requestJson } from "./request-json.ts";
 
+/** Where the deployment stands; mirrors the server's closed state union. */
+export type AuthState = "unregistered" | "unauthenticated" | "authenticated";
+
+/** The closed error-code union, mirroring the server domain's. */
+export type AuthErrorCode =
+  | "INVALID_CREDENTIALS"
+  | "AUTH_REQUIRED"
+  | "ALREADY_REGISTERED"
+  | "REGISTRATION_CLOSED";
+
 export interface AuthSessionInfo {
-  enabled: boolean;
-  authenticated: boolean;
+  state: AuthState;
   expires_at?: string;
 }
 
@@ -16,6 +25,11 @@ export interface AuthLoginResult {
 }
 
 export interface AuthClient {
+  /**
+   * The one-time first-run registration: succeeds only while no password
+   * exists and the server's startup window is still open.
+   */
+  register(password: string): Promise<AuthLoginResult>;
   login(password: string): Promise<AuthLoginResult>;
   /** Idempotent: logging out while logged out succeeds. */
   logout(): Promise<{ status: "ok" }>;
@@ -24,6 +38,12 @@ export interface AuthClient {
 
 export function createAuthClient(baseUrl: string): AuthClient {
   return {
+    register: (password) =>
+      requestJson<AuthLoginResult>(endpoint(baseUrl, "/api/auth/register"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      }),
     login: (password) =>
       requestJson<AuthLoginResult>(endpoint(baseUrl, "/api/auth/login"), {
         method: "POST",

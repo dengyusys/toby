@@ -3,6 +3,7 @@ import { ChatPage } from "@/features/chat/ChatPage.tsx";
 import { LedgerPage } from "@/features/ledger/LedgerPage.tsx";
 import { MemoryPage } from "@/features/memory/MemoryPage.tsx";
 import { LoginPage } from "@/features/auth/LoginPage.tsx";
+import { RegisterPage } from "@/features/auth/RegisterPage.tsx";
 import { RequireAuth } from "@/features/auth/RequireAuth.tsx";
 import { HealthPage } from "@/features/system/HealthPage.tsx";
 import { SettingsPage } from "@/features/settings/SettingsPage.tsx";
@@ -12,9 +13,11 @@ import { AppLayout } from "@/layouts/AppLayout.tsx";
 export function App() {
   return (
     <Routes>
-      {/* Login stands alone, outside the layout: no sidebar, no monitor —
-          just a centered card on the bare background. */}
+      {/* Login and the one-time registration stand alone, outside the
+          layout: no sidebar, no monitor — just a centered card on the bare
+          background. */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       {/* The trace stream provider wraps the layout — not just the gated
           routes — because the monitor drawer is rendered by the layout
           itself, outside the routed outlet. One EventSource for the whole

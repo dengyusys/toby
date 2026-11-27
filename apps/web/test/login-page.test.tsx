@@ -1,15 +1,15 @@
 /**
  * Login page render and submit with fetch stubbed to the auth endpoints:
  * the form posts the password, the eye toggle reveals and hides the typed
- * value, failures show their message, and a disabled deployment shows the
- * plain notice instead of a form.
+ * value, failures show their message, and a deployment without a password
+ * passes the visitor on to the registration page instead of a form.
  */
 
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { LoginPage } from "../src/features/auth/LoginPage.tsx";
 
@@ -48,8 +48,11 @@ function renderPage() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <LoginPage />
+      <MemoryRouter initialEntries={["/login"]}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<div>register page</div>} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -60,8 +63,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("renders the form when auth is enabled and posts the password", async () => {
-  routeFetch({ enabled: true, authenticated: false });
+it("renders the form on a registered deployment and posts the password", async () => {
+  routeFetch({ state: "unauthenticated" });
   const user = userEvent.setup();
   renderPage();
 
@@ -74,7 +77,7 @@ it("renders the form when auth is enabled and posts the password", async () => {
 });
 
 it("toggles the password field between hidden and visible", async () => {
-  routeFetch({ enabled: true, authenticated: false });
+  routeFetch({ state: "unauthenticated" });
   const user = userEvent.setup();
   renderPage();
 
@@ -91,7 +94,7 @@ it("toggles the password field between hidden and visible", async () => {
 });
 
 it("shows the server message on wrong passwords", async () => {
-  routeFetch({ enabled: true, authenticated: false }, 401);
+  routeFetch({ state: "unauthenticated" }, 401);
   const user = userEvent.setup();
   renderPage();
 
@@ -101,10 +104,10 @@ it("shows the server message on wrong passwords", async () => {
   expect(await screen.findByText("密码不对")).toBeInTheDocument();
 });
 
-it("shows the no-password notice when auth is disabled", async () => {
-  routeFetch({ enabled: false, authenticated: false });
+it("passes an unregistered visitor on to the registration page", async () => {
+  routeFetch({ state: "unregistered" });
   renderPage();
 
-  expect(await screen.findByText("登录未启用")).toBeInTheDocument();
+  expect(await screen.findByText("register page")).toBeInTheDocument();
   expect(screen.queryByLabelText("密码")).not.toBeInTheDocument();
 });

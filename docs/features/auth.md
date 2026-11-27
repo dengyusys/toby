@@ -41,6 +41,7 @@ All JSON; errors follow the server's standard error body.
 
 - Before registration, every `/api/*` endpoint except the auth endpoints and `GET /api/system/health` answers 401 — no password exists, so no login can succeed.
 - After registration, every `/api/*` endpoint requires a valid session except the auth endpoints themselves (registration answers `ALREADY_REGISTERED`) and `GET /api/system/health` (the Docker healthcheck target; it carries no business data). Static page assets are served without server-side gating — the enforced boundary is the API; the SPA redirects to the registration or login page client-side. Everything else answers a uniform 401, and percent-encoded paths cannot dodge the guard.
+- Only the PC app (`/`) has a registration page. The mobile app (`/m/`) has none: while unregistered it points at the PC app instead of showing a login form.
 - The web returns to the login page on 401; write requests never auto-retry.
 - Login has no attempt limit: a single-user server behind the operator's own network boundary. A limiter lands with the first deployment exposed to the internet.
 - No plaintext passwords or tokens are stored; passwords, tokens, and keys never enter source, Git, configs, or logs.

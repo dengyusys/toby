@@ -1,21 +1,23 @@
-/** Login page: one password field; 401s elsewhere route here via query caches. */
+/**
+ * Login page: one password field; 401s elsewhere route here via query caches.
+ * A deployment without a password has nothing to log in with — the visitor
+ * is passed on to the one-time registration page.
+ */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";
-import { Button } from "@/components/ui/button.tsx";
-import { Link } from "react-router";
+import { Navigate } from "react-router";
 import { useState } from "react";
 import { ApiError } from "@toby/contract";
 import { authClient } from "@/lib/api.ts";
 import logo from "@/assets/logo.svg";
+import { Button } from "@/components/ui/button.tsx";
 
 function describeError(error: unknown): string {
   if (error instanceof ApiError) {
     switch (error.code) {
       case "INVALID_CREDENTIALS":
         return "密码不对";
-      case "AUTH_DISABLED":
-        return "登录未配置";
       default:
         return error.message;
     }
@@ -42,28 +44,10 @@ export function LoginPage() {
     },
   });
 
-  if (sessionQuery.data && !sessionQuery.data.enabled) {
-    return (
-      <div className="flex min-h-dvh justify-center bg-muted p-4 sm:p-6">
-        <div className="flex w-full max-w-3xl items-center justify-center rounded-3xl bg-muted px-6 py-12">
-          <section className="w-full max-w-md rounded-2xl bg-card px-10 py-14 sm:px-14">
-            <div className="flex flex-col items-center">
-              <img src={logo} alt="" className="size-16" />
-              <h1 className="mt-8 text-3xl font-semibold">登录未启用</h1>
-            </div>
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-              本部署没有配置密码,无需登录。
-            </p>
-            <Link
-              to="/"
-              className="mt-10 inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-xl bg-primary px-4 text-base font-semibold text-primary-foreground hover:opacity-80"
-            >
-              直接进入
-            </Link>
-          </section>
-        </div>
-      </div>
-    );
+  // The gate already sends an unregistered visitor to /register; this
+  // covers a direct visit to /login.
+  if (sessionQuery.data?.state === "unregistered") {
+    return <Navigate to="/register" replace />;
   }
 
   return (

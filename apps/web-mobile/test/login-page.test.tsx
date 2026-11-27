@@ -1,8 +1,8 @@
 /**
  * Login page render and submit with fetch stubbed to the auth endpoints:
  * the form posts the password, the eye toggle reveals and hides the typed
- * value, failures show their message, and a disabled deployment shows the
- * plain notice instead of a form.
+ * value, failures show their message, and a deployment without a password
+ * shows the register-on-PC notice instead of a form.
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -60,8 +60,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("renders the form when auth is enabled and posts the password", async () => {
-  routeFetch({ enabled: true, authenticated: false });
+it("renders the form on a registered deployment and posts the password", async () => {
+  routeFetch({ state: "unauthenticated" });
   const user = userEvent.setup();
   renderPage();
 
@@ -74,7 +74,7 @@ it("renders the form when auth is enabled and posts the password", async () => {
 });
 
 it("toggles the password field between hidden and visible", async () => {
-  routeFetch({ enabled: true, authenticated: false });
+  routeFetch({ state: "unauthenticated" });
   const user = userEvent.setup();
   renderPage();
 
@@ -91,7 +91,7 @@ it("toggles the password field between hidden and visible", async () => {
 });
 
 it("shows the server message on wrong passwords", async () => {
-  routeFetch({ enabled: true, authenticated: false }, 401);
+  routeFetch({ state: "unauthenticated" }, 401);
   const user = userEvent.setup();
   renderPage();
 
@@ -101,10 +101,38 @@ it("shows the server message on wrong passwords", async () => {
   expect(await screen.findByText("密码不对")).toBeInTheDocument();
 });
 
-it("shows the no-password notice when auth is disabled", async () => {
-  routeFetch({ enabled: false, authenticated: false });
+it("shows the register-on-PC notice instead of a form while unregistered", async () => {
+  routeFetch({ state: "unregistered" });
   renderPage();
 
-  expect(await screen.findByText("登录未启用")).toBeInTheDocument();
+  expect(await screen.findByText("请先在电脑端完成注册")).toBeInTheDocument();
   expect(screen.queryByLabelText("密码")).not.toBeInTheDocument();
+});
+
+it("asks the server again once the visitor comes back registered", async () => {
+  // First answer: no password yet. The answer after the retry: registered.
+  let sessionCalls = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.endsWith("/api/auth/session")
+        ? { state: sessionCalls++ === 0 ? "unregistered" : "unauthenticated" }
+        : { status: "ok" };
+      return Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }),
+  );
+  const user = userEvent.setup();
+  renderPage();
+
+  await screen.findByText("请先在电脑端完成注册");
+  await user.click(screen.getByRole("button", { name: "我已设置,重新检查" }));
+
+  expect(await screen.findByLabelText("密码")).toBeInTheDocument();
+  expect(sessionCalls).toBe(2);
 });
