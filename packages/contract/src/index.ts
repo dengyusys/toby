@@ -46,7 +46,6 @@ export type {
   AuthClient,
   AuthErrorCode,
   AuthLoginResult,
-  AuthScope,
   AuthSessionInfo,
   AuthState,
   CreatedAccessToken,

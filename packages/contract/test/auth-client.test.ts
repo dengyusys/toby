@@ -121,30 +121,23 @@ describe("createAuthClient", () => {
     expect(fetchMock.mock.calls[0]).toEqual(["/api/auth/tokens", undefined]);
   });
 
-  it("createToken posts the name, one tier, and the expiry to /api/auth/tokens", async () => {
+  it("createToken posts the name to /api/auth/tokens", async () => {
     const fetchMock = stubFetch(
       200,
       JSON.stringify({ token: { id: "t1" }, secret: "s3cret" }),
     );
     const client = createAuthClient("http://127.0.0.1:8629/");
-    expect(
-      await client.createToken({
-        name: "script",
-        scopes: ["read"],
-        expires_at: "2027-01-01T00:00:00.000Z",
-      }),
-    ).toEqual({ token: { id: "t1" }, secret: "s3cret" });
+    expect(await client.createToken({ name: "script" })).toEqual({
+      token: { id: "t1" },
+      secret: "s3cret",
+    });
     const [url, init] = fetchMock.mock.calls[0] as [
       string,
       RequestInit | undefined,
     ];
     expect(url).toBe("http://127.0.0.1:8629/api/auth/tokens");
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({
-      name: "script",
-      scopes: ["read"],
-      expires_at: "2027-01-01T00:00:00.000Z",
-    });
+    expect(JSON.parse(String(init?.body))).toEqual({ name: "script" });
   });
 
   it("revokeToken deletes /api/auth/tokens/:id, escaping the id", async () => {

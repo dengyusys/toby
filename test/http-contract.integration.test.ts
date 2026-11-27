@@ -455,21 +455,20 @@ describe("http contract (registered)", () => {
     expect(sessionBody.state).toBe("authenticated");
   });
 
-  it("opens the API to an access token, within its tier", async () => {
+  it("opens the API to an access token, but never the owner's credentials", async () => {
     const cookie = await loginSession(authUrl, INTEGRATION_PASSWORD);
     const created = await fetch(`${authUrl}/api/auth/tokens`, {
       method: "POST",
       headers: { "content-type": "application/json", cookie },
-      body: JSON.stringify({ name: "integration probe", scopes: ["read"] }),
+      body: JSON.stringify({ name: "integration probe" }),
     });
     expect(created.status).toBe(200);
     const createdBody = (await created.json()) as {
-      token: { id: string; last_four: string; scopes: string[] };
+      token: { id: string; last_four: string };
       secret: string;
     };
     // 32 random bytes as base64url, and the list only ever shows its tail.
     expect(createdBody.secret).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(createdBody.token.scopes).toEqual(["read"]);
     expect(createdBody.token.last_four).toBe(createdBody.secret.slice(-4));
     const authorization = `Bearer ${createdBody.secret}`;
 
@@ -479,7 +478,7 @@ describe("http contract (registered)", () => {
     expect(months.status).toBe(200);
     expect(await months.json()).toEqual({ months: [] });
 
-    // A read token never changes anything, and never touches credentials.
+    // A token reads and writes like the owner does.
     const write = await fetch(`${authUrl}/api/ledger/entries`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization },
@@ -493,10 +492,12 @@ describe("http contract (registered)", () => {
         },
       }),
     });
-    expect(write.status).toBe(403);
-    expect(((await write.json()) as { errorCode: string }).errorCode).toBe(
-      "INSUFFICIENT_SCOPE",
-    );
+    expect(write.status).toBe(200);
+    const afterWrite = await fetch(`${authUrl}/api/ledger/months`, {
+      headers: { authorization },
+    });
+    expect(await afterWrite.json()).toEqual({ months: ["2026-10"] });
+    // The owner's settings are not its business.
     const settings = await fetch(`${authUrl}/api/settings/ai`, {
       headers: { authorization },
     });

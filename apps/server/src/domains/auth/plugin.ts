@@ -39,11 +39,7 @@ export function authPlugin(options: AuthPluginOptions): AuthDomain {
   return {
     guard: makeAuthGuard(service),
     plugin: async (app) => {
-      await app.register(authRoutes, {
-        service,
-        config: options.config,
-        clock,
-      });
+      await app.register(authRoutes, { service, config: options.config });
       service.start();
       app.addHook("onClose", async () => {
         service.stop();

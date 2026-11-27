@@ -15,10 +15,8 @@ import type {
 } from "fastify";
 import { z } from "zod";
 import type { TobyConfig } from "../../infrastructure/config/config.ts";
-import type { Clock } from "../../infrastructure/clock.ts";
 import { parseBody } from "../../infrastructure/http/body-schema.ts";
-import { DomainHttpError } from "../../infrastructure/http/http-error.ts";
-import { checkAccess, isAllowedTokenScopes, type Scope } from "./access.ts";
+import { checkAccess } from "./access.ts";
 import {
   SESSION_COOKIE,
   readSessionCookie,
@@ -33,8 +31,8 @@ import type { AccessTokenRecord } from "./types.ts";
  * every `/api` route not marked public — static pages and the public auth
  * endpoints never carry it. It resolves who is calling (the owner's session
  * cookie, or an access token in the Authorization header) and then checks
- * the route's own rule: session-only, and the scope the method needs. Async,
- * so a refused caller is the hook's rejection, answered by the error boundary.
+ * the route's own rule: whether it is session-only. Async, so a refused
+ * caller is the hook's rejection, answered by the error boundary.
  */
 export function makeAuthGuard(
   service: AuthService,
@@ -44,23 +42,11 @@ export function makeAuthGuard(
       authorization: request.headers.authorization,
       cookie: readSessionCookie(request.headers.cookie),
     });
-    const denial = checkAccess(
-      principal,
-      request.routeOptions.config,
-      request.method,
-    );
-    if (denial === "session-required") {
+    if (checkAccess(principal, request.routeOptions.config)) {
       throw new AuthError(
         "SESSION_REQUIRED",
         403,
         "this route accepts a browser session only",
-      );
-    }
-    if (denial === "insufficient-scope") {
-      throw new AuthError(
-        "INSUFFICIENT_SCOPE",
-        403,
-        "this route needs a write token",
       );
     }
   };
@@ -69,7 +55,6 @@ export function makeAuthGuard(
 export interface AuthRoutesOptions {
   service: AuthService;
   config: TobyConfig;
-  clock: Clock;
 }
 
 /** Path parameters of the token routes. */
@@ -116,16 +101,12 @@ const CHANGE_PASSWORD_BODY_SCHEMA = z
   );
 
 /**
- * POST /api/auth/tokens body. `scopes` is a list so finer scopes can join
- * later; today it must hold exactly one of the two tiers.
+ * POST /api/auth/tokens body. Every token has the same power — the owner's
+ * own business routes — so a name is all there is to choose.
  */
 const CREATE_TOKEN_BODY_SCHEMA = z
   .object({
     name: z.string().trim().min(1).max(64),
-    scopes: z
-      .array(z.string())
-      .refine(isAllowedTokenScopes, 'must be ["read"] or ["write"]'),
-    expires_at: z.iso.datetime({ offset: true }).optional(),
   })
   .strict();
 
@@ -134,11 +115,9 @@ function toTokenView(record: AccessTokenRecord) {
   return {
     id: record.id,
     name: record.name,
-    scopes: [...record.scopes],
     last_four: record.lastFour,
     created_at: record.createdAt,
     last_used_at: record.lastUsedAt,
-    expires_at: record.expiresAt,
   };
 }
 
@@ -146,7 +125,7 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
   app,
   options,
 ) => {
-  const { service, clock } = options;
+  const { service } = options;
   const secureCookie = options.config.auth.secureCookie;
   const sessionTtlMs = options.config.auth.sessionTtlMs;
 
@@ -205,24 +184,8 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
 
   app.post("/api/auth/tokens", sessionOnly, async (request) => {
     const body = parseBody(CREATE_TOKEN_BODY_SCHEMA, request);
-    if (
-      body.expires_at !== undefined &&
-      Date.parse(body.expires_at) <= clock()
-    ) {
-      throw new DomainHttpError(
-        400,
-        "BAD_REQUEST",
-        "expires_at: must be in the future",
-      );
-    }
     const { record, secret } = await service.createToken({
       name: body.name,
-      // The schema has already narrowed this to exactly one tier.
-      scopes: body.scopes as [Scope],
-      expiresAt:
-        body.expires_at === undefined
-          ? null
-          : new Date(body.expires_at).toISOString(),
     });
     // The one and only time the secret exists outside this request.
     return { token: toTokenView(record), secret };

@@ -9,9 +9,6 @@ import { endpoint, requestJson } from "./request-json.ts";
 /** Where the deployment stands; mirrors the server's closed state union. */
 export type AuthState = "unregistered" | "unauthenticated" | "authenticated";
 
-/** What an access token may do; `write` covers `read`. */
-export type AuthScope = "read" | "write";
-
 /** The closed error-code union, mirroring the server domain's. */
 export type AuthErrorCode =
   | "INVALID_CREDENTIALS"
@@ -19,7 +16,6 @@ export type AuthErrorCode =
   | "INVALID_TOKEN"
   | "ALREADY_REGISTERED"
   | "REGISTRATION_CLOSED"
-  | "INSUFFICIENT_SCOPE"
   | "SESSION_REQUIRED"
   | "TOKEN_NOT_FOUND";
 
@@ -36,19 +32,14 @@ export interface AuthLoginResult {
 export interface AccessTokenView {
   id: string;
   name: string;
-  scopes: AuthScope[];
   last_four: string;
   created_at: string;
   last_used_at: string | null;
-  expires_at: string | null;
 }
 
-/** POST /api/auth/tokens body. `scopes` holds exactly one tier. */
+/** POST /api/auth/tokens body: every token has the same power, so a name is all there is. */
 export interface AccessTokenCreate {
   name: string;
-  scopes: AuthScope[];
-  /** ISO time; omitted = never expires. */
-  expires_at?: string;
 }
 
 /** POST /api/auth/tokens result: the token, and the secret this one time. */

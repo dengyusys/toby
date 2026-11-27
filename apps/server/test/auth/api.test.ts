@@ -98,17 +98,15 @@ function call(
 interface TokenView {
   id: string;
   name: string;
-  scopes: string[];
   last_four: string;
   created_at: string;
   last_used_at: string | null;
-  expires_at: string | null;
 }
 
 /** Creates a token over the browser session: a 200, with the secret once. */
 async function createToken(
   cookie: string,
-  body: Record<string, unknown> = { name: "probe", scopes: ["write"] },
+  body: Record<string, unknown> = { name: "probe" },
 ): Promise<{ token: TokenView; secret: string }> {
   const response = await call("POST", "/api/auth/tokens", {
     payload: body,
@@ -584,7 +582,7 @@ describe("access tokens", () => {
       expect(anonymous.statusCode).toBe(401);
       expect(anonymous.json().errorCode).toBe("AUTH_REQUIRED");
     }
-    // Even a write token never manages the owner's tokens.
+    // A token never manages the owner's tokens.
     const { secret } = await createToken(cookie);
     const viaToken = await call("GET", "/api/auth/tokens", {
       headers: { authorization: `Bearer ${secret}` },
@@ -592,40 +590,22 @@ describe("access tokens", () => {
     expect(viaToken.statusCode).toBe(403);
     expect(viaToken.json().errorCode).toBe("SESSION_REQUIRED");
     const minted = await call("POST", "/api/auth/tokens", {
-      payload: { name: "self-made", scopes: ["read"] },
+      payload: { name: "self-made" },
       headers: { authorization: `Bearer ${secret}` },
     });
     expect(minted.statusCode).toBe(403);
     expect(minted.json().errorCode).toBe("SESSION_REQUIRED");
   });
 
-  it("a write token calls the API like a session does", async () => {
-    const { token, secret } = await createToken(cookie, {
+  it("a token calls the API like a session does", async () => {
+    const { token, secret } = await createToken(cookie, { name: "my page" });
+    // The whole view: an id, the name, the tail, and two timestamps.
+    expect(token).toEqual({
+      id: token.id,
       name: "my page",
-      scopes: ["write"],
-    });
-    expect(token).toMatchObject({
-      name: "my page",
-      scopes: ["write"],
       last_four: secret.slice(-4),
+      created_at: new Date(nowMs).toISOString(),
       last_used_at: null,
-      expires_at: null,
-    });
-    const auth = { authorization: `Bearer ${secret}` };
-
-    const months = await call("GET", "/api/ledger/months", { headers: auth });
-    expect(months.statusCode).toBe(200);
-    const written = await call("POST", "/api/ledger/entries", {
-      payload: { entry: ENTRY },
-      headers: auth,
-    });
-    expect(written.statusCode).toBe(200);
-  });
-
-  it("a read token looks but never changes", async () => {
-    const { secret } = await createToken(cookie, {
-      name: "dashboard",
-      scopes: ["read"],
     });
     const auth = { authorization: `Bearer ${secret}` };
 
@@ -637,22 +617,15 @@ describe("access tokens", () => {
       const looked = await call("GET", url, { headers: auth });
       expect(looked.statusCode).toBe(200);
     }
-    for (const [method, url, payload] of [
-      ["POST", "/api/ledger/entries", { entry: ENTRY }],
-      ["POST", "/api/chat/messages", { text: "hello" }],
-      ["POST", "/api/memory/off-record", { on: true }],
-    ] as const) {
-      const refused = await call(method, url, { payload, headers: auth });
-      expect(refused.statusCode).toBe(403);
-      expect(refused.json().errorCode).toBe("INSUFFICIENT_SCOPE");
-    }
+    const written = await call("POST", "/api/ledger/entries", {
+      payload: { entry: ENTRY },
+      headers: auth,
+    });
+    expect(written.statusCode).toBe(200);
   });
 
-  it("session-only routes refuse every token, write included", async () => {
-    const { secret } = await createToken(cookie, {
-      name: "write",
-      scopes: ["write"],
-    });
+  it("session-only routes refuse every token", async () => {
+    const { secret } = await createToken(cookie);
     const auth = { authorization: `Bearer ${secret}` };
 
     for (const [method, url, payload] of [
@@ -681,7 +654,7 @@ describe("access tokens", () => {
     ).toBe(200);
   });
 
-  it("an unknown, revoked, or expired token answers 401 INVALID_TOKEN", async () => {
+  it("an unknown or revoked token answers 401 INVALID_TOKEN", async () => {
     const unknown = await call("GET", "/api/ledger/months", {
       headers: { authorization: "Bearer not-a-real-token" },
     });
@@ -719,41 +692,23 @@ describe("access tokens", () => {
     });
     expect(missing.statusCode).toBe(404);
     expect(missing.json().errorCode).toBe("TOKEN_NOT_FOUND");
-
-    const expiring = await createToken(cookie, {
-      name: "short-lived",
-      scopes: ["read"],
-      expires_at: new Date(nowMs + 60_000).toISOString(),
-    });
-    expect(expiring.token.expires_at).toBe(
-      new Date(nowMs + 60_000).toISOString(),
-    );
-    nowMs += 60_000;
-    const expired = await call("GET", "/api/ledger/months", {
-      headers: { authorization: `Bearer ${expiring.secret}` },
-    });
-    expect(expired.statusCode).toBe(401);
-    expect(expired.json().errorCode).toBe("INVALID_TOKEN");
   });
 
   it("a presented token decides the request, whatever cookies sit beside it", async () => {
-    const { secret } = await createToken(cookie, {
-      name: "read",
-      scopes: ["read"],
-    });
+    const { secret } = await createToken(cookie, { name: "mine" });
     // An invalid token is still invalid beside a valid session.
     const bad = await call("GET", "/api/ledger/months", {
       headers: { authorization: "Bearer nope", cookie },
     });
     expect(bad.statusCode).toBe(401);
     expect(bad.json().errorCode).toBe("INVALID_TOKEN");
-    // A read token is still read-only beside a valid session.
-    const limited = await call("POST", "/api/ledger/entries", {
-      payload: { entry: ENTRY },
+    // A session-only route is still session-only beside a valid session:
+    // the token is what was presented, and it is not a session.
+    const stillRefused = await call("GET", "/api/auth/tokens", {
       headers: { authorization: `Bearer ${secret}`, cookie },
     });
-    expect(limited.statusCode).toBe(403);
-    expect(limited.json().errorCode).toBe("INSUFFICIENT_SCOPE");
+    expect(stillRefused.statusCode).toBe(403);
+    expect(stillRefused.json().errorCode).toBe("SESSION_REQUIRED");
     // A non-Bearer Authorization header is not ours: the cookie decides.
     const basic = await call("GET", "/api/ledger/months", {
       headers: { authorization: "Basic abc", cookie },
@@ -762,10 +717,7 @@ describe("access tokens", () => {
   });
 
   it("the list shows the tail and the last use, never the secret", async () => {
-    const { token, secret } = await createToken(cookie, {
-      name: "script",
-      scopes: ["read"],
-    });
+    const { token, secret } = await createToken(cookie, { name: "script" });
     const list = async () =>
       (
         (
@@ -792,21 +744,13 @@ describe("access tokens", () => {
     expect((await list())[0]?.last_used_at).toBe(new Date(nowMs).toISOString());
   });
 
-  it("creation refuses anything but a name, one tier, and a future expiry", async () => {
+  it("creation refuses a bad name, an unknown field, or a tier", async () => {
     for (const body of [
-      { name: "", scopes: ["read"] },
-      { name: "x".repeat(65), scopes: ["read"] },
-      { name: "ok", scopes: [] },
-      { name: "ok", scopes: ["read", "write"] },
-      { name: "ok", scopes: ["admin"] },
-      { name: "ok", scopes: "read" },
-      { name: "ok", scopes: ["read"], extra: true },
-      { name: "ok", scopes: ["read"], expires_at: "yesterday" },
-      {
-        name: "ok",
-        scopes: ["read"],
-        expires_at: new Date(nowMs).toISOString(),
-      },
+      { name: "" },
+      { name: "x".repeat(65) },
+      { name: "ok", extra: true },
+      // Tokens have no tiers any more.
+      { name: "ok", scopes: ["read"] },
     ]) {
       const refused = await call("POST", "/api/auth/tokens", {
         payload: body,
@@ -819,13 +763,5 @@ describe("access tokens", () => {
       headers: { cookie },
     });
     expect(listed.json()).toEqual({ tokens: [] });
-
-    // A valid expiry is stored in canonical UTC.
-    const ok = await createToken(cookie, {
-      name: "ok",
-      scopes: ["read"],
-      expires_at: "2027-01-01T08:00:00+08:00",
-    });
-    expect(ok.token.expires_at).toBe("2027-01-01T00:00:00.000Z");
   });
 });

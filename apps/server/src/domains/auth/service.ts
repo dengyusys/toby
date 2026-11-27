@@ -11,7 +11,7 @@ import type {
   TobyConfig,
 } from "../../infrastructure/config/config.ts";
 import type { Clock } from "../../infrastructure/clock.ts";
-import { readBearerToken, type Principal, type Scope } from "./access.ts";
+import { readBearerToken, type Principal } from "./access.ts";
 import { digestOf } from "./digest.ts";
 import { AuthError } from "./errors.ts";
 import { hashPassword, verifyPassword } from "./password.ts";
@@ -80,12 +80,7 @@ export interface AuthService {
     authorization: string | undefined;
     cookie: string | undefined;
   }): Promise<Principal>;
-  createToken(input: {
-    name: string;
-    scopes: readonly Scope[];
-    /** ISO time, or null for a token that never expires. */
-    expiresAt: string | null;
-  }): Promise<CreatedToken>;
+  createToken(input: { name: string }): Promise<CreatedToken>;
   /** Tokens that are not revoked, newest first. */
   listTokens(): Promise<AccessTokenRecord[]>;
   /**
@@ -95,14 +90,6 @@ export interface AuthService {
   revokeToken(id: string): Promise<AccessTokenRecord>;
   start(): void;
   stop(): void;
-}
-
-/** Revoked and expired tokens are the same to a caller: not live. */
-function isLive(token: AccessTokenRecord, nowMs: number): boolean {
-  if (token.revokedAt !== null) {
-    return false;
-  }
-  return token.expiresAt === null || Date.parse(token.expiresAt) > nowMs;
 }
 
 export function createAuthService(deps: {
@@ -204,8 +191,8 @@ export function createAuthService(deps: {
           digestOf(presented),
         );
         const nowMs = deps.clock();
-        if (token === null || !isLive(token, nowMs)) {
-          // Unknown, revoked and expired read the same from the outside.
+        // Unknown and revoked read the same from the outside.
+        if (token === null || token.revokedAt !== null) {
           throw new AuthError("INVALID_TOKEN", 401, "invalid access token");
         }
         if (
@@ -217,7 +204,7 @@ export function createAuthService(deps: {
             new Date(nowMs).toISOString(),
           );
         }
-        return { kind: "token", tokenId: token.id, scopes: token.scopes };
+        return { kind: "token", tokenId: token.id };
       }
       if (cookie === undefined || !sessions.verify(cookie)) {
         throw new AuthError("AUTH_REQUIRED", 401, "login required");
@@ -225,17 +212,15 @@ export function createAuthService(deps: {
       return { kind: "session" };
     },
 
-    async createToken({ name, scopes, expiresAt }) {
+    async createToken({ name }) {
       const secret = generateTokenSecret();
       const { digest, lastFour } = tokenFingerprint(secret);
       const record: AccessTokenRecord = {
         id: randomUUID(),
         name,
-        scopes,
         lastFour,
         createdAt: new Date(deps.clock()).toISOString(),
         lastUsedAt: null,
-        expiresAt,
         revokedAt: null,
       };
       await deps.repository.insertToken(record, digest);

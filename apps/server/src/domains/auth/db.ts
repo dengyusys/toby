@@ -27,10 +27,8 @@ const AUTH_SCHEMA: Record<DbDialect, readonly string[]> = {
       name TEXT NOT NULL,
       token_digest TEXT NOT NULL,
       token_last4 TEXT NOT NULL,
-      scopes_json TEXT NOT NULL,
       created_at TEXT NOT NULL,
       last_used_at TEXT,
-      expires_at TEXT,
       revoked_at TEXT
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS access_tokens_token_digest
@@ -47,10 +45,8 @@ const AUTH_SCHEMA: Record<DbDialect, readonly string[]> = {
       name VARCHAR(64) NOT NULL,
       token_digest VARCHAR(64) NOT NULL,
       token_last4 VARCHAR(8) NOT NULL,
-      scopes_json VARCHAR(255) NOT NULL,
       created_at VARCHAR(32) NOT NULL,
       last_used_at VARCHAR(32) NULL,
-      expires_at VARCHAR(32) NULL,
       revoked_at VARCHAR(32) NULL,
       UNIQUE KEY access_tokens_token_digest (token_digest)
     )`,

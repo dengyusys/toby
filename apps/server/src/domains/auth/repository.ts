@@ -7,7 +7,6 @@
 
 import type { Clock } from "../../infrastructure/clock.ts";
 import { DbError } from "../../infrastructure/db/errors.ts";
-import type { Scope } from "./access.ts";
 import type { AuthDb } from "./db.ts";
 import type { AccessTokenRecord } from "./types.ts";
 
@@ -15,29 +14,24 @@ import type { AccessTokenRecord } from "./types.ts";
 const OWNER_ID = 1;
 
 const TOKEN_COLUMNS =
-  "id, name, scopes_json, token_last4, created_at, last_used_at, expires_at, revoked_at";
+  "id, name, token_last4, created_at, last_used_at, revoked_at";
 
 interface TokenRow {
   id: string;
   name: string;
-  scopes_json: string;
   token_last4: string;
   created_at: string;
   last_used_at: string | null;
-  expires_at: string | null;
   revoked_at: string | null;
 }
 
-/** The scopes were written by this domain and checked against the two tiers first. */
 function toRecord(row: TokenRow): AccessTokenRecord {
   return {
     id: row.id,
     name: row.name,
-    scopes: JSON.parse(row.scopes_json) as Scope[],
     lastFour: row.token_last4,
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at,
-    expiresAt: row.expires_at,
     revokedAt: row.revoked_at,
   };
 }
@@ -54,8 +48,8 @@ export interface AuthRepository {
   updatePasswordHash(hash: string): Promise<void>;
 
   /**
-   * The token a presented secret's digest belongs to, revoked or expired
-   * ones included — the caller judges whether it is still live.
+   * The token a presented secret's digest belongs to, revoked ones
+   * included — the caller judges whether it is still live.
    */
   findTokenByDigest(digest: string): Promise<AccessTokenRecord | null>;
   insertToken(token: AccessTokenRecord, digest: string): Promise<void>;
@@ -123,15 +117,13 @@ export function createAuthRepository(deps: {
       const handle = await db.open();
       await handle.run(
         `INSERT INTO access_tokens (${TOKEN_COLUMNS}, token_digest)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           token.id,
           token.name,
-          JSON.stringify(token.scopes),
           token.lastFour,
           token.createdAt,
           token.lastUsedAt,
-          token.expiresAt,
           token.revokedAt,
           digest,
         ],

@@ -129,9 +129,8 @@ irreversibility warning) that clears the book to empty in one atomic write.
 
 All JSON except the file read (`text/markdown`); every route follows the auth
 guard; errors use the server's standard body. An access token reads the file
-and the flag with `read`, and sets the flag with `write`; the reset is
-session-only — a leaked token must not empty the book in one call
-(docs/features/auth.md).
+and the flag and sets the flag; the reset is session-only — a leaked token
+must not empty the book in one call (docs/features/auth.md).
 
 | Method and path               | Purpose                                                                                                   |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------- |

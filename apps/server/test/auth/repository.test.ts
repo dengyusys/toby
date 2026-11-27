@@ -87,21 +87,17 @@ describe("auth repository", () => {
     const older: AccessTokenRecord = {
       id: "token-1",
       name: "script",
-      scopes: ["read"],
       lastFour: "abcd",
       createdAt: "2026-11-27T08:00:00.000Z",
       lastUsedAt: null,
-      expiresAt: null,
       revokedAt: null,
     };
     const newer: AccessTokenRecord = {
       id: "token-2",
       name: "page",
-      scopes: ["write"],
       lastFour: "wxyz",
       createdAt: "2026-11-27T08:05:00.000Z",
       lastUsedAt: null,
-      expiresAt: "2027-01-01T00:00:00.000Z",
       revokedAt: null,
     };
     try {
