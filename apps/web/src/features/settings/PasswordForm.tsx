@@ -13,9 +13,6 @@ import { Label } from "@/components/ui/label.tsx";
 import { authClient } from "@/lib/api.ts";
 import { FieldError } from "./FieldError.tsx";
 
-/** Mirrors the server's minimum; the server rejects anything shorter. */
-const PASSWORD_MIN_LENGTH = 8;
-
 function describeError(error: unknown): string {
   if (error instanceof ApiError) {
     switch (error.code) {
@@ -39,10 +36,6 @@ export function PasswordForm() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) {
-      return;
-    }
-    if (newPassword.length < PASSWORD_MIN_LENGTH) {
-      setError(`新密码至少 ${PASSWORD_MIN_LENGTH} 位`);
       return;
     }
     if (newPassword !== confirm) {

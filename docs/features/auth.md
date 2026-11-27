@@ -29,9 +29,9 @@ All JSON; errors follow the server's standard error body.
 
 | Method and path               | Purpose                                                                                                                                                          |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/auth/register`     | First-run registration: sets the password and starts a session. Body `{ password }` (8–256 characters)                                                           |
+| `POST /api/auth/register`     | First-run registration: sets the password and starts a session. Body `{ password }` (any non-empty password)                                                     |
 | `POST /api/auth/login`        | Log in and start a session; wrong password 401 (before registration, every password is wrong)                                                                    |
-| `PUT /api/auth/password`      | Session only. Change the password. Body `{ current_password, new_password }` (new: 8–256 characters, must differ); ends every session                            |
+| `PUT /api/auth/password`      | Session only. Change the password. Body `{ current_password, new_password }` (new: any non-empty password, must differ); ends every session                      |
 | `POST /api/auth/logout`       | Revoke the session; idempotent success even when not logged in                                                                                                   |
 | `GET /api/auth/session`       | Query the deployment's state: `unregistered`, `unauthenticated`, or `authenticated` (plus `expires_at`)                                                          |
 | `GET /api/auth/tokens`        | Session only. `{ tokens: [{ id, name, scopes, last_four, created_at, last_used_at, expires_at }] }` — not revoked, newest first                                  |

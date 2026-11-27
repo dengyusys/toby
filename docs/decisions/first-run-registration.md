@@ -61,5 +61,5 @@ with the product's data, changed in the product.**
 
 `app.inject` drives the production assembly with an injected clock: the
 window's last millisecond, its expiry, a restart reopening it, the one-time
-rule, and the body bounds. The root HTTP integration test registers on a
+rule, and an empty password. The root HTTP integration test registers on a
 real process before every suite that needs the API.

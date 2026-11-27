@@ -12,10 +12,6 @@
 
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
-/** Accepted password length, enforced wherever a password is set. */
-export const PASSWORD_MIN_LENGTH = 8;
-export const PASSWORD_MAX_LENGTH = 256;
-
 const SCRYPT_N = 16_384;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;

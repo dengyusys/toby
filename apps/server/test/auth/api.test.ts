@@ -193,10 +193,20 @@ describe("not registered (a fresh auth database)", () => {
     expect(response.statusCode).toBe(200);
   });
 
-  it("a password out of bounds, an unknown field, or a missing body is a 400", async () => {
+  it("any non-empty password registers, however short", async () => {
+    const response = await register("1234");
+    expect(response.statusCode).toBe(200);
+
+    const cookie = `toby_session=${tokenFrom(response)}`;
+    const logout = await send("POST", "/api/auth/logout", undefined, cookie);
+    expect(logout.statusCode).toBe(200);
+    expect((await login("1234")).statusCode).toBe(200);
+    expect((await login("12345")).statusCode).toBe(401);
+  });
+
+  it("an empty password, an unknown field, or a missing body is a 400", async () => {
     for (const body of [
-      { password: "short" },
-      { password: "x".repeat(257) },
+      { password: "" },
       { password: PASSWORD, extra: true },
     ]) {
       const response = await send("POST", "/api/auth/register", body);
@@ -449,10 +459,22 @@ describe("registered", () => {
     expect((await login(NEXT)).statusCode).toBe(200);
   });
 
-  it("a new password out of bounds, equal to the old one, or with an unknown field is a 400", async () => {
+  it("the password can change to any non-empty one, however short", async () => {
+    const cookie = `toby_session=${tokenFrom(await login(PASSWORD))}`;
+    const changed = await send(
+      "PUT",
+      "/api/auth/password",
+      { current_password: PASSWORD, new_password: "ab" },
+      cookie,
+    );
+    expect(changed.statusCode).toBe(200);
+    expect((await login("ab")).statusCode).toBe(200);
+  });
+
+  it("an empty new password, one equal to the old, or an unknown field is a 400", async () => {
     const cookie = `toby_session=${tokenFrom(await login(PASSWORD))}`;
     for (const body of [
-      { current_password: PASSWORD, new_password: "short" },
+      { current_password: PASSWORD, new_password: "" },
       { current_password: PASSWORD, new_password: PASSWORD },
       {
         current_password: PASSWORD,

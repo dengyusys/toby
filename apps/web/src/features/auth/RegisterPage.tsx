@@ -15,9 +15,6 @@ import { authClient } from "@/lib/api.ts";
 import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button.tsx";
 
-/** Mirrors the server's minimum; the server rejects anything shorter. */
-const PASSWORD_MIN_LENGTH = 8;
-
 function describeError(error: unknown): string {
   if (error instanceof ApiError) {
     switch (error.code) {
@@ -70,10 +67,6 @@ export function RegisterPage() {
   }
 
   function submit() {
-    if (password.length < PASSWORD_MIN_LENGTH) {
-      setFormError(`密码至少 ${PASSWORD_MIN_LENGTH} 位`);
-      return;
-    }
     if (password !== confirm) {
       setFormError("两次输入的密码不一致");
       return;

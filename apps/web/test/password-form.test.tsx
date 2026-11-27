@@ -1,6 +1,6 @@
 /**
  * The change-password card with fetch stubbed: it posts the current and the
- * new password, refuses a short, mismatched, or unchanged new password
+ * new password, refuses a mismatched or unchanged new password
  * without calling the server, and names a wrong current password.
  */
 
@@ -82,12 +82,22 @@ it("posts the current and the new password", async () => {
   });
 });
 
-it("refuses a short, mismatched, or unchanged new password without calling the server", async () => {
+it("accepts a short new password", async () => {
   routeFetch();
   renderForm();
 
-  await fill("old-password", "short", "short");
-  expect(await screen.findByText("新密码至少 8 位")).toBeInTheDocument();
+  await fill("old-password", "ab", "ab");
+
+  const sent = calls.find(({ url }) => url.endsWith("/api/auth/password"));
+  expect(JSON.parse(String(sent?.init?.body))).toEqual({
+    current_password: "old-password",
+    new_password: "ab",
+  });
+});
+
+it("refuses a mismatched or unchanged new password without calling the server", async () => {
+  routeFetch();
+  renderForm();
 
   await fill("old-password", "12345678", "87654321");
   expect(await screen.findByText("两次输入的新密码不一致")).toBeInTheDocument();

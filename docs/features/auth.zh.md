@@ -29,9 +29,9 @@
 
 | 方法与路径                    | 用途                                                                                                                                   |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/auth/register`     | 首次注册:设置密码并建立会话;请求体 `{ password }`(8–256 个字符)                                                                        |
+| `POST /api/auth/register`     | 首次注册:设置密码并建立会话;请求体 `{ password }`(任意非空密码)                                                                        |
 | `POST /api/auth/login`        | 登录建立会话;密码错 401(注册之前,任何密码都是错的)                                                                                     |
-| `PUT /api/auth/password`      | 仅会话。修改密码;请求体 `{ current_password, new_password }`(新密码 8–256 个字符,且不能与当前密码相同);所有会话随之失效                |
+| `PUT /api/auth/password`      | 仅会话。修改密码;请求体 `{ current_password, new_password }`(新密码为任意非空密码,且不能与当前密码相同);所有会话随之失效               |
 | `POST /api/auth/logout`       | 吊销会话;未登录也幂等成功                                                                                                              |
 | `GET /api/auth/session`       | 查询部署状态:`unregistered`、`unauthenticated` 或 `authenticated`(带 `expires_at`)                                                     |
 | `GET /api/auth/tokens`        | 仅会话。`{ tokens: [{ id, name, scopes, last_four, created_at, last_used_at, expires_at }] }`,只含未撤销的,最新的在前                  |

@@ -25,7 +25,6 @@ import {
   readSessionCookieToken,
 } from "./cookie.ts";
 import { AuthError } from "./errors.ts";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./password.ts";
 import { LOGIN_SUCCESS, type AuthService } from "./service.ts";
 import type { AccessTokenRecord } from "./types.ts";
 
@@ -87,22 +86,25 @@ const LOGIN_BODY_SCHEMA = z.object({ password: z.string().optional() });
 
 /**
  * POST /api/auth/register body. Unknown fields are rejected: this body sets
- * the credential everything else hangs on.
+ * the credential everything else hangs on. The password is any non-empty
+ * string — an empty one would be no password at all, and its length is the
+ * owner's call.
  */
 const REGISTER_BODY_SCHEMA = z
   .object({
-    password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+    password: z.string().min(1),
   })
   .strict();
 
 /**
- * PUT /api/auth/password body. The new password must differ from the current
- * one: a "change" that keeps the password would only log everyone out.
+ * PUT /api/auth/password body. The new password must be non-empty, for the
+ * same reason as at registration, and differ from the current one: a
+ * "change" that keeps the password would only log everyone out.
  */
 const CHANGE_PASSWORD_BODY_SCHEMA = z
   .object({
     current_password: z.string(),
-    new_password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+    new_password: z.string().min(1),
   })
   .strict()
   .refine(

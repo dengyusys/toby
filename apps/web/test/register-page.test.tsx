@@ -1,6 +1,6 @@
 /**
  * Registration page with fetch stubbed to the auth endpoints: it posts the
- * password only once both fields agree and are long enough, explains a
+ * password — however short — once both fields agree, explains a
  * closed startup window, and leaves the page whenever the deployment is no
  * longer unregistered.
  */
@@ -89,12 +89,19 @@ it("posts the password once both fields agree", async () => {
   expect(JSON.parse(String(sent?.init?.body))).toEqual({ password: PASSWORD });
 });
 
-it("refuses a short or a mismatched password without calling the server", async () => {
+it("posts a short password just the same", async () => {
   routeFetch({ state: "unregistered" });
   renderPage();
 
-  await fill("short", "short");
-  expect(await screen.findByText("密码至少 8 位")).toBeInTheDocument();
+  await fill("1234", "1234");
+
+  const sent = calls.find(({ url }) => url.endsWith("/api/auth/register"));
+  expect(JSON.parse(String(sent?.init?.body))).toEqual({ password: "1234" });
+});
+
+it("refuses a mismatched password without calling the server", async () => {
+  routeFetch({ state: "unregistered" });
+  renderPage();
 
   await fill("1234", "5678");
   expect(await screen.findByText("两次输入的密码不一致")).toBeInTheDocument();
