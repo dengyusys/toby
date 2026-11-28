@@ -302,7 +302,10 @@ it("sending appends the turn optimistically and lands the persisted one", async 
   await user.click(screen.getByRole("button", { name: "发送" }));
 
   const sent = calls.find(({ url }) => url.endsWith("/api/chat/messages"));
-  expect(JSON.parse(String(sent?.init?.body))).toEqual({ text: "晚饭 20" });
+  expect(JSON.parse(String(sent?.init?.body))).toEqual({
+    text: "晚饭 20",
+    time_zone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
   // The reply's items render (the optimistic user turn is replaced).
   await waitFor(() =>
     expect(screen.getAllByText("晚饭 20").length).toBeGreaterThanOrEqual(1),

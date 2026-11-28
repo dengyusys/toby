@@ -55,7 +55,7 @@
 | `TOBY_AUTH_SESSION_TTL_HOURS`   | `168`         | 会话有效期(1–8760 小时)                                                                                                      |
 | `TOBY_AUTH_SECURE_COOKIE`       | `false`       | `true` 为会话 Cookie 追加 `Secure`(HTTPS 部署)                                                                               |
 
-MySQL 适配器是可选项(见[数据库适配器决策](../decisions/db-adapter.zh.md));推荐默认仍是 SQLite,`pnpm run test` 永远不需要运行中的 MySQL —— MySQL 适配器测试仅在设置了 `TOBY_TEST_MYSQL_URL` 时运行。供应商密钥不进仓库。一句话记账里的相对日期（「昨天」等）按服务器本地时间换算——请让服务器运行在与用户一致的时区。
+MySQL 适配器是可选项(见[数据库适配器决策](../decisions/db-adapter.zh.md));推荐默认仍是 SQLite,`pnpm run test` 永远不需要运行中的 MySQL —— MySQL 适配器测试仅在设置了 `TOBY_TEST_MYSQL_URL` 时运行。供应商密钥不进仓库。一句话记账里的相对日期（「昨天」等）按浏览器随每句话报上的时区（`time_zone`）换算；请求没带时区时（脚本调用、未刷新的旧页面）回退到服务器本地时间——这类请求请让服务器运行在与用户一致的时区。
 
 ## Windows 注意事项
 

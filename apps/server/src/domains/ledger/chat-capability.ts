@@ -150,8 +150,8 @@ export function createLedgerChatCapability(
     label: "记账",
     intentDescription:
       "- ledger(记账):记一笔钱、修改或纠正已记的账、查账、问花了多少。",
-    async handleWrite(sentence) {
-      const result = await service.write({ text: sentence });
+    async handleWrite(sentence, timeZone) {
+      const result = await service.write({ text: sentence }, timeZone);
       if ("question" in result) {
         return { kind: "question", text: result.question };
       }

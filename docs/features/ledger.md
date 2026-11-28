@@ -38,7 +38,7 @@ nonsense (bad amount, impossible date, blank category) is answered by the domain
 ## Key rules
 
 - AI extraction is untrusted input: it must pass the domain's deterministic validation and normalization before anything is written.
-- Amounts: non-negative numbers with at most two decimal places, parsed digit-wise into cents. Dates: local format plus calendar validation; any past or future date is legal (backfill); a sentence with no date defaults to today.
+- Amounts: non-negative numbers with at most two decimal places, parsed digit-wise into cents. Dates: local format plus calendar validation; any past or future date is legal (backfill); a sentence with no date defaults to today in the writer's time zone (the zone the send carried, else the server's).
 - Uncertain fields return a follow-up question, never a guess; the user retries with more detail.
 - Write path: direct — the batch executes transactionally at once; the card is a receipt. No revert endpoint, no confirmation gate; recovery is writing again or backup.
 - One failed entry rolls back the batch.

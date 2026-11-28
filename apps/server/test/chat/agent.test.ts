@@ -199,4 +199,23 @@ describe("createChatAgent", () => {
       "<memory>\n（记忆文件当前无法读取）\n</memory>",
     );
   });
+
+  it("pins today in the zone the send carried", async () => {
+    specs.length = 0;
+    const agent = createChatAgent({
+      agentFactory,
+      capabilities: [capability],
+      // 23:30 UTC on Oct 30: already Saturday the 31st in Shenzhen,
+      // still Friday the 30th in UTC.
+      clock: () => Date.parse("2026-10-30T23:30:00Z"),
+    });
+    await agent.run("早饭花了多少", [], "Asia/Shanghai");
+    await agent.run("早饭花了多少", [], "UTC");
+    expect(buildSystemPrompt(specs[0]!)).toContain(
+      "今天是 2026-10-31(星期六)。",
+    );
+    expect(buildSystemPrompt(specs[1]!)).toContain(
+      "今天是 2026-10-30(星期五)。",
+    );
+  });
 });

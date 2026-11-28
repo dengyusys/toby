@@ -55,8 +55,9 @@ export interface ChatDomainCapability {
   /** One classifier-prompt line, verbatim: "- ledger(记账):记一笔钱、查账、问花了多少。" */
   readonly intentDescription: string;
   /** The write path. Calls the domain service — one validated,
-   *  transactional write. */
-  handleWrite(sentence: string): Promise<ChatWriteOutcome>;
+   *  transactional write. `timeZone` is the zone the client sent with the
+   *  sentence, absent when it sent none. */
+  handleWrite(sentence: string, timeZone?: string): Promise<ChatWriteOutcome>;
   /** Read-only tools for the none-agent; kind-gated by the shared factory. */
   readonly tools: readonly ToolDefinition[];
   /** toolCall → preview-panel target ("ledger:2026-11"); undefined = no chip. */
@@ -80,6 +81,13 @@ Decisions embedded there, stated plainly:
   (validation failure, unexpected failure) propagate to chat's existing catch
   and settle as the generic "查询出了点问题" notice — the current
   semantics, now written down.
+- **The zone is the client's, reported per request.** The server's own
+  clock says nothing about where the user is, yet a date-less entry lands
+  on "today". Each send carries the browser's IANA zone (`time_zone`); the
+  route refuses an unusable name, and a send without one resolves "today"
+  in the server's zone. A deployment pin was rejected — wrong for any
+  other region — and so was a settings field: it asks the user for what
+  the browser already knows.
 
 ## What each touch point becomes
 

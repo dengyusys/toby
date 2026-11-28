@@ -184,19 +184,25 @@ describe("createLedgerExtractor", () => {
     expect(specs[0]!.policy.maxTurns).toBe(3);
   });
 
-  it("the prompt pins the injected local date and carries the sentence", async () => {
+  it("the prompt pins today in the client's zone and carries the sentence", async () => {
     const { extractor, specs, prompts } = makeExtractor([{ text: "unused" }]);
     // A text-only ending is an unsettled extraction; the spec and prompt
     // assertions are what this test is about.
+    // 23:30 UTC on Oct 30 is already Oct 31 in Shenzhen: the user's morning
+    // must not be dated to UTC's yesterday.
     await expect(
-      extractor.extract("hi", new Date("2026-03-05T23:00:00")),
+      extractor.extract(
+        "早饭 12",
+        new Date("2026-10-30T23:30:00Z"),
+        "Asia/Shanghai",
+      ),
     ).rejects.toBeInstanceOf(AiError);
     const prompt = buildSystemPrompt(specs[0]!);
-    expect(prompt).toContain("2026-03-05");
+    expect(prompt).toContain("今天是 2026-10-31(星期六)。");
     // A sentence without a date must default to today, not trigger a
     // follow-up question about the date.
     expect(prompt).toContain("未提及日期就是今天");
-    expect(prompts).toEqual(["hi"]);
+    expect(prompts).toEqual(["早饭 12"]);
   });
 
   it("keeps tool names out of the hand-written prompt text", async () => {

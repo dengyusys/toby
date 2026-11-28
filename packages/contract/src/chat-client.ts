@@ -80,6 +80,7 @@ export interface ChatTurnPage {
 }
 
 export interface ChatClient {
+  /** Sends one sentence with the browser's IANA zone (`time_zone`). */
   sendMessage(text: string): Promise<ChatTurnView>;
   listSessions(): Promise<readonly ChatSessionView[]>;
   listMessages(
@@ -94,7 +95,12 @@ export function createChatClient(baseUrl: string): ChatClient {
       requestJson<ChatTurnView>(endpoint(baseUrl, "/api/chat/messages"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        // Read per send, never cached: the device's zone can change under
+        // an open tab.
+        body: JSON.stringify({
+          text,
+          time_zone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
       }),
     listSessions: async () => {
       const body = await requestJson<{ sessions: ChatSessionView[] }>(

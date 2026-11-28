@@ -68,8 +68,14 @@ let extractorDraft: () => LedgerDraft = () => ({
   question: "这笔是支出还是收入?",
 });
 
+/** The zone each extraction ran in, one per text-path ledger write. */
+const extractorZones: (string | undefined)[] = [];
+
 const extractor: LedgerExtractor = {
-  extract: async () => extractorDraft(),
+  extract: async (...args) => {
+    extractorZones.push(args[2]);
+    return extractorDraft();
+  },
 };
 
 type DomainMount = (app: FastifyInstance) => PromiseLike<unknown> | void;
@@ -194,6 +200,7 @@ beforeEach(async () => {
   classifications = [];
   classifierCalls.length = 0;
   observeCalls.length = 0;
+  extractorZones.length = 0;
   extractorDraft = () => ({ question: "这笔是支出还是收入?" });
 });
 
@@ -271,6 +278,41 @@ describe("chat api: send and the item stream", () => {
         (item: { type?: string }) => item.type === "proposal_card",
       ),
     ).toBe(false);
+  });
+
+  it("the zone a send carries reaches the ledger write; none means the server's", async () => {
+    await buildLedgerBackedApp();
+    classifications = [
+      { intent: "ledger", sentence: "早饭 12" },
+      { intent: "ledger", sentence: "午饭 20" },
+    ];
+    // The browser's zone rides beside the sentence.
+    const zoned = await inject("POST", "/api/chat/messages", {
+      text: "早饭 12",
+      time_zone: "Asia/Shanghai",
+    });
+    expect(zoned.statusCode).toBe(200);
+    // A client that sends none (a script, a stale tab) is still served.
+    const bare = await inject("POST", "/api/chat/messages", {
+      text: "午饭 20",
+    });
+    expect(bare.statusCode).toBe(200);
+    expect(extractorZones).toEqual([
+      "Asia/Shanghai",
+      new Intl.DateTimeFormat().resolvedOptions().timeZone,
+    ]);
+  });
+
+  it("an unusable time_zone is refused at the route before anything runs", async () => {
+    await buildLedgerBackedApp();
+    const response = await inject("POST", "/api/chat/messages", {
+      text: "早饭 12",
+      time_zone: "Mars/Olympus",
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().errorCode).toBe("BAD_REQUEST");
+    expect(classifierCalls).toHaveLength(0);
+    expect(extractorZones).toHaveLength(0);
   });
 
   it("an intent the registry no longer knows degrades to none, never 404", async () => {

@@ -66,6 +66,8 @@ function fakeRepository(
 ) {
   const calls: RepositoryCall[] = [];
   const updates: UpdateCall[] = [];
+  /** The day each edit lookup asked for, in order. */
+  const days: string[] = [];
   let nextId = 1;
   const repository: LedgerRepositoryLike = {
     async insertTransactions(entries) {
@@ -81,7 +83,8 @@ function fakeRepository(
     async listMonthTransactions() {
       return [];
     },
-    async listDayTransactions() {
+    async listDayTransactions(date) {
+      days.push(date);
       return options.dayRows ?? [];
     },
     async updateTransaction(id, patch) {
@@ -89,7 +92,7 @@ function fakeRepository(
       return options.updateResult;
     },
   };
-  return { repository, calls, updates };
+  return { repository, calls, updates, days };
 }
 
 function makeService(
@@ -282,13 +285,16 @@ describe("ledger service updates", () => {
 describe("ledger service one-sentence path", () => {
   function fakeExtractor(draft: () => LedgerDraft | Promise<LedgerDraft>) {
     const texts: string[] = [];
+    /** The zone each extraction ran in, one per text-path write. */
+    const zones: (string | undefined)[] = [];
     const extractor: LedgerExtractor = {
-      async extract(text) {
+      async extract(text, ...rest) {
         texts.push(text);
+        zones.push(rest[1]);
         return draft();
       },
     };
-    return { texts, extractor };
+    return { texts, zones, extractor };
   }
 
   function makeAiService(draft: () => LedgerDraft | Promise<LedgerDraft>) {
@@ -300,6 +306,16 @@ describe("ledger service one-sentence path", () => {
     );
     return { ...harness, ...fake, calls: fakeRepositoryResult.calls };
   }
+
+  it("the extraction runs in the zone the write named, else the server's", async () => {
+    const { service, zones } = makeAiService(() => ({ question: "哪一笔?" }));
+    await service.write({ text: "早饭 12" }, "America/New_York");
+    await service.write({ text: "午饭 20" });
+    expect(zones).toEqual([
+      "America/New_York",
+      new Intl.DateTimeFormat().resolvedOptions().timeZone,
+    ]);
+  });
 
   it("turns a sentence into one landed batch via the extractor", async () => {
     const { service, texts, calls } = makeAiService(() => ({
@@ -466,7 +482,12 @@ describe("ledger service one-sentence path", () => {
       const repo = fakeRepository({ dayRows, updateResult });
       const fake = fakeExtractor(draft);
       const harness = makeService(repo.repository, fake.extractor);
-      return { ...harness, updates: repo.updates, calls: repo.calls };
+      return {
+        ...harness,
+        updates: repo.updates,
+        calls: repo.calls,
+        days: repo.days,
+      };
     }
 
     it("a unique candidate lands as one update with before/after", async () => {
@@ -584,6 +605,24 @@ describe("ledger service one-sentence path", () => {
       expect(question).toContain("晚饭");
       expect(question).toContain("要改哪一笔");
       expect(updates).toHaveLength(0);
+    });
+
+    it("a date-less match resolves against today in the write's zone", async () => {
+      // 10:00 UTC is still Oct 20 in Shanghai (18:00) but already Oct 21
+      // on Kiritimati (UTC+14): the edit looks at the 21st.
+      const { service, days, advance } = makeEditHarness(
+        dayRows,
+        { before: dayRows[0]!, after: dayRows[0]! },
+        () => ({
+          edit: {
+            match: { note_contains: "午饭" },
+            patch: { amount: 3500 },
+          },
+        }),
+      );
+      advance(2 * 3_600_000);
+      await service.write({ text: "午饭改成35" }, "Pacific/Kiritimati");
+      expect(days).toEqual(["2026-10-21"]);
     });
   });
 });

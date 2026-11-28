@@ -55,7 +55,7 @@ Loaded from the repository-root `.env` when present (copy `.env.example` to star
 | `TOBY_AUTH_SESSION_TTL_HOURS`   | `168`         | Session lifetime (1–8760 hours)                                                                                                                                              |
 | `TOBY_AUTH_SECURE_COOKIE`       | `false`       | `true` appends `Secure` to the session cookie (HTTPS deployments)                                                                                                            |
 
-The MySQL adapter is optional (see the [db adapter decision](../decisions/db-adapter.md)); SQLite is the recommended default and `pnpm run test` never needs a MySQL daemon — MySQL adapter tests run only when `TOBY_TEST_MYSQL_URL` is set. Provider credentials stay out of the repository. Relative dates in one-sentence bookkeeping ("昨天" and the like) resolve against the server's own local time — run the server in the user's timezone.
+The MySQL adapter is optional (see the [db adapter decision](../decisions/db-adapter.md)); SQLite is the recommended default and `pnpm run test` never needs a MySQL daemon — MySQL adapter tests run only when `TOBY_TEST_MYSQL_URL` is set. Provider credentials stay out of the repository. Relative dates in one-sentence bookkeeping ("昨天" and the like) resolve in the time zone the browser sends with each sentence (`time_zone`); a request without one — a script, a stale tab — falls back to the server's own, so run the server in the user's timezone for those.
 
 ## Windows notes
 

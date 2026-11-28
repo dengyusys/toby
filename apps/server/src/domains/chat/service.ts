@@ -57,7 +57,12 @@ const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 100;
 
 export interface ChatService {
-  sendMessage(text: string, clientIp: string): Promise<ChatTurnView>;
+  /** `timeZone` is the zone the client sent; absent, "today" is the server's. */
+  sendMessage(
+    text: string,
+    clientIp: string,
+    timeZone?: string,
+  ): Promise<ChatTurnView>;
   listSessions(): Promise<{ sessions: readonly ChatSessionView[] }>;
   listMessages(
     sessionId: string,
@@ -84,10 +89,11 @@ export function createChatService(deps: {
     intent: ChatIntent,
     sentence: string,
     history: readonly ChatHistoryMessage[],
+    timeZone?: string,
   ): Promise<{ intent: ChatIntent; items: ChatItem[] }> {
     const capability = capabilities.get(intent);
     if (capability !== undefined) {
-      const outcome = await capability.handleWrite(sentence);
+      const outcome = await capability.handleWrite(sentence, timeZone);
       if (outcome.kind === "question") {
         return {
           intent,
@@ -111,7 +117,7 @@ export function createChatService(deps: {
       return { intent: "none", items: [noticeItem(AGENT_FALLBACK)] };
     }
     try {
-      const run = await deps.agent.run(sentence, history);
+      const run = await deps.agent.run(sentence, history, timeZone);
       // Items come from the run's own transcript only — run.messages also
       // carries the replayed history, which must never be re-stored as this
       // turn's output (each polluted turn would then pollute the next).
@@ -136,7 +142,7 @@ export function createChatService(deps: {
   }
 
   return {
-    async sendMessage(text, clientIp) {
+    async sendMessage(text, clientIp, timeZone) {
       const trimmed = text.trim();
       if (trimmed.length === 0) {
         throw new ChatRequestError(
@@ -185,6 +191,7 @@ export function createChatService(deps: {
             classification.intent,
             classification.sentence,
             agentHistoryOf(historyTurnsOf(windowPage.turns), now, windowMs),
+            timeZone,
           );
         } catch (error) {
           if (error instanceof AiError && error.code === "unconfigured") {

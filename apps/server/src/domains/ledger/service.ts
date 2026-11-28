@@ -8,7 +8,7 @@
  */
 
 import type { Clock } from "../../infrastructure/clock.ts";
-import { localDate } from "../../infrastructure/local-date.ts";
+import { localDate, resolveTimeZone } from "../../infrastructure/local-date.ts";
 import {
   AiError,
   AI_UNCONFIGURED_MESSAGE,
@@ -111,8 +111,11 @@ function aiHttpError(error: AiError): LedgerRequestError {
 }
 
 export interface LedgerService {
-  /** `body` has already passed the route's shape schema (schema.ts). */
-  write(body: EntryBody): Promise<LedgerWriteResult>;
+  /**
+   * `body` has already passed the route's shape schema (schema.ts).
+   * `timeZone` is where the writer is; absent, "today" is the server's.
+   */
+  write(body: EntryBody, timeZone?: string): Promise<LedgerWriteResult>;
   deleteTransaction(rawId: string): Promise<LedgerDeleteResult>;
   /**
    * Update one stored transaction. `rawPatch` has passed the route's
@@ -180,8 +183,9 @@ export function createLedgerService(deps: {
   async function resolveEditCandidates(
     match: LedgerEditMatch,
     now: Date,
+    timeZone: string,
   ): Promise<{ date: string; candidates: readonly LedgerTransactionRow[] }> {
-    const date = match.date ?? localDate(now);
+    const date = match.date ?? localDate(now, timeZone);
     const rows = await repository.listDayTransactions(date);
     const candidates = rows.filter(
       (row) =>
@@ -221,8 +225,13 @@ export function createLedgerService(deps: {
   async function writeEdit(
     edit: { match: LedgerEditMatch; patch: LedgerEntryPatch },
     now: Date,
+    timeZone: string,
   ): Promise<LedgerUpdateResult | LedgerFollowUp> {
-    const { date, candidates } = await resolveEditCandidates(edit.match, now);
+    const { date, candidates } = await resolveEditCandidates(
+      edit.match,
+      now,
+      timeZone,
+    );
     const described = describeMatch(edit.match, date);
     if (candidates.length === 0) {
       return {
@@ -242,7 +251,10 @@ export function createLedgerService(deps: {
   }
 
   // The one-sentence branch: extract → (question | entries | edit) → receipt.
-  async function writeFromText(rawText: string): Promise<LedgerWriteResult> {
+  async function writeFromText(
+    rawText: string,
+    requestedTimeZone: string | undefined,
+  ): Promise<LedgerWriteResult> {
     const text = rawText.trim();
     if (!text) {
       throw new LedgerRequestError(
@@ -258,9 +270,12 @@ export function createLedgerService(deps: {
         AI_UNCONFIGURED_MESSAGE,
       );
     }
+    // One zone for the whole write: the "today" the prompt pins and the
+    // "today" a date-less edit falls back to are the same day.
+    const timeZone = resolveTimeZone(requestedTimeZone);
     let draft: LedgerDraft;
     try {
-      draft = await extractor.extract(text, new Date(clock()));
+      draft = await extractor.extract(text, new Date(clock()), timeZone);
     } catch (error) {
       if (error instanceof AiError) {
         throw aiHttpError(error);
@@ -277,7 +292,7 @@ export function createLedgerService(deps: {
     // landed and show their own cards through the tools).
     const memoryReceipts = draft.memory_receipts;
     if ("edit" in draft) {
-      const result = await writeEdit(draft.edit, new Date(clock()));
+      const result = await writeEdit(draft.edit, new Date(clock()), timeZone);
       if ("question" in result || memoryReceipts === undefined) {
         return result;
       }
@@ -290,9 +305,9 @@ export function createLedgerService(deps: {
   }
 
   return {
-    async write(body) {
+    async write(body, timeZone) {
       if ("text" in body) {
-        return writeFromText(body.text);
+        return writeFromText(body.text, timeZone);
       }
       return writeBatch([normalizeEntry(body.entry)]);
     },

@@ -6,7 +6,7 @@
  * clarifying question — the tool schemas are the model-facing contract,
  * the shared draft and patch schemas are the shape gate, and the
  * normalize* functions stay the trust boundary before any draft is
- * captured. The prompt pins today's local date for relative-date
+ * captured. The prompt pins today in the client's time zone for relative-date
  * resolution and defaults a date-less sentence to today; genuinely
  * uncertain fields surface as a question instead of a guess. With the
  * memory port wired, the conversational memory tools ride along (silent
@@ -21,7 +21,10 @@ import {
   type TobyTool,
 } from "../../infrastructure/model/agent.ts";
 import { AiError } from "../../infrastructure/model/errors.ts";
-import { localDayLabel } from "../../infrastructure/local-date.ts";
+import {
+  localDayLabel,
+  resolveTimeZone,
+} from "../../infrastructure/local-date.ts";
 import {
   LEDGER_EDIT_TOOL_SCHEMA,
   LEDGER_ENTRIES_TOOL_SCHEMA,
@@ -70,7 +73,8 @@ export interface LedgerMemoryPort {
 
 /** Runs one extraction against a prepared agent. Domains inject a factory. */
 export interface LedgerExtractor {
-  extract(text: string, now: Date): Promise<LedgerDraft>;
+  /** `timeZone` is where the writer is; absent, "today" is the server's. */
+  extract(text: string, now: Date, timeZone?: string): Promise<LedgerDraft>;
 }
 
 /**
@@ -116,7 +120,7 @@ export function createLedgerExtractor(deps: {
   const { agentFactory } = deps;
   const memory = deps.memory;
   return {
-    async extract(text, now) {
+    async extract(text, now, timeZone) {
       // The draft lands here only through the tools below; whatever the
       // model submits passes normalizeEntries first — untrusted input,
       // same gate as the structured path. A rejection inside execute is
@@ -227,7 +231,7 @@ export function createLedgerExtractor(deps: {
           "用户纠正或修改已记的账(如「不对,是打车」「把昨天午饭那笔改成 35」)时,提交的是修改而不是新条目;说不清要改哪笔就先追问。",
           "除工具调用外不要输出正文。",
         ],
-        context: [`今天是 ${localDayLabel(now)}。`],
+        context: [`今天是 ${localDayLabel(now, resolveTimeZone(timeZone))}。`],
         ...(memorySection === undefined ? {} : { memory: memorySection }),
         tools: [submitEntries, submitEdit, askUser, ...(memory?.tools ?? [])],
         policy: {

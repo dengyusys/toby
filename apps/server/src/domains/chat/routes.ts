@@ -7,13 +7,20 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { parseBody } from "../../infrastructure/http/body-schema.ts";
+import { TIME_ZONE_SCHEMA } from "../../infrastructure/local-date.ts";
 import type { ChatService } from "./service.ts";
 
 export interface ChatRoutesOptions {
   service: ChatService;
 }
 
-const SEND_BODY_SCHEMA = z.object({ text: z.string() }).strict();
+/** One send: the sentence, plus where the writer is — their browser's zone. */
+const SEND_BODY_SCHEMA = z
+  .object({
+    text: z.string(),
+    time_zone: TIME_ZONE_SCHEMA.optional(),
+  })
+  .strict();
 export type SendBody = z.infer<typeof SEND_BODY_SCHEMA>;
 
 interface SessionParams {
@@ -32,9 +39,10 @@ export const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (
   app,
   { service },
 ) => {
-  app.post<{ Body: SendBody }>("/api/chat/messages", (request) =>
-    service.sendMessage(parseBody(SEND_BODY_SCHEMA, request).text, request.ip),
-  );
+  app.post<{ Body: SendBody }>("/api/chat/messages", (request) => {
+    const { text, time_zone } = parseBody(SEND_BODY_SCHEMA, request);
+    return service.sendMessage(text, request.ip, time_zone);
+  });
 
   app.get("/api/chat/sessions", () => service.listSessions());
 

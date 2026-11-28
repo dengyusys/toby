@@ -130,8 +130,10 @@ export interface ChatAgentRun {
 
 /** The `none`-intent agent: bounded rounds, real data. */
 export interface ChatAgent {
+  /** `timeZone` is the zone the client sent; absent, "today" is the server's. */
   run(
     prompt: string,
     history: readonly ChatHistoryMessage[],
+    timeZone?: string,
   ): Promise<ChatAgentRun>;
 }

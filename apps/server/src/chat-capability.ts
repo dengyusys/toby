@@ -43,9 +43,10 @@ export interface ChatDomainCapability {
   readonly intentDescription: string;
   /**
    * The write path. Calls the domain's service — one validated,
-   * transactional write.
+   * transactional write. `timeZone` is the zone the client sent with the
+   * sentence, absent when it sent none.
    */
-  handleWrite(sentence: string): Promise<ChatWriteOutcome>;
+  handleWrite(sentence: string, timeZone?: string): Promise<ChatWriteOutcome>;
   /**
    * The none-agent's tools; the shared factory gates each by its safety
    * kind (read-only and write-intent both allowed for chat).

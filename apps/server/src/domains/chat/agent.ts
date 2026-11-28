@@ -10,7 +10,10 @@
  */
 
 import type { TobyAgentFactory } from "../../infrastructure/model/agent.ts";
-import { localDayLabel } from "../../infrastructure/local-date.ts";
+import {
+  localDayLabel,
+  resolveTimeZone,
+} from "../../infrastructure/local-date.ts";
 import type { Clock } from "../../infrastructure/clock.ts";
 import type { ChatDomainCapability } from "../../chat-capability.ts";
 import type { ChatAgent, ChatMemoryPort } from "./types.ts";
@@ -38,9 +41,10 @@ export function createChatAgent(deps: ChatAgentDeps): ChatAgent {
   ]);
 
   return {
-    async run(prompt, history) {
+    async run(prompt, history, timeZone) {
       const now = new Date(clock());
-      const context = [`今天是 ${localDayLabel(now)}。`];
+      const day = localDayLabel(now, resolveTimeZone(timeZone));
+      const context = [`今天是 ${day}。`];
       // The window spans hours; without the gap stated, a reply after a
       // long pause reads as one continuous sitting.
       const last = history.at(-1);

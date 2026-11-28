@@ -39,9 +39,10 @@ expose no switcher.
 
 Each send settles exactly one turn. In order:
 
-1. **Accept** — the envelope is `{ text }`; blank text is rejected
-   (`400 INVALID_TEXT`) and the sender is rate-limited (`429 RATE_LIMITED`). A
-   rejected send stores nothing.
+1. **Accept** — the envelope is `{ text, time_zone? }`: the sentence and,
+   from the webs, the browser's IANA zone, so "today" resolves where the
+   user is. Blank text is rejected (`400 INVALID_TEXT`) and the sender is
+   rate-limited (`429 RATE_LIMITED`). A rejected send stores nothing.
 2. **Persist first** — once accepted, the user's message is stored before any
    AI call. A later AI failure cannot lose it.
 3. **Decide** — the sentence is classified into one intent plus a
@@ -147,7 +148,8 @@ read-only agent path, never an error.
   prompt carries the conventions the same way.
 - Bounded: at most 6 turns and 2,000 reply tokens per run; a run that cannot
   settle settles as a notice.
-- Context: today's date and weekday in the server's local timezone; a text-only
+- Context: today's date and weekday in the zone the send carried
+  (`time_zone`), else the server's own; a text-only
   replay of every settled exchange inside the conversation window — the
   settings page's window (`TOBY_CHAT_HISTORY_HOURS` env, then 24 hours, as
   the fallback) back from now; the user's words plus Toby's final text —
@@ -214,14 +216,14 @@ standard body. An access token calls every route here
 | `GET /api/chat/sessions`              | Sessions, newest first, with derived excerpts                         |
 | `GET /api/chat/sessions/:id/messages` | The session's newest turns (`limit`)                                  |
 
-| Failure                  | Answer                                      |
-| ------------------------ | ------------------------------------------- |
-| body not `{ text }`      | `400 BAD_REQUEST`                           |
-| empty or blank text      | `400 INVALID_TEXT`                          |
-| `limit` outside 1–100    | `400 INVALID_TEXT`                          |
-| rate limit exceeded      | `429 RATE_LIMITED`                          |
-| unknown session          | `404 SESSION_NOT_FOUND`                     |
-| AI unavailable or failed | a `notice` item; the request still succeeds |
+| Failure                                                     | Answer                                      |
+| ----------------------------------------------------------- | ------------------------------------------- |
+| body not `{ text, time_zone? }`, or an unusable `time_zone` | `400 BAD_REQUEST`                           |
+| empty or blank text                                         | `400 INVALID_TEXT`                          |
+| `limit` outside 1–100                                       | `400 INVALID_TEXT`                          |
+| rate limit exceeded                                         | `429 RATE_LIMITED`                          |
+| unknown session                                             | `404 SESSION_NOT_FOUND`                     |
+| AI unavailable or failed                                    | a `notice` item; the request still succeeds |
 
 ## Invariants
 

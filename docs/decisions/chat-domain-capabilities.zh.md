@@ -49,8 +49,9 @@ export interface ChatDomainCapability {
   readonly label: string; // "记账"
   /** 分类器 prompt 的一行,逐字使用:"- ledger(记账):记一笔钱、查账、问花了多少。" */
   readonly intentDescription: string;
-  /** 写路径。调用域的 service——一次经过校验的事务写入。 */
-  handleWrite(sentence: string): Promise<ChatWriteOutcome>;
+  /** 写路径。调用域的 service——一次经过校验的事务写入。
+   *  `timeZone` 是客户端随句子报上的时区,没报则为空。 */
+  handleWrite(sentence: string, timeZone?: string): Promise<ChatWriteOutcome>;
   /** none-agent 的只读工具;经共享工厂保持种类门控。 */
   readonly tools: readonly ToolDefinition[];
   /** toolCall → 预览面板 target("ledger:2026-11");undefined = 无 chip。 */
@@ -73,6 +74,11 @@ export interface ChatDomainCapability {
 - **`handleWrite` 不得用 throw 表达域结果。** 拒绝(校验失败、
   意外失败)沿现有 catch 路径落为通用"查询出了点问题"notice——
   把现有语义写死下来。
+- **时区归客户端,逐请求上报。** 服务器自己的时钟说明不了用户在哪,
+  而没写日期的账要落在「今天」。每次发送带上浏览器的 IANA 时区
+  (`time_zone`);不可用的名字在路由即被拒,没带时区则按服务器自己的时区
+  解析「今天」。否决了钉死部署时区——对其他地区是错的;也否决了设置项
+  ——那是让用户去配置浏览器本来就知道的东西。
 
 ## 各触点的前后对照
 
